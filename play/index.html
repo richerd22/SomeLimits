@@ -629,17 +629,52 @@ sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
 scene.add(sun);
 scene.add(sun.target);
 
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(600, 600),
-  new THREE.MeshStandardMaterial({color: 0x272d33, roughness: 1})
-);
-ground.rotation.x = -Math.PI / 2; ground.position.y = -0.02;
-ground.receiveShadow = true;
-scene.add(ground);
-const grid = new THREE.GridHelper(600, 120, 0x39424c, 0x22282e);
-grid.position.y = 0.01;
-grid.material.transparent = true; grid.material.opacity = 0.55;
-scene.add(grid);
+/* terrain: one gentle code-generated heightfield (sums of sines, no
+   assets, no textures), flattened to a plateau under the track so
+   the circuit always sits on honest ground. supports and trees read
+   the same height function, so everything meets the actual dirt.
+   the flat table the game shipped on is gone; fog does the rest. */
+function terrainNoise(x, z) {
+  return 5.2 * Math.sin(x * 0.021 + 1.7) * Math.cos(z * 0.017 - 0.6)
+       + 2.8 * Math.sin(x * 0.047 - 2.1) * Math.sin(z * 0.041 + 1.2)
+       + 1.2 * Math.sin((x + z) * 0.093 + 0.4);
+}
+function terrainHeightAt(x, z) {
+  // distance to the node polyline (plan view): hills fade to zero
+  // across a 26m apron around the track, full height by 58m out
+  let best = 1e18;
+  for (let i = 0; i < nodes.length; i++) {
+    const a = nodes[i], b = nodes[(i + 1) % nodes.length];
+    const abx = b.x - a.x, abz = b.z - a.z;
+    const len2 = abx * abx + abz * abz || 1;
+    const t = Math.max(0, Math.min(1, ((x - a.x) * abx + (z - a.z) * abz) / len2));
+    const dx = x - (a.x + abx * t), dz = z - (a.z + abz * t);
+    const d = dx * dx + dz * dz;
+    if (d < best) best = d;
+  }
+  return terrainNoise(x, z) * THREE.MathUtils.smoothstep(Math.sqrt(best), 26, 58) - 0.02;
+}
+const terrainGeo = new THREE.PlaneGeometry(600, 600, 108, 108);
+terrainGeo.rotateX(-Math.PI / 2);
+const terrainColors = new THREE.BufferAttribute(new Float32Array(terrainGeo.attributes.position.count * 3), 3);
+terrainGeo.setAttribute('color', terrainColors);
+const terrain = new THREE.Mesh(terrainGeo, new THREE.MeshStandardMaterial({roughness: 1, vertexColors: true}));
+terrain.receiveShadow = true;
+scene.add(terrain);
+const _tcLow = new THREE.Color(0x242a30), _tcMid = new THREE.Color(0x2e3431), _tcHigh = new THREE.Color(0x454a3b), _tc = new THREE.Color();
+function updateTerrain() {
+  const posA = terrainGeo.attributes.position, arr = terrainColors.array;
+  for (let i = 0; i < posA.count; i++) {
+    const x = posA.getX(i), z = posA.getZ(i);
+    const h = terrainHeightAt(x, z);
+    posA.setY(i, h);
+    const t = THREE.MathUtils.clamp((h + 2.5) / 11, 0, 1);
+    _tc.copy(_tcLow).lerp(_tcMid, Math.min(1, t * 1.7)).lerp(_tcHigh, Math.max(0, t - 0.5) * 1.6);
+    arr[i * 3] = _tc.r; arr[i * 3 + 1] = _tc.g; arr[i * 3 + 2] = _tc.b;
+  }
+  posA.needsUpdate = true; terrainColors.needsUpdate = true;
+  terrainGeo.computeVertexNormals();
+}
 
 { // cheap pine-cone scenery for scale (code-rendered, like everything here)
   const geo = new THREE.ConeGeometry(2.2, 7, 6);
@@ -651,8 +686,10 @@ scene.add(grid);
   for (let i = 0; i < 90; i++) {
     const x = (rnd() - 0.5) * 340, z = (rnd() - 0.5) * 340;
     if (Math.abs(x) < 70 && Math.abs(z) < 75) continue;
-    const t = new THREE.Mesh(trunk, tmat); t.position.set(x, 1, z); t.castShadow = true; scene.add(t);
-    const c = new THREE.Mesh(geo, mat); c.position.set(x, 5.4, z); c.scale.setScalar(0.8 + rnd() * 0.9); c.castShadow = true; scene.add(c);
+    const gy = terrainHeightAt(x, z);   // trees stand on the terrain, not the table
+    const t = new THREE.Mesh(trunk, tmat); t.position.set(x, gy + 1, z); t.castShadow = true; scene.add(t);
+    const sc = 0.8 + rnd() * 0.9;
+    const c = new THREE.Mesh(geo, mat); c.position.set(x, gy + 2 + 3.4 * sc, z); c.scale.setScalar(sc); c.castShadow = true; scene.add(c);
   }
 }
 
@@ -756,7 +793,7 @@ function buildTrack() {
       acc += sm.pos.distanceTo(prev.pos); prev = sm;
       if (acc >= (sm.lift ? 7.5 : 11)) {
         acc = 0;
-        if (sm.pos.y > 2.2) bents.push(sm);
+        if (sm.pos.y > 2.2) bents.push({sm, gy: terrainHeightAt(sm.pos.x, sm.pos.z)});
       }
     }
   }
@@ -768,16 +805,17 @@ function buildTrack() {
   const footGeo = new THREE.BoxGeometry(1, 1, 1);
   const foots = new THREE.InstancedMesh(footGeo, concMat, MAXB); foots.receiveShadow = true;
   let nb = 0;
-  for (const sm of bents) {
+  for (const bent of bents) {
     if (nb >= MAXB) break;
-    const h = sm.pos.y, r = Math.min(0.30 + h * 0.008, 0.62);
-    m4.compose(new THREE.Vector3(sm.pos.x, 0, sm.pos.z), new THREE.Quaternion(), new THREE.Vector3(r, Math.max(0.5, h - 0.55), r));
+    const sm = bent.sm, h = sm.pos.y, r = Math.min(0.30 + h * 0.008, 0.62);
+    // column starts buried 0.3 into the actual ground at this spot
+    m4.compose(new THREE.Vector3(sm.pos.x, bent.gy - 0.3, sm.pos.z), new THREE.Quaternion(), new THREE.Vector3(r, Math.max(0.5, h - 0.55 - (bent.gy - 0.3)), r));
     cols.setMatrixAt(nb, m4);
     const capC = sm.pos.clone().addScaledVector(sm.up, -0.38);
     q.setFromRotationMatrix(new THREE.Matrix4().lookAt(new THREE.Vector3(), sm.tan, sm.up));
     m4.compose(capC, q, new THREE.Vector3(2.3, 0.34, 0.9));
     capBeams.setMatrixAt(nb, m4);
-    m4.compose(new THREE.Vector3(sm.pos.x, 0.15, sm.pos.z), new THREE.Quaternion(), new THREE.Vector3(r * 4.6, 0.3, r * 4.6));
+    m4.compose(new THREE.Vector3(sm.pos.x, bent.gy + 0.13, sm.pos.z), new THREE.Quaternion(), new THREE.Vector3(r * 4.6, 0.3, r * 4.6));
     foots.setMatrixAt(nb, m4);
     nb++;
   }
@@ -788,10 +826,11 @@ function buildTrack() {
   let nx = 0;
   const upAxis = new THREE.Vector3(0, 1, 0), bA = new THREE.Vector3(), bB = new THREE.Vector3(), bDir = new THREE.Vector3();
   for (let i = 0; i + 1 < bents.length && nx < MAXB * 2 - 1; i++) {
-    const A = bents[i].pos, B = bents[i + 1].pos;
-    if (A.distanceTo(B) > 17 || Math.min(A.y, B.y) < 4) continue;
+    const A = bents[i], B = bents[i + 1];
+    if (A.sm.pos.distanceTo(B.sm.pos) > 17 || Math.min(A.sm.pos.y, B.sm.pos.y) < 4) continue;
     for (const pair of [[0.12, 0.55], [0.55, 0.12]]) {
-      bA.set(A.x, A.y * pair[0] + 0.3, A.z); bB.set(B.x, B.y * pair[1] + 0.3, B.z);
+      bA.set(A.sm.pos.x, A.gy + (A.sm.pos.y - A.gy) * pair[0] + 0.15, A.sm.pos.z);
+      bB.set(B.sm.pos.x, B.gy + (B.sm.pos.y - B.gy) * pair[1] + 0.15, B.sm.pos.z);
       bDir.subVectors(bB, bA);
       const len = bDir.length();
       q.setFromUnitVectors(upAxis, bDir.normalize());
@@ -831,6 +870,11 @@ function buildTrack() {
   });
   handleGroup.visible = (mode === 'edit');
   scene.add(handleGroup);
+  /* the terrain apron follows the track - but not mid-drag: the mesh
+     rebuild is the one heavy pass here, and the plateau under the
+     spline barely moves while a node is in your hand. it settles on
+     release, like everything else. */
+  if (dragging < 0 && banking < 0) updateTerrain();
   syncPanel();
 }
 
