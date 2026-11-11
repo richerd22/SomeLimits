@@ -1156,10 +1156,30 @@ $('btnNew').addEventListener('click', newDocument);
 /* ---------------- dragging + insert ---------------- */
 const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
 let dragging = -1, dragMoved = false;
+let downAt = null;       // press spot with no node under it - a ground-click candidate
+let lastGroundAdd = 0;   // so the second half of a double-click doesn't add twice
 const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 function castAt(e) {
   ptr.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   ray.setFromCamera(ptr, camera);
+}
+/* click empty ground, get a point there - the most relaxed gesture
+   there is. the nearest stretch of track adopts it, at the spline's
+   own height and bank at that spot, so the circuit stays complete
+   and rideable the moment it lands. drag it after. */
+function addNodeAtGround(pt) {
+  let best = 0, bestD = 1e18;
+  for (let i = 0; i < SAMPLES; i++) {
+    const sm = track.samples[i];
+    const d = (sm.pos.x - pt.x) * (sm.pos.x - pt.x) + (sm.pos.z - pt.z) * (sm.pos.z - pt.z);
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  const sm = track.samples[best];
+  const at = Math.floor(best / SAMPLES * nodes.length) + 1;
+  nodes.splice(at, 0, {x: Math.round(pt.x * 10) / 10, z: Math.round(pt.z * 10) / 10,
+                       h: Math.round(sm.pos.y * 10) / 10, bank: Math.round(sm.bankDeg)});
+  selected = at; buildTrack(); commit();
+  toast('node added where you clicked. drag it somewhere interesting.');
 }
 renderer.domElement.addEventListener('pointerdown', e => {
   if (mode !== 'edit') return;
@@ -1172,6 +1192,9 @@ renderer.domElement.addEventListener('pointerdown', e => {
     dragPlane.constant = -nodes[i].h;
     buildTrack();
     renderer.domElement.setPointerCapture(e.pointerId);
+    downAt = null;
+  } else if (e.button === 0) {
+    downAt = {x: e.clientX, y: e.clientY};
   }
 });
 renderer.domElement.addEventListener('pointermove', e => {
@@ -1185,9 +1208,32 @@ renderer.domElement.addEventListener('pointermove', e => {
     buildTrack();
   }
 });
-renderer.domElement.addEventListener('pointerup', () => {
+renderer.domElement.addEventListener('pointerup', e => {
   if (dragging >= 0 && dragMoved) { smoothAround(dragging); buildTrack(); commit(); }
   dragging = -1; controls.enabled = mode === 'edit';
+  /* a press that started on empty canvas and barely moved was a
+     click, not an orbit. if the click missed the track itself it
+     was aiming at the ground: drop a point there. clicks ON the
+     track stay double-click-insert's job, and orbit drags (which
+     move) never add anything. */
+  if (mode === 'edit' && downAt && e.button === 0 &&
+      Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) < 6) {
+    castAt(e);
+    const onTrack = hitTube && ray.intersectObject(hitTube).length > 0;
+    if (!onTrack && ray.ray.direction.y < -0.04) {
+      dragPlane.constant = 0;
+      const out = new THREE.Vector3();
+      if (ray.ray.intersectPlane(dragPlane, out) &&
+          Math.abs(out.x) <= 170 && Math.abs(out.z) <= 170 &&
+          performance.now() - lastGroundAdd > 350) {
+        lastGroundAdd = performance.now();
+        out.x = THREE.MathUtils.clamp(out.x, -150, 150);
+        out.z = THREE.MathUtils.clamp(out.z, -150, 150);
+        addNodeAtGround(out);
+      }
+    }
+  }
+  downAt = null;
 });
 renderer.domElement.addEventListener('dblclick', e => {
   if (mode !== 'edit' || !hitTube) return;
