@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <title>SomeLimits - a coaster sim with some limits</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
 <style>
   html,body{margin:0;height:100%;background:#0b0e13;color:#dfe6ee;font-family:ui-monospace,Menlo,Consolas,monospace;overflow:hidden}
   #app{position:fixed;inset:0}
@@ -79,11 +80,16 @@
   <label>coaster name</label>
   <input type="text" id="inpName" maxlength="60">
   <div class="row" style="margin-top:6px">
-    <button id="btnNew">new</button>
+    <button id="btnNew" class="primary" style="flex:1">+ new coaster</button>
+  </div>
+  <div class="sub" style="margin-top:4px">fresh complete circuit, rideable the second it lands. replaces the coaster on screen and overwrites its autosave - save to library first if you want to keep this one.</div>
+  <div class="row" style="margin-top:6px">
     <button id="btnSaveLib">save to library</button>
     <button id="btnUndo">undo</button>
     <button id="btnRedo">redo</button>
+    <button id="btnFrame">frame track</button>
   </div>
+  <div class="sub" id="undoNote" style="margin-top:4px">nothing to undo - this is the coaster you started with.</div>
   <hr>
   <div class="sub">NODE <span id="nodeIdx" class="val">-</span></div>
   <label>height <span id="hVal" class="val"></span></label>
@@ -119,7 +125,7 @@
   <div class="sub">
     <b style="color:#dfe6ee">drag</b> a lime node to move it. <b style="color:#dfe6ee">double-click</b> the track to insert a node there.
     releasing a drag runs a gentle smoothing pass - the kink fix the old community did by hand, built in.
-    climbs of 8m+ get a lift chain automatically. <b style="color:#dfe6ee">keys:</b> R ride, E edit, C camera,
+    climbs of 8m+ get a lift chain automatically. <b style="color:#dfe6ee">keys:</b> R ride, E edit, C camera, F frame track,
     N node, Del delete, ctrl+Z/Y undo/redo, ctrl+S save, H manual, L library.
     <b style="color:#dfe6ee">orbit</b> left-drag empty space, <b style="color:#dfe6ee">pan</b> right-drag, <b style="color:#dfe6ee">zoom</b> wheel.
   </div>
@@ -167,9 +173,11 @@
     <p>build a full coaster - station, lift, drops, banked turns, the whole circuit -
     then ride it. place points, drag things, the track stays smooth because it's one
     spline, not pieces. no accounts, no keys, no tutorial. like it used to feel.</p>
-    <button class="bigbtn primary" id="btnStartBuild">-&gt; start building</button>
+    <button class="bigbtn primary" id="btnStartNew">-&gt; + new coaster</button>
+    <button class="bigbtn" id="btnStartBuild">-&gt; continue: classic circuit</button>
     <button class="bigbtn" id="btnStartRide">-&gt; ride the current coaster</button>
     <button class="bigbtn" id="btnStartLibrary">-&gt; my saved coasters</button>
+    <p class="sub" style="margin-top:10px">stuck on a coaster you don't want? <b style="color:#dfe6ee">new coaster</b> replaces it on the spot with a fresh, complete, rideable circuit - and wipes its undo history, so undo can't drag the old one back. "continue" just opens whatever is autosaved.</p>
     <div class="row" style="margin-top:8px">
       <span class="sub" style="margin-right:4px">start from a preset:</span>
       <button data-preset="classic">classic circuit</button>
@@ -808,9 +816,22 @@ function undo() {
   else toast('nothing to undo - this is the coaster you started with.');
 }
 function redo() { if (hIndex < history.length - 1) { hIndex++; applyState(history[hIndex]); syncHistoryButtons(); } }
+/* the title screen's second button names what "continue" reopens,
+   so nobody has to guess which coaster is waiting behind it. */
+function refreshContinue() {
+  const b = $('btnStartBuild');
+  if (b) b.textContent = '-> continue: ' + trackName;
+}
 function syncHistoryButtons() {
   $('btnUndo').disabled = hIndex <= 0;
   $('btnRedo').disabled = hIndex >= history.length - 1;
+  /* a standing line under undo/redo that always says where the
+     floor is - ported from the published page's repair, where a
+     toast alone wasn't loud enough. */
+  const un = $('undoNote');
+  if (un) un.textContent = hIndex > 0
+    ? hIndex + (hIndex === 1 ? ' step' : ' steps') + ' back - undo stays inside this coaster.'
+    : 'nothing to undo - this is the coaster you started with.';
 }
 function autosave() {
   try { localStorage.setItem('somelimits-autosave-v1', JSON.stringify({name: trackName, nodes})); } catch {}
@@ -820,6 +841,7 @@ function syncPanel() {
   const n = nodes[selected];
   if (!n) return;
   els.name.value = trackName;
+  refreshContinue();
   els.idx.textContent = '#' + (selected + 1) + ' of ' + nodes.length;
   els.h.value = n.h; els.b.value = n.bank;
   els.hVal.textContent = n.h.toFixed(1) + ' m';
@@ -846,7 +868,7 @@ els.station.addEventListener('change', () => {
   nodes.forEach(n => n.station = false);
   nodes[selected].station = els.station.checked; buildTrack(); commit();
 });
-els.name.addEventListener('change', () => { trackName = els.name.value.trim() || 'untitled coaster'; commit(); });
+els.name.addEventListener('change', () => { trackName = els.name.value.trim() || 'untitled coaster'; refreshContinue(); commit(); });
 
 function addNode() {
   const a = nodes[selected], b = nodes[(selected + 1) % nodes.length];
@@ -865,6 +887,7 @@ $('btnAdd').addEventListener('click', addNode);
 $('btnDel').addEventListener('click', deleteNode);
 $('btnUndo').addEventListener('click', undo);
 $('btnRedo').addEventListener('click', redo);
+$('btnFrame').addEventListener('click', frameTrack);
 
 /* gentle neighbourhood smoothing - the AHG kink fix, built in.
    runs when a drag ends: the moved node and its neighbours ease
@@ -1006,7 +1029,7 @@ function renderLib() {
     div.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
       const act = b.dataset.act;
       if (act === 'open') {
-        trackName = entry.name; nodes = structuredClone(entry.nodes); selected = 0;
+        trackName = entry.name; nodes = structuredClone(entry.nodes); selected = Math.max(0, nodes.findIndex(n => n.station));
         setMode('edit'); buildTrack(); resetHistory(); frameTrack();
         $('libraryScreen').classList.remove('open');
         toast('loaded "' + entry.name + '".');
@@ -1063,7 +1086,7 @@ $('fileImp').addEventListener('change', e => {
     let parsed = null;
     try { parsed = f.name.toLowerCase().endsWith('.csv') ? (parseCSV(t) && {name: f.name.replace(/\.csv$/i, ''), nodes: parseCSV(t)}) : parseCoasterJSON(t); } catch {}
     if (parsed) {
-      trackName = parsed.name; nodes = parsed.nodes; selected = 0;
+      trackName = parsed.name; nodes = parsed.nodes; selected = Math.max(0, nodes.findIndex(n => n.station));
       buildTrack(); resetHistory(); frameTrack(); toast('imported "' + trackName + '".');
     } else toast('that file did not parse as a coaster. some limits are file formats.');
     e.target.value = '';
@@ -1071,6 +1094,7 @@ $('fileImp').addEventListener('change', e => {
 });
 
 /* ---------------- overlays + keys ---------------- */
+$('btnStartNew').addEventListener('click', newDocument);
 $('btnStartBuild').addEventListener('click', () => $('titleScreen').classList.remove('open'));
 $('btnStartRide').addEventListener('click', () => { $('titleScreen').classList.remove('open'); startRide(); });
 $('btnManual').addEventListener('click', () => $('manualScreen').classList.add('open'));
@@ -1091,6 +1115,7 @@ addEventListener('keydown', e => {
   }
   if (mode === 'edit') {
     if (e.key === 'r' || e.key === 'R') startRide();
+    if (e.key === 'f' || e.key === 'F') frameTrack();
     if (e.key === 'n' || e.key === 'N') addNode();
     if (e.key === 'Delete' || e.key === 'Backspace') deleteNode();
     if (e.key === 'l' || e.key === 'L') { renderLib(); $('libraryScreen').classList.add('open'); }
@@ -1112,6 +1137,7 @@ addEventListener('keydown', e => {
       if (auto && sanitizeNodes(auto.nodes)) { trackName = String(auto.name || 'untitled coaster'); nodes = sanitizeNodes(auto.nodes); }
     } catch {}
   }
+  selected = Math.max(0, nodes.findIndex(n => n.station));
   buildTrack();
   commit();
   frameTrack();
