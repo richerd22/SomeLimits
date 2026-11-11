@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="360" viewBox="0 0 900 360">
+  <!-- SomeLimits logo v1 - hand-drawn vector, a loving knockoff.
+       Homage rules: evokes the dead sim's energy (steel track loop,
+       heavy wordmark) with an original composition, flat colors,
+       no traced artwork, no copied letterforms. -->
+  <rect width="900" height="360" fill="#f4f1e8"/>
+  <!-- the loop: two-rail track, drawn as a teardrop circuit -->
+  <g fill="none" stroke="#2b5aa6" stroke-linecap="round">
+    <path d="M150 292 C 96 250, 84 176, 108 118 C 126 74, 158 52, 178 52
+             C 198 52, 224 78, 236 122 C 252 180, 238 252, 190 292"
+          stroke-width="13"/>
+    <path d="M150 292 C 110 254, 100 188, 120 134 C 134 96, 160 76, 178 76
+             C 196 76, 216 98, 226 136 C 240 186, 228 250, 190 292"
+          stroke-width="5" opacity="0.55"/>
+  </g>
+  <!-- cross ties -->
+  <g stroke="#2b5aa6" stroke-width="5" opacity="0.8">
+    <line x1="168" y1="60" x2="188" y2="60"/>
+    <line x1="128" y1="112" x2="146" y2="124"/>
+    <line x1="238" y1="150" x2="218" y2="146"/>
+    <line x1="104" y1="196" x2="124" y2="198"/>
+    <line x1="238" y1="226" x2="218" y2="222"/>
+    <line x1="128" y1="262" x2="146" y2="252"/>
+    <line x1="212" y1="266" x2="198" y2="254"/>
+  </g>
+  <!-- ground line the loop lands on -->
+  <line x1="60" y1="296" x2="290" y2="296" stroke="#1c2733" stroke-width="7" stroke-linecap="round"/>
+  <!-- the train: three cars cresting the top, upside down, as it should be -->
+  <g fill="#e8720c">
+    <rect x="146" y="34" width="26" height="13" rx="4"/>
+    <rect x="176" y="30" width="26" height="13" rx="4"/>
+    <rect x="206" y="38" width="26" height="13" rx="4" transform="rotate(18 219 44)"/>
+  </g>
+  <!-- wordmark: real letterforms, set clean, heavy weight, tight tracking -->
+  <text x="322" y="186" font-family="'Arial Black', Arial, Helvetica, sans-serif"
+        font-size="92" font-weight="900" letter-spacing="-2">
+    <tspan fill="#5b6b7a">Some</tspan><tspan fill="#1c2733">Limits</tspan>
+  </text>
+  <!-- tagline -->
+  <text x="326" y="238" font-family="'Courier New', Courier, monospace"
+        font-size="25" letter-spacing="3" fill="#1c2733">A COASTER SIM WITH SOME LIMITS</text>
+  <text x="326" y="272" font-family="'Courier New', Courier, monospace"
+        font-size="16" letter-spacing="2" fill="#5b6b7a">THERE ALWAYS WERE. WE'RE OWNING IT.</text>
+</svg>
