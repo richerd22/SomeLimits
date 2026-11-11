@@ -1,0 +1,1088 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SomeLimits - a coaster sim with some limits</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html,body{margin:0;height:100%;background:#0b0e13;color:#dfe6ee;font-family:ui-monospace,Menlo,Consolas,monospace;overflow:hidden}
+  #app{position:fixed;inset:0}
+  canvas{display:block}
+  .panel{position:absolute;background:rgba(10,14,20,.9);border:1px solid #2b3644;border-radius:10px;padding:10px 12px;backdrop-filter:blur(4px);z-index:5}
+  button{background:#1a2330;color:#dfe6ee;border:1px solid #33445a;border-radius:6px;padding:5px 8px;margin:2px 2px 2px 0;cursor:pointer;font:inherit;font-size:12px}
+  button:hover{border-color:#C6FF00;color:#C6FF00}
+  button.primary{background:#C6FF00;color:#101408;border-color:#C6FF00;font-weight:700}
+  button.warn:hover{border-color:#ff7a7a;color:#ff7a7a}
+  button:disabled{opacity:.35;cursor:default}
+  button:disabled:hover{border-color:#33445a;color:#dfe6ee}
+  input[type=text]{background:#0d1219;color:#dfe6ee;border:1px solid #33445a;border-radius:6px;padding:5px 7px;font:inherit;font-size:12px;width:100%;box-sizing:border-box}
+  input[type=range]{width:100%}
+  label{display:block;font-size:11px;color:#8fa3b8;margin:8px 0 2px}
+  .val{color:#dfe6ee}
+  .sub{font-size:11px;color:#8fa3b8;line-height:1.45}
+  .row{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+  hr{border:none;border-top:1px solid #2b3644;margin:10px 0}
+  .chk{display:flex;align-items:center;gap:6px;font-size:12px;color:#dfe6ee;margin-top:6px}
+  .chk input{accent-color:#C6FF00}
+  #ui{top:12px;left:12px;width:252px;max-height:calc(100% - 24px);overflow-y:auto}
+  #ui h1{font-size:15px;margin:0 0 2px;color:#C6FF00;letter-spacing:.5px}
+  #hud{bottom:12px;left:12px;font-size:13px;min-width:220px}
+  #hud b{color:#C6FF00}
+  #hud .big{font-size:22px}
+  #mode{top:12px;right:12px;font-size:12px;color:#8fa3b8}
+  #mode b{color:#C6FF00}
+  #toast{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);background:#141c26;border:1px solid #C6FF00;color:#dfe6ee;border-radius:8px;padding:8px 14px;font-size:12px;z-index:60;display:none}
+  .overlay{position:fixed;inset:0;background:rgba(5,8,12,.82);z-index:50;display:none;align-items:center;justify-content:center;padding:16px;box-sizing:border-box}
+  .overlay.open{display:flex}
+  .card{background:#10161f;border:1px solid #2b3644;border-radius:14px;padding:22px;max-width:640px;width:100%;max-height:calc(100% - 32px);overflow-y:auto;box-sizing:border-box}
+  .card h2{margin:0 0 6px;color:#C6FF00;font-size:18px}
+  .card h3{margin:16px 0 4px;color:#dfe6ee;font-size:13px}
+  .card p,.card li{font-size:12.5px;line-height:1.6;color:#b9c7d6}
+  .card ul{margin:4px 0;padding-left:18px}
+  .card code{color:#C6FF00;background:#0b0e13;padding:0 4px;border-radius:3px}
+  .logocard{background:#f4f1e8;border-radius:10px;padding:10px 6px 2px;margin-bottom:14px}
+  .logocard svg{width:100%;height:auto;display:block}
+  .bigbtn{display:block;width:100%;text-align:left;padding:10px 12px;margin:6px 0;font-size:13px}
+  .libgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-top:10px}
+  .libcard{border:1px solid #2b3644;border-radius:10px;padding:8px;background:#0d1219}
+  .libcard img{width:100%;border-radius:6px;display:block;background:#0b0e13}
+  .libcard .nm{font-size:12.5px;color:#dfe6ee;margin:7px 0 2px;word-break:break-word}
+  .libcard .meta{font-size:10.5px;color:#8fa3b8;line-height:1.5}
+  .libcard .row{margin-top:6px}
+  .libcard button{font-size:11px;padding:3px 6px}
+  .statgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;margin:12px 0}
+  .statgrid div{font-size:13px;color:#8fa3b8}
+  .statgrid b{color:#C6FF00;font-size:16px;display:block}
+  @media (max-width:760px){
+    #ui{left:8px;right:8px;top:auto;bottom:8px;width:auto;max-height:46%}
+    #hud{bottom:auto;top:52px;left:8px}
+    #mode{top:8px;right:8px}
+    .card{padding:16px}
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="ui" class="panel">
+  <h1>SOMELIMITS</h1>
+  <div class="sub">a coaster sim with some limits. there always were.</div>
+  <div class="row" style="margin-top:8px">
+    <button id="btnRide" class="primary">RIDE IT</button>
+    <button id="btnEdit">EDIT</button>
+    <button id="btnLibrary">LIBRARY</button>
+    <button id="btnManual">MANUAL</button>
+  </div>
+  <hr>
+  <label>coaster name</label>
+  <input type="text" id="inpName" maxlength="60">
+  <div class="row" style="margin-top:6px">
+    <button id="btnSaveLib">save to library</button>
+    <button id="btnUndo">undo</button>
+    <button id="btnRedo">redo</button>
+  </div>
+  <hr>
+  <div class="sub">NODE <span id="nodeIdx" class="val">-</span></div>
+  <label>height <span id="hVal" class="val"></span></label>
+  <input id="rngH" type="range" min="1" max="80" step="0.5">
+  <label>banking <span id="bVal" class="val"></span></label>
+  <input id="rngB" type="range" min="-120" max="120" step="1">
+  <div class="sub" id="segInfo" style="margin-top:4px"></div>
+  <div class="row" style="margin-top:4px">
+    <button id="btnAdd">+ node</button>
+    <button id="btnDel" class="warn">delete node</button>
+  </div>
+  <label class="chk"><input type="checkbox" id="chkLift"> lift hill after this node</label>
+  <label class="chk"><input type="checkbox" id="chkStation"> station at this node</label>
+  <hr>
+  <div class="sub">PRESETS</div>
+  <div class="row">
+    <button data-preset="classic">classic circuit</button>
+    <button data-preset="oval">oval cruiser</button>
+    <button data-preset="wild">get wild</button>
+  </div>
+  <hr>
+  <div class="sub">EXPORT / SHARE</div>
+  <div class="row">
+    <button id="btnExportJson">json</button>
+    <button id="btnImportJson">import</button>
+    <input type="file" id="fileImp" accept=".json,.csv" style="display:none">
+    <button id="btnExportCsv">nl2 csv</button>
+    <button id="btnPng">png</button>
+    <button id="btnShare">copy share link</button>
+  </div>
+  <div class="sub" id="saveMsg" style="margin-top:6px"></div>
+  <hr>
+  <div class="sub">
+    <b style="color:#dfe6ee">drag</b> a lime node to move it. <b style="color:#dfe6ee">double-click</b> the track to insert a node there.
+    releasing a drag runs a gentle smoothing pass - the kink fix the old community did by hand, built in.
+    climbs of 8m+ get a lift chain automatically. <b style="color:#dfe6ee">keys:</b> R ride, E edit, C camera,
+    N node, Del delete, ctrl+Z/Y undo/redo, ctrl+S save, H manual, L library.
+    <b style="color:#dfe6ee">orbit</b> left-drag empty space, <b style="color:#dfe6ee">pan</b> right-drag, <b style="color:#dfe6ee">zoom</b> wheel.
+  </div>
+</div>
+
+<div id="hud" class="panel" style="display:none">
+  <div class="big"><b id="hudSpeed">0</b> km/h</div>
+  <div>height <b id="hudH">0</b> m &nbsp; g-force <b id="hudG">1.0</b></div>
+  <div>lap <b id="hudLap">0:00</b> &nbsp; max <b id="hudMax">0</b> km/h</div>
+  <div>view: <b id="hudView">POV</b> (C) &nbsp; <button id="btnRestart" style="font-size:11px;padding:2px 6px">restart lap</button> <button id="btnExitRide" style="font-size:11px;padding:2px 6px">exit (ESC)</button></div>
+</div>
+
+<div id="mode" class="panel">mode: <b id="modeTxt">EDIT</b></div>
+<div id="toast"></div>
+
+<div id="titleScreen" class="overlay open">
+  <div class="card">
+    <div class="logocard">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 360" role="img" aria-label="SomeLimits logo">
+        <rect width="900" height="360" fill="#f4f1e8"/>
+        <g fill="none" stroke="#2b5aa6" stroke-linecap="round">
+          <path d="M150 292 C 96 250, 84 176, 108 118 C 126 74, 158 52, 178 52 C 198 52, 224 78, 236 122 C 252 180, 238 252, 190 292" stroke-width="13"/>
+          <path d="M150 292 C 110 254, 100 188, 120 134 C 134 96, 160 76, 178 76 C 196 76, 216 98, 226 136 C 240 186, 228 250, 190 292" stroke-width="5" opacity="0.55"/>
+        </g>
+        <g stroke="#2b5aa6" stroke-width="5" opacity="0.8">
+          <line x1="168" y1="60" x2="188" y2="60"/><line x1="128" y1="112" x2="146" y2="124"/>
+          <line x1="238" y1="150" x2="218" y2="146"/><line x1="104" y1="196" x2="124" y2="198"/>
+          <line x1="238" y1="226" x2="218" y2="222"/><line x1="128" y1="262" x2="146" y2="252"/>
+          <line x1="212" y1="266" x2="198" y2="254"/>
+        </g>
+        <line x1="60" y1="296" x2="290" y2="296" stroke="#1c2733" stroke-width="7" stroke-linecap="round"/>
+        <g fill="#e8720c">
+          <rect x="146" y="34" width="26" height="13" rx="4"/>
+          <rect x="176" y="30" width="26" height="13" rx="4"/>
+          <rect x="206" y="38" width="26" height="13" rx="4" transform="rotate(18 219 44)"/>
+        </g>
+        <text x="322" y="186" font-family="'Arial Black', Arial, Helvetica, sans-serif" font-size="92" font-weight="900" letter-spacing="-2">
+          <tspan fill="#5b6b7a">Some</tspan><tspan fill="#1c2733">Limits</tspan>
+        </text>
+        <text x="326" y="238" font-family="'Courier New', Courier, monospace" font-size="25" letter-spacing="3" fill="#1c2733">A COASTER SIM WITH SOME LIMITS</text>
+        <text x="326" y="272" font-family="'Courier New', Courier, monospace" font-size="16" letter-spacing="2" fill="#5b6b7a">THERE ALWAYS WERE. WE'RE OWNING IT.</text>
+      </svg>
+    </div>
+    <p>build a full coaster - station, lift, drops, banked turns, the whole circuit -
+    then ride it. place points, drag things, the track stays smooth because it's one
+    spline, not pieces. no accounts, no keys, no tutorial. like it used to feel.</p>
+    <button class="bigbtn primary" id="btnStartBuild">-&gt; start building</button>
+    <button class="bigbtn" id="btnStartRide">-&gt; ride the current coaster</button>
+    <button class="bigbtn" id="btnStartLibrary">-&gt; my saved coasters</button>
+    <div class="row" style="margin-top:8px">
+      <span class="sub" style="margin-right:4px">start from a preset:</span>
+      <button data-preset="classic">classic circuit</button>
+      <button data-preset="oval">oval cruiser</button>
+      <button data-preset="wild">get wild</button>
+    </div>
+    <p class="sub" style="margin-top:12px">some limits, honestly: your saves live in this browser only.
+    there's no park, no scenery designer, no online anything. the coaster is the whole game.</p>
+  </div>
+</div>
+
+<div id="libraryScreen" class="overlay">
+  <div class="card" style="max-width:760px">
+    <h2>saved coasters</h2>
+    <p class="sub">stored in this browser (localStorage). nothing is uploaded anywhere.
+    export json if you want a copy that outlives this browser.</p>
+    <div class="row">
+      <button id="btnLibSaveCurrent" class="primary">save current coaster</button>
+      <button id="btnLibClose">close</button>
+    </div>
+    <div id="libGrid" class="libgrid"></div>
+    <p class="sub" id="libEmpty" style="display:none;margin-top:12px">nothing saved yet. build something worth keeping.</p>
+  </div>
+</div>
+
+<div id="lapScreen" class="overlay">
+  <div class="card" style="max-width:440px">
+    <h2>lap complete</h2>
+    <p class="sub" id="lapName">the train is back in the station. brakes work. nice.</p>
+    <div class="statgrid">
+      <div>lap time<b id="lapTime">-</b></div>
+      <div>max speed<b id="lapMaxV">-</b></div>
+      <div>max g<b id="lapMaxG">-</b></div>
+      <div>min g<b id="lapMinG">-</b></div>
+      <div>airtime (under 0.5 g)<b id="lapAir">-</b></div>
+      <div>track length<b id="lapLen">-</b></div>
+    </div>
+    <div class="row">
+      <button id="btnLapAgain" class="primary">ride again</button>
+      <button id="btnLapEdit">back to edit</button>
+    </div>
+  </div>
+</div>
+
+<div id="manualScreen" class="overlay">
+  <div class="card">
+    <h2>field manual (short version)</h2>
+    <p class="sub">the full wiki lives in the repo under <code>/wiki</code>. this is the page you actually need.</p>
+    <h3>your first coaster in five minutes</h3>
+    <ul>
+      <li>hit <b>start building</b>. you get a working coaster immediately - the presets are complete circuits, not demos.</li>
+      <li><b>drag</b> any lime node to move it. the height and banking sliders shape the selected node.</li>
+      <li>make a hill taller than the rest - any climb of 8m or more grows a lift chain by itself.</li>
+      <li><b>double-click</b> the track to add a node exactly there. banking past +/-90 degrees is how you build inversions: you are the loop menu.</li>
+      <li>when you let go of a drag, a gentle smoothing pass runs over the neighbourhood. that's deliberate - it's the fix for kinked connections.</li>
+      <li>press <b>RIDE IT</b> (or R). the train leaves the station, gravity does the rest, brakes bring it home.</li>
+    </ul>
+    <h3>riding</h3>
+    <ul>
+      <li><b>C</b> cycles camera: POV, chase, orbit. <b>ESC</b> gets out. the HUD shows speed, height, live g.</li>
+      <li>at the end of the lap you get the numbers: time, max speed, max/min g, airtime.</li>
+    </ul>
+    <h3>saving + sharing</h3>
+    <ul>
+      <li><b>save to library</b> keeps named coasters in this browser. the library shows a top-down blueprint of each one.</li>
+      <li><b>json</b> downloads the coaster as a file - the real backup. <b>import</b> reads json or NL2-style csv.</li>
+      <li><b>nl2 csv</b> exports the track spline (position + up vectors) for NoLimits 2-style importers.</li>
+      <li><b>copy share link</b> hides the whole coaster inside the page URL. send the link, they get your coaster.</li>
+    </ul>
+    <h3>honest faq</h3>
+    <ul>
+      <li><i>is this NoLimits?</i> no. it's a loving knockoff that owns its limits. no shared code, no shared assets.</li>
+      <li><i>where are my saves?</i> in your browser's localStorage, nowhere else. clear your browser data and they're gone - export json for keeps.</li>
+      <li><i>can it do parks / multiple coasters / terrain?</i> not in v1. one coaster, flat ground, full heart.</li>
+    </ul>
+    <div class="row"><button id="btnManualClose" class="primary">back</button></div>
+  </div>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ================================================================
+   CORE - pure track math + physics + formats. No DOM in here.
+   This section is extracted and exercised headlessly in tests.
+   ================================================================ */
+/* === CORE START === */
+const SAMPLES = 900;
+const GRAV = 9.81, LIFT_SPEED = 5.2;
+
+const PRESETS = {
+  classic: [
+    {x:0,z:34,h:3,bank:0,station:true},{x:0,z:12,h:3.2,bank:0,lift:true},
+    {x:2,z:-16,h:26,bank:0,lift:true},{x:6,z:-38,h:44,bank:0},
+    {x:14,z:-52,h:10,bank:-18},{x:34,z:-46,h:7,bank:-55},
+    {x:46,z:-26,h:9,bank:-70},{x:44,z:-4,h:14,bank:-30},
+    {x:30,z:8,h:8,bank:25},{x:34,z:26,h:16,bank:40},
+    {x:22,z:40,h:6,bank:20},{x:8,z:44,h:3.4,bank:0}
+  ],
+  oval: [
+    {x:0,z:30,h:3,bank:0,station:true},{x:0,z:8,h:3.2,bank:0,lift:true},
+    {x:2,z:-18,h:24,bank:0,lift:true},{x:8,z:-38,h:36,bank:0},
+    {x:26,z:-44,h:12,bank:-40},{x:44,z:-30,h:8,bank:-60},
+    {x:46,z:-2,h:10,bank:-40},{x:34,z:18,h:7,bank:30},
+    {x:18,z:32,h:4,bank:10}
+  ],
+  wild: [
+    {x:0,z:36,h:3,bank:0,station:true},{x:0,z:12,h:3.2,bank:0,lift:true},
+    {x:3,z:-18,h:34,bank:0,lift:true},{x:8,z:-42,h:52,bank:0},
+    {x:22,z:-54,h:14,bank:-35},{x:42,z:-44,h:10,bank:-85},
+    {x:52,z:-18,h:24,bank:-110},{x:44,z:6,h:30,bank:110},
+    {x:24,z:16,h:12,bank:60},{x:16,z:36,h:20,bank:-60},
+    {x:26,z:50,h:8,bank:-20},{x:8,z:48,h:3.4,bank:0}
+  ]
+};
+
+function sanitizeNodes(arr) {
+  if (!Array.isArray(arr)) return null;
+  const out = arr.filter(n => n && isFinite(n.x) && isFinite(n.z) && isFinite(n.h)).map(n => ({
+    x: THREE.MathUtils.clamp(+n.x, -200, 200),
+    z: THREE.MathUtils.clamp(+n.z, -200, 200),
+    h: THREE.MathUtils.clamp(+n.h, 0.5, 120),
+    bank: THREE.MathUtils.clamp(isFinite(n.bank) ? +n.bank : 0, -180, 180),
+    lift: !!n.lift, station: !!n.station
+  }));
+  if (out.length < 4) return null;
+  if (!out.some(n => n.station)) out[0].station = true;
+  return out;
+}
+
+function shortestAngleDelta(a, b) { return ((b - a + 540) % 360) - 180; }
+function lerpAngleDeg(a, b, t) { return a + shortestAngleDelta(a, b) * t; }
+
+// banking at fractional node position f (0..nodes.length), cosine-eased
+function bankAt(nodes, f) {
+  const N = nodes.length;
+  const i0 = Math.floor(f) % N, i1 = (i0 + 1) % N;
+  const t = f - Math.floor(f), s = (1 - Math.cos(t * Math.PI)) / 2;
+  return lerpAngleDeg(nodes[i0].bank, nodes[i1].bank, s);
+}
+
+/* Build the sampled track: closed Catmull-Rom, parallel-transport
+   (rotation-minimizing) frames, banking rolled on top. */
+function computeTrack(nodes) {
+  const N = nodes.length;
+  const pts = nodes.map(n => new THREE.Vector3(n.x, n.h, n.z));
+  const curve = new THREE.CatmullRomCurve3(pts, true, 'centripetal', 0.5);
+  const pos = curve.getSpacedPoints(SAMPLES); // SAMPLES+1 pts, last == first
+  const tans = [];
+  for (let i = 0; i <= SAMPLES; i++) {
+    const a = pos[Math.max(0, i - 1)], b = pos[Math.min(SAMPLES, i + 1)];
+    tans.push(b.clone().sub(a).normalize());
+  }
+  // parallel transport of an up vector around the loop
+  const worldUp = new THREE.Vector3(0, 1, 0);
+  let up0 = worldUp.clone().addScaledVector(tans[0], -worldUp.dot(tans[0]));
+  if (up0.lengthSq() < 1e-6) up0 = new THREE.Vector3(1, 0, 0);
+  up0.normalize();
+  const transported = [up0.clone()];
+  const q = new THREE.Quaternion();
+  for (let i = 1; i <= SAMPLES; i++) {
+    q.setFromUnitVectors(tans[i - 1], tans[i]);
+    transported.push(transported[i - 1].clone().applyQuaternion(q).normalize());
+  }
+  // closed-loop seam: measure twist mismatch after a full lap and
+  // distribute the correction so the frame is continuous at the wrap.
+  const endUp = transported[SAMPLES];
+  const cross = new THREE.Vector3().crossVectors(endUp, up0);
+  const seamTwist = Math.atan2(cross.dot(tans[0]), THREE.MathUtils.clamp(endUp.dot(up0), -1, 1));
+  for (let i = 0; i <= SAMPLES; i++) {
+    transported[i].applyAxisAngle(tans[i], seamTwist * (i / SAMPLES));
+  }
+  const stIdx = Math.max(0, nodes.findIndex(n => n.station));
+  const samples = [];
+  let dist = 0;
+  for (let i = 0; i <= SAMPLES; i++) {
+    const p = pos[i % SAMPLES], tan = tans[i];
+    if (i > 0) dist += pos[i].distanceTo(pos[i - 1]);
+    const f = (i / SAMPLES) * N;
+    const i0 = Math.floor(f) % N, i1 = (i0 + 1) % N;
+    const bankDeg = bankAt(nodes, f);
+    const up = transported[i].clone().applyAxisAngle(tan, -THREE.MathUtils.degToRad(bankDeg)).normalize();
+    const side = new THREE.Vector3().crossVectors(up, tan).normalize();
+    const climb = nodes[i1].h - nodes[i0].h;
+    const lift = !!nodes[i0].lift || climb >= 8;
+    samples.push({pos: p.clone(), tan, up, side, s: dist, lift, bankDeg});
+  }
+  const totalLen = dist;
+  const stationS = (stIdx / N) * totalLen;
+  for (const sm of samples) {
+    const dToStation = ((stationS - sm.s) % totalLen + totalLen) % totalLen;
+    sm.brake = dToStation < 32 && dToStation > 0.5;
+  }
+  return {samples, totalLen, stationS, curve};
+}
+
+function sampleAt(track, s) {
+  const total = track.totalLen;
+  s = ((s % total) + total) % total;
+  const f = s / total * SAMPLES;
+  const i = Math.floor(f) % SAMPLES, j = (i + 1) % SAMPLES, t = f - Math.floor(f);
+  const A = track.samples[i], B = track.samples[j];
+  return {
+    pos: A.pos.clone().lerp(B.pos, t),
+    tan: A.tan.clone().lerp(B.tan, t).normalize(),
+    up: A.up.clone().lerp(B.up, t).normalize(),
+    side: A.side.clone().lerp(B.side, t).normalize(),
+    lift: A.lift, brake: A.brake, s
+  };
+}
+
+function trackStats(nodes, track) {
+  return {
+    lengthM: track.totalLen,
+    maxHeightM: Math.max(...nodes.map(n => n.h)),
+    nodeCount: nodes.length
+  };
+}
+
+/* ---------------- ride physics ---------------- */
+function createRide(track) {
+  return {
+    s: track.stationS, v: 0, traveled: 0, time: 0,
+    running: true, finished: false,
+    maxV: 0, maxG: 1, minG: 1, airtime: 0, gSmooth: 1,
+    prevVel: new THREE.Vector3(), hasPrev: false
+  };
+}
+function stepRide(track, ride, dt) {
+  if (!ride.running || ride.finished) return;
+  const total = track.totalLen;
+  const SUB = Math.max(1, Math.ceil(dt / (1 / 240)));
+  const h = dt / SUB;
+  for (let k = 0; k < SUB; k++) {
+    const here = sampleAt(track, ride.s);
+    const ahead = sampleAt(track, ride.s + 1.2);
+    const dhds = (ahead.pos.y - here.pos.y) / 1.2;
+    let a = -GRAV * dhds - 0.005 * ride.v * Math.abs(ride.v);
+    if (ride.v > 0.01) a -= 0.05; // rolling friction only while moving
+    ride.v += a * h;
+    if (here.lift && dhds > 0.01 && ride.v < LIFT_SPEED) ride.v = LIFT_SPEED; // chain
+    const dLeft = ((track.stationS - ride.s) % total + total) % total;
+    if (here.brake) {
+      const vT = THREE.MathUtils.clamp(dLeft * 0.25, 1.1, 6);
+      if (ride.v > vT) ride.v = Math.max(vT, ride.v - 4.5 * h);
+      if (ride.v < 0.9 && dLeft > 1.5) ride.v = 0.9; // station-approach creep
+    }
+    if (ride.v < 1.2 && !here.brake) ride.v = 1.2;   // no stalling mid-course in v1
+    if (ride.v < 0) ride.v = 0;
+    ride.s += ride.v * h;
+    ride.traveled += ride.v * h;
+    ride.time += h;
+    if ((ride.traveled > total * 0.5 && dLeft < 1.5) || ride.traveled >= total - 0.5) {
+      ride.s = track.stationS; ride.v = 0; ride.finished = true; ride.running = false;
+      break;
+    }
+  }
+  // g-force from the velocity vector's rate of change + gravity
+  const sm = sampleAt(track, ride.s);
+  const vel = sm.tan.clone().multiplyScalar(ride.v);
+  if (ride.hasPrev && dt > 0) {
+    const aVec = vel.clone().sub(ride.prevVel).divideScalar(dt);
+    const felt = aVec.add(new THREE.Vector3(0, GRAV, 0));
+    const g = THREE.MathUtils.clamp(felt.length() / GRAV, 0, 8);
+    ride.gSmooth += (g - ride.gSmooth) * Math.min(1, dt * 9);
+    if (ride.time > 0.75) {
+      ride.maxG = Math.max(ride.maxG, ride.gSmooth);
+      ride.minG = Math.min(ride.minG, ride.gSmooth);
+    }
+    if (ride.gSmooth < 0.5 && ride.traveled > 5) ride.airtime += dt;
+  }
+  ride.prevVel.copy(vel); ride.hasPrev = true;
+  ride.maxV = Math.max(ride.maxV, ride.v);
+}
+
+/* ---------------- formats: json / csv / share link ---------------- */
+function serializeCoaster(name, nodes) {
+  return JSON.stringify({app: 'somelimits', version: 1, name, nodes}, null, 1);
+}
+function parseCoasterJSON(text) {
+  const data = JSON.parse(text);
+  if (Array.isArray(data)) { const n = sanitizeNodes(data); return n && {name: 'imported coaster', nodes: n}; }
+  if (data && Array.isArray(data.nodes)) {
+    const n = sanitizeNodes(data.nodes);
+    return n && {name: String(data.name || 'imported coaster').slice(0, 60), nodes: n};
+  }
+  return null;
+}
+function buildCSV(track) {
+  const lines = ['pos_x,pos_y,pos_z,up_x,up_y,up_z'];
+  for (let i = 0; i < SAMPLES; i++) {
+    const sm = track.samples[i];
+    lines.push([sm.pos.x, sm.pos.y, sm.pos.z, sm.up.x, sm.up.y, sm.up.z].map(v => v.toFixed(4)).join(','));
+  }
+  return lines.join('\n');
+}
+function parseCSV(text) {
+  const rows = text.split(/\r?\n/).map(l => l.split(/[;,]/).map(x => parseFloat(x)))
+    .filter(r => r.length >= 6 && r.slice(0, 6).every(isFinite));
+  if (rows.length < 24) return null;
+  const target = Math.min(16, Math.max(8, Math.floor(rows.length / 40)));
+  const step = Math.floor(rows.length / target);
+  const picked = [];
+  for (let i = 0; i < rows.length && picked.length < target; i += step) picked.push(rows[i]);
+  const nodes = picked.map((r, i) => {
+    const prev = picked[(i - 1 + picked.length) % picked.length], next = picked[(i + 1) % picked.length];
+    const tan = new THREE.Vector3(next[0] - prev[0], next[1] - prev[1], next[2] - prev[2]).normalize();
+    const up = new THREE.Vector3(r[3], r[4], r[5]).normalize();
+    let ref = new THREE.Vector3(0, 1, 0).addScaledVector(tan, -tan.y);
+    if (ref.lengthSq() < 1e-6) ref = new THREE.Vector3(1, 0, 0);
+    ref.normalize();
+    const cross = new THREE.Vector3().crossVectors(ref, up);
+    const bank = -THREE.MathUtils.radToDeg(Math.atan2(cross.dot(tan), THREE.MathUtils.clamp(ref.dot(up), -1, 1)));
+    return {x: r[0], z: r[2], h: Math.max(0.5, r[1]), bank: Math.round(THREE.MathUtils.clamp(bank, -180, 180))};
+  });
+  // station + lift on the sensible spots: lowest node = station, biggest climb gets the chain
+  let low = 0; nodes.forEach((n, i) => { if (n.h < nodes[low].h) low = i; });
+  nodes[low].station = true;
+  return sanitizeNodes(nodes);
+}
+function encodeCoaster(name, nodes) {
+  const json = JSON.stringify({name, nodes});
+  const bytes = new TextEncoder().encode(json);
+  let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b));
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function decodeCoaster(str) {
+  try {
+    const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+    const bin = atob(b64 + '='.repeat((4 - b64.length % 4) % 4));
+    const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+    const data = JSON.parse(new TextDecoder().decode(bytes));
+    const n = data && sanitizeNodes(data.nodes);
+    return n && {name: String(data.name || 'shared coaster').slice(0, 60), nodes: n};
+  } catch { return null; }
+}
+/* === CORE END === */
+
+/* ================================================================
+   APP - rendering, editor, ride, library, exports
+   ================================================================ */
+let nodes = structuredClone(PRESETS.classic);
+let trackName = 'classic circuit';
+let selected = 0;
+let mode = 'edit';           // 'edit' | 'ride'
+let viewMode = 'pov';        // 'pov' | 'chase' | 'orbit'
+let track = null;            // result of computeTrack(nodes)
+
+const app = document.getElementById('app');
+const renderer = new THREE.WebGLRenderer({antialias: true, preserveDrawingBuffer: true});
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setSize(innerWidth, innerHeight);
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b0e13);
+scene.fog = new THREE.Fog(0x0b0e13, 180, 420);
+
+const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 1000);
+camera.position.set(60, 55, 85);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(10, 8, 0);
+controls.enableDamping = true;
+
+scene.add(new THREE.HemisphereLight(0xbdd3e6, 0x1a2016, 0.9));
+const sun = new THREE.DirectionalLight(0xfff2d8, 1.6);
+sun.position.set(80, 120, 40);
+scene.add(sun);
+
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(600, 600),
+  new THREE.MeshStandardMaterial({color: 0x11161d, roughness: 1})
+);
+ground.rotation.x = -Math.PI / 2; ground.position.y = -0.02;
+scene.add(ground);
+const grid = new THREE.GridHelper(600, 120, 0x2b3644, 0x1a2330);
+grid.position.y = 0.01;
+scene.add(grid);
+
+{ // cheap pine-cone scenery for scale (code-rendered, like everything here)
+  const geo = new THREE.ConeGeometry(2.2, 7, 6);
+  const mat = new THREE.MeshStandardMaterial({color: 0x1d3320, roughness: 1});
+  const trunk = new THREE.CylinderGeometry(0.35, 0.45, 2, 5);
+  const tmat = new THREE.MeshStandardMaterial({color: 0x2e2119});
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 90; i++) {
+    const x = (rnd() - 0.5) * 340, z = (rnd() - 0.5) * 340;
+    if (Math.abs(x) < 70 && Math.abs(z) < 75) continue;
+    const t = new THREE.Mesh(trunk, tmat); t.position.set(x, 1, z); scene.add(t);
+    const c = new THREE.Mesh(geo, mat); c.position.set(x, 5.4, z); c.scale.setScalar(0.8 + rnd() * 0.9); scene.add(c);
+  }
+}
+
+let trackGroup = null, handleGroup = null, hitTube = null;
+const train = new THREE.Mesh(
+  new THREE.BoxGeometry(1.4, 0.9, 3.6),
+  new THREE.MeshStandardMaterial({color: 0xC6FF00, roughness: 0.5, metalness: 0.2})
+);
+train.visible = false;
+scene.add(train);
+
+function buildTrack() {
+  track = computeTrack(nodes);
+  if (trackGroup) { scene.remove(trackGroup); trackGroup.traverse(o => o.geometry && o.geometry.dispose()); }
+  if (handleGroup) { scene.remove(handleGroup); }
+  trackGroup = new THREE.Group(); handleGroup = new THREE.Group();
+  const samples = track.samples;
+
+  const railMat = new THREE.MeshStandardMaterial({color: 0x9fb4c8, roughness: 0.35, metalness: 0.7, side: THREE.DoubleSide});
+  const tieMat = new THREE.MeshStandardMaterial({color: 0x3a2e22, roughness: 1});
+  const supMat = new THREE.MeshStandardMaterial({color: 0x55636f, roughness: 0.8});
+  for (const off of [-0.75, 0.75]) {
+    const verts = [], idx = [];
+    for (let i = 0; i <= SAMPLES; i++) {
+      const sm = samples[i];
+      const a = sm.pos.clone().addScaledVector(sm.side, off).addScaledVector(sm.up, 0.12);
+      const b = a.clone().addScaledVector(sm.up, -0.24);
+      verts.push(a.x, a.y, a.z, b.x, b.y, b.z);
+      if (i < SAMPLES) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    g.setIndex(idx); g.computeVertexNormals();
+    trackGroup.add(new THREE.Mesh(g, railMat));
+  }
+  const tieGeo = new THREE.BoxGeometry(1.9, 0.09, 0.42);
+  const tieCount = 300, ties = new THREE.InstancedMesh(tieGeo, tieMat, tieCount);
+  const supGeo = new THREE.CylinderGeometry(0.22, 0.3, 1, 6);
+  const sups = new THREE.InstancedMesh(supGeo, supMat, 160);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(1, 1, 1);
+  let supI = 0;
+  for (let i = 0; i < tieCount; i++) {
+    const sm = samples[Math.floor(i / tieCount * SAMPLES)];
+    q.setFromRotationMatrix(new THREE.Matrix4().lookAt(new THREE.Vector3(), sm.tan, sm.up));
+    m4.compose(sm.pos.clone().addScaledVector(sm.up, -0.05), q, sc);
+    ties.setMatrixAt(i, m4);
+    if (i % 2 === 0 && sm.pos.y > 2.5 && supI < 160) {
+      const h = sm.pos.y;
+      const mid = sm.pos.clone(); mid.y = h / 2 - 0.1;
+      m4.compose(mid, new THREE.Quaternion(), new THREE.Vector3(1, h, 1));
+      sups.setMatrixAt(supI++, m4);
+    }
+  }
+  sups.count = supI;
+  trackGroup.add(ties, sups);
+
+  const st = nodes.findIndex(n => n.station);
+  if (st >= 0) {
+    const sm = samples[Math.floor(st / nodes.length * SAMPLES)];
+    const plat = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.5, 16),
+      new THREE.MeshStandardMaterial({color: 0x27313d, roughness: 1}));
+    plat.position.copy(sm.pos); plat.position.y = sm.pos.y - 0.55;
+    plat.quaternion.setFromRotationMatrix(new THREE.Matrix4().lookAt(new THREE.Vector3(), sm.tan, sm.up));
+    trackGroup.add(plat);
+  }
+  scene.add(trackGroup);
+
+  // invisible fat tube so double-clicks can find the track
+  hitTube = new THREE.Mesh(
+    new THREE.TubeGeometry(track.curve, 200, 2.6, 5, true),
+    new THREE.MeshBasicMaterial({colorWrite: false, depthWrite: false})
+  );
+  trackGroup.add(hitTube);
+
+  const hGeo = new THREE.SphereGeometry(1.05, 16, 12);
+  nodes.forEach((n, i) => {
+    const mat = new THREE.MeshStandardMaterial({color: i === selected ? 0xffffff : 0xC6FF00, emissive: i === selected ? 0x445500 : 0x222a00});
+    const h = new THREE.Mesh(hGeo, mat);
+    h.position.set(n.x, n.h, n.z);
+    h.userData.nodeIndex = i;
+    handleGroup.add(h);
+  });
+  handleGroup.visible = (mode === 'edit');
+  scene.add(handleGroup);
+  syncPanel();
+}
+
+/* top-down blueprint thumbnail (2D canvas drawing of the layout) */
+function blueprint(nodesForThumb, w = 264, h = 176) {
+  const t = computeTrack(nodesForThumb);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#0b0e13'; ctx.fillRect(0, 0, w, h);
+  let minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9;
+  for (const sm of t.samples) {
+    minX = Math.min(minX, sm.pos.x); maxX = Math.max(maxX, sm.pos.x);
+    minZ = Math.min(minZ, sm.pos.z); maxZ = Math.max(maxZ, sm.pos.z);
+  }
+  const pad = 14, sc = Math.min((w - pad * 2) / (maxX - minX || 1), (h - pad * 2) / (maxZ - minZ || 1));
+  const ox = pad + (w - pad * 2 - (maxX - minX) * sc) / 2, oz = pad + (h - pad * 2 - (maxZ - minZ) * sc) / 2;
+  ctx.strokeStyle = '#C6FF00'; ctx.lineWidth = 2; ctx.beginPath();
+  t.samples.forEach((sm, i) => {
+    const x = ox + (sm.pos.x - minX) * sc, y = oz + (sm.pos.z - minZ) * sc;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.closePath(); ctx.stroke();
+  const st = nodesForThumb.findIndex(n => n.station);
+  if (st >= 0) {
+    const sm = t.samples[Math.floor(st / nodesForThumb.length * SAMPLES)];
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(ox + (sm.pos.x - minX) * sc, oz + (sm.pos.z - minZ) * sc, 3.5, 0, 7); ctx.fill();
+  }
+  return c.toDataURL('image/png');
+}
+
+/* ---------------- ride control ---------------- */
+const $ = id => document.getElementById(id);
+const hud = {speed: $('hudSpeed'), h: $('hudH'), g: $('hudG'), view: $('hudView'), lap: $('hudLap'), max: $('hudMax')};
+let ride = null;
+
+let toastTimer = null;
+function toast(msg, ms = 2600) {
+  const t = $('toast');
+  t.textContent = msg; t.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.style.display = 'none', ms);
+}
+function fmtTime(sec) {
+  const m = Math.floor(sec / 60), s = sec - m * 60;
+  return m + ':' + s.toFixed(1).padStart(4, '0');
+}
+
+function startRide() {
+  buildTrack();
+  ride = createRide(track);
+  setMode('ride');
+  toast('off you go. C changes camera, ESC bails.');
+}
+function finishLap() {
+  const st = trackStats(nodes, track);
+  $('lapName').textContent = '"' + trackName + '" - the train is back in the station. brakes work. nice.';
+  $('lapTime').textContent = fmtTime(ride.time);
+  $('lapMaxV').textContent = Math.round(ride.maxV * 3.6) + ' km/h';
+  $('lapMaxG').textContent = ride.maxG.toFixed(1) + ' g';
+  $('lapMinG').textContent = ride.minG.toFixed(1) + ' g';
+  $('lapAir').textContent = ride.airtime.toFixed(1) + ' s';
+  $('lapLen').textContent = Math.round(st.lengthM) + ' m';
+  $('lapScreen').classList.add('open');
+}
+function poseRide(dt) {
+  stepRide(track, ride, dt);
+  const sm = sampleAt(track, ride.s);
+  train.visible = true;
+  train.position.copy(sm.pos).addScaledVector(sm.up, 0.55);
+  train.quaternion.setFromRotationMatrix(new THREE.Matrix4().lookAt(new THREE.Vector3(), sm.tan, sm.up));
+  const aheadSm = sampleAt(track, ride.s + 6);
+  if (viewMode === 'pov') {
+    camera.position.copy(sm.pos).addScaledVector(sm.up, 1.25);
+    camera.up.copy(sm.up);
+    camera.lookAt(aheadSm.pos.clone().addScaledVector(aheadSm.up, 1.1));
+  } else if (viewMode === 'chase') {
+    const back = sampleAt(track, ride.s - 9);
+    camera.position.copy(back.pos).addScaledVector(back.up, 3.4);
+    camera.up.set(0, 1, 0);
+    camera.lookAt(sm.pos);
+  } else {
+    camera.up.set(0, 1, 0);
+    controls.target.copy(sm.pos);
+    controls.update();
+  }
+  hud.speed.textContent = Math.round(ride.v * 3.6);
+  hud.h.textContent = sm.pos.y.toFixed(1);
+  hud.g.textContent = ride.gSmooth.toFixed(1);
+  hud.lap.textContent = fmtTime(ride.time);
+  hud.max.textContent = Math.round(ride.maxV * 3.6);
+  if (ride.finished) finishLap();
+}
+
+function setMode(m) {
+  mode = m;
+  $('modeTxt').textContent = m.toUpperCase();
+  $('hud').style.display = m === 'ride' ? 'block' : 'none';
+  if (handleGroup) handleGroup.visible = m === 'edit';
+  controls.enabled = m === 'edit';
+  train.visible = m === 'ride';
+  if (m === 'edit') { ride = null; camera.up.set(0, 1, 0); }
+}
+$('btnRide').addEventListener('click', startRide);
+$('btnEdit').addEventListener('click', () => setMode('edit'));
+$('btnRestart').addEventListener('click', () => { ride = createRide(track); });
+$('btnExitRide').addEventListener('click', () => setMode('edit'));
+$('btnLapAgain').addEventListener('click', () => { $('lapScreen').classList.remove('open'); ride = createRide(track); setMode('ride'); });
+$('btnLapEdit').addEventListener('click', () => { $('lapScreen').classList.remove('open'); setMode('edit'); });
+
+/* ---------------- panel + history ---------------- */
+const els = {idx: $('nodeIdx'), h: $('rngH'), b: $('rngB'), hVal: $('hVal'), bVal: $('bVal'),
+             lift: $('chkLift'), station: $('chkStation'), saveMsg: $('saveMsg'),
+             name: $('inpName'), seg: $('segInfo')};
+
+let history = [], hIndex = -1;
+function snapshot() { return {name: trackName, nodes: structuredClone(nodes)}; }
+function commit() {
+  history = history.slice(0, hIndex + 1);
+  history.push(snapshot());
+  if (history.length > 100) history.shift();
+  hIndex = history.length - 1;
+  syncHistoryButtons();
+  autosave();
+}
+function applyState(st) {
+  trackName = st.name; nodes = structuredClone(st.nodes);
+  selected = Math.min(selected, nodes.length - 1);
+  buildTrack(); syncPanel(); autosave();
+}
+function undo() { if (hIndex > 0) { hIndex--; applyState(history[hIndex]); syncHistoryButtons(); } }
+function redo() { if (hIndex < history.length - 1) { hIndex++; applyState(history[hIndex]); syncHistoryButtons(); } }
+function syncHistoryButtons() {
+  $('btnUndo').disabled = hIndex <= 0;
+  $('btnRedo').disabled = hIndex >= history.length - 1;
+}
+function autosave() {
+  try { localStorage.setItem('somelimits-autosave-v1', JSON.stringify({name: trackName, nodes})); } catch {}
+}
+
+function syncPanel() {
+  const n = nodes[selected];
+  if (!n) return;
+  els.name.value = trackName;
+  els.idx.textContent = '#' + (selected + 1) + ' of ' + nodes.length;
+  els.h.value = n.h; els.b.value = n.bank;
+  els.hVal.textContent = n.h.toFixed(1) + ' m';
+  els.bVal.textContent = n.bank + ' deg';
+  els.lift.checked = !!n.lift; els.station.checked = !!n.station;
+  if (track) {
+    const N = nodes.length, nxt = nodes[(selected + 1) % N];
+    const s1 = track.samples[Math.round(selected / N * SAMPLES)].s;
+    let s2 = track.samples[Math.round(((selected + 1) % N) / N * SAMPLES)].s;
+    if (s2 <= s1) s2 += track.totalLen;
+    const segLen = s2 - s1, climb = nxt.h - n.h;
+    els.seg.textContent = 'to next node: ' + segLen.toFixed(1) + ' m of track, ' +
+      (climb >= 0 ? '+' : '') + climb.toFixed(1) + ' m climb (' + (segLen ? (climb / segLen * 100).toFixed(0) : 0) + '% grade)' +
+      (n.lift || climb >= 8 ? ' - lift chain on this climb' : '');
+  }
+}
+
+els.h.addEventListener('input', () => { nodes[selected].h = parseFloat(els.h.value); buildTrack(); });
+els.h.addEventListener('change', commit);
+els.b.addEventListener('input', () => { nodes[selected].bank = parseInt(els.b.value); buildTrack(); });
+els.b.addEventListener('change', commit);
+els.lift.addEventListener('change', () => { nodes[selected].lift = els.lift.checked; buildTrack(); commit(); });
+els.station.addEventListener('change', () => {
+  nodes.forEach(n => n.station = false);
+  nodes[selected].station = els.station.checked; buildTrack(); commit();
+});
+els.name.addEventListener('change', () => { trackName = els.name.value.trim() || 'untitled coaster'; commit(); });
+
+function addNode() {
+  const a = nodes[selected], b = nodes[(selected + 1) % nodes.length];
+  nodes.splice(selected + 1, 0, {x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, h: (a.h + b.h) / 2, bank: Math.round((a.bank + b.bank) / 2)});
+  selected++; buildTrack(); commit();
+}
+function deleteNode() {
+  if (nodes.length <= 6) { toast('six nodes is the floor. some limits are load-bearing.'); return; }
+  if (nodes[selected].station && nodes.filter(n => n.station).length === 1) {
+    const nxt = (selected + 1) % nodes.length; nodes[nxt].station = true;
+  }
+  nodes.splice(selected, 1);
+  selected = Math.max(0, selected - 1); buildTrack(); commit();
+}
+$('btnAdd').addEventListener('click', addNode);
+$('btnDel').addEventListener('click', deleteNode);
+$('btnUndo').addEventListener('click', undo);
+$('btnRedo').addEventListener('click', redo);
+
+/* gentle neighbourhood smoothing - the AHG kink fix, built in.
+   runs when a drag ends: the moved node and its neighbours ease
+   toward the average of their neighbours, banking included. */
+function smoothAround(idx) {
+  const N = nodes.length;
+  if (N < 7) return;
+  const orig = nodes.map(n => ({...n}));
+  const meanAngle = (a, b) => {
+    const x = Math.cos(THREE.MathUtils.degToRad(a)) + Math.cos(THREE.MathUtils.degToRad(b));
+    const y = Math.sin(THREE.MathUtils.degToRad(a)) + Math.sin(THREE.MathUtils.degToRad(b));
+    return THREE.MathUtils.radToDeg(Math.atan2(y, x));
+  };
+  for (let d = -2; d <= 2; d++) {
+    const i = ((idx + d) % N + N) % N;
+    const p = orig[(i - 1 + N) % N], c = orig[i], q = orig[(i + 1) % N];
+    const w = d === 0 ? 0.18 : 0.3;
+    nodes[i].x = c.x + ((p.x + q.x) / 2 - c.x) * w;
+    nodes[i].z = c.z + ((p.z + q.z) / 2 - c.z) * w;
+    if (!c.station) nodes[i].h = c.h + ((p.h + q.h) / 2 - c.h) * w;
+    nodes[i].bank = Math.round(lerpAngleDeg(c.bank, meanAngle(p.bank, q.bank), w));
+  }
+}
+
+document.querySelectorAll('[data-preset]').forEach(btn => btn.addEventListener('click', () => {
+  nodes = structuredClone(PRESETS[btn.dataset.preset]);
+  trackName = btn.textContent.trim();
+  selected = 0; buildTrack(); commit();
+  $('titleScreen').classList.remove('open');
+  toast('preset loaded: ' + trackName + '. now make it yours.');
+}));
+
+/* ---------------- dragging + insert ---------------- */
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+let dragging = -1, dragMoved = false;
+const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+function castAt(e) {
+  ptr.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(ptr, camera);
+}
+renderer.domElement.addEventListener('pointerdown', e => {
+  if (mode !== 'edit') return;
+  castAt(e);
+  const hits = ray.intersectObjects(handleGroup.children);
+  if (hits.length) {
+    const i = hits[0].object.userData.nodeIndex;
+    selected = i; dragging = i; dragMoved = false;
+    controls.enabled = false;
+    dragPlane.constant = -nodes[i].h;
+    buildTrack();
+    renderer.domElement.setPointerCapture(e.pointerId);
+  }
+});
+renderer.domElement.addEventListener('pointermove', e => {
+  if (dragging < 0) return;
+  castAt(e);
+  const out = new THREE.Vector3();
+  if (ray.ray.intersectPlane(dragPlane, out)) {
+    nodes[dragging].x = THREE.MathUtils.clamp(out.x, -150, 150);
+    nodes[dragging].z = THREE.MathUtils.clamp(out.z, -150, 150);
+    dragMoved = true;
+    buildTrack();
+  }
+});
+renderer.domElement.addEventListener('pointerup', () => {
+  if (dragging >= 0 && dragMoved) { smoothAround(dragging); buildTrack(); commit(); }
+  dragging = -1; controls.enabled = mode === 'edit';
+});
+renderer.domElement.addEventListener('dblclick', e => {
+  if (mode !== 'edit' || !hitTube) return;
+  castAt(e);
+  const hits = ray.intersectObject(hitTube);
+  if (!hits.length) return;
+  const p = hits[0].point;
+  let best = 0, bestD = 1e18;
+  for (let i = 0; i < SAMPLES; i++) {
+    const d = track.samples[i].pos.distanceToSquared(p);
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  const sm = track.samples[best];
+  const at = Math.floor(best / SAMPLES * nodes.length) + 1;
+  nodes.splice(at, 0, {x: Math.round(sm.pos.x * 10) / 10, z: Math.round(sm.pos.z * 10) / 10,
+                       h: Math.round(sm.pos.y * 10) / 10, bank: Math.round(sm.bankDeg)});
+  selected = at; buildTrack(); commit();
+  toast('node inserted. drag it somewhere interesting.');
+});
+
+/* ---------------- library ---------------- */
+const LIB_KEY = 'somelimits-library-v1';
+function loadLib() { try { return JSON.parse(localStorage.getItem(LIB_KEY)) || []; } catch { return []; } }
+function storeLib(lib) { try { localStorage.setItem(LIB_KEY, JSON.stringify(lib)); } catch { toast('library storage is full or blocked. export json instead.'); } }
+function saveToLibrary() {
+  const lib = loadLib();
+  const st = trackStats(nodes, track);
+  const entry = {
+    id: Date.now().toString(36), name: trackName, updatedAt: new Date().toISOString(),
+    nodes: structuredClone(nodes), thumb: blueprint(nodes),
+    stats: {len: Math.round(st.lengthM), maxH: Math.round(st.maxHeightM * 10) / 10, count: st.nodeCount}
+  };
+  const existing = lib.findIndex(e => e.name === trackName);
+  if (existing >= 0) { entry.id = lib[existing].id; lib[existing] = entry; }
+  else lib.unshift(entry);
+  storeLib(lib);
+  toast('"' + trackName + '" saved to the library.');
+  els.saveMsg.textContent = 'saved to library just now.';
+}
+function renderLib() {
+  const lib = loadLib();
+  const grid = $('libGrid');
+  grid.innerHTML = '';
+  $('libEmpty').style.display = lib.length ? 'none' : 'block';
+  lib.forEach(entry => {
+    const div = document.createElement('div');
+    div.className = 'libcard';
+    const when = entry.updatedAt ? new Date(entry.updatedAt).toLocaleDateString() : '';
+    div.innerHTML = '<img alt="track blueprint"><div class="nm"></div><div class="meta"></div>' +
+      '<div class="row"><button data-act="open">open</button><button data-act="rename">rename</button>' +
+      '<button data-act="dup">duplicate</button><button data-act="del" class="warn">delete</button></div>';
+    div.querySelector('img').src = entry.thumb || '';
+    div.querySelector('.nm').textContent = entry.name;
+    div.querySelector('.meta').textContent = entry.stats.count + ' nodes - ' + entry.stats.len + ' m - tallest ' + entry.stats.maxH + ' m - saved ' + when;
+    div.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      const act = b.dataset.act;
+      if (act === 'open') {
+        trackName = entry.name; nodes = structuredClone(entry.nodes); selected = 0;
+        history = []; hIndex = -1;
+        setMode('edit'); buildTrack(); commit();
+        $('libraryScreen').classList.remove('open');
+        toast('loaded "' + entry.name + '".');
+      } else if (act === 'rename') {
+        const nm = prompt('new name:', entry.name);
+        if (nm && nm.trim()) { entry.name = nm.trim().slice(0, 60); storeLib(lib); renderLib(); }
+      } else if (act === 'dup') {
+        const copy = structuredClone(entry);
+        copy.id = Date.now().toString(36); copy.name = (entry.name + ' copy').slice(0, 60);
+        lib.unshift(copy); storeLib(lib); renderLib();
+      } else if (act === 'del') {
+        if (confirm('delete "' + entry.name + '" from this browser? (json exports are forever; this is not.)')) {
+          storeLib(lib.filter(e => e.id !== entry.id)); renderLib();
+        }
+      }
+    }));
+    grid.appendChild(div);
+  });
+}
+$('btnSaveLib').addEventListener('click', saveToLibrary);
+$('btnLibSaveCurrent').addEventListener('click', () => { saveToLibrary(); renderLib(); });
+$('btnLibrary').addEventListener('click', () => { renderLib(); $('libraryScreen').classList.add('open'); });
+$('btnStartLibrary').addEventListener('click', () => { $('titleScreen').classList.remove('open'); renderLib(); $('libraryScreen').classList.add('open'); });
+$('btnLibClose').addEventListener('click', () => $('libraryScreen').classList.remove('open'));
+
+/* ---------------- exports ---------------- */
+function download(filename, content, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], {type}));
+  a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+const fileSlug = () => trackName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'coaster';
+$('btnExportJson').addEventListener('click', () => download(fileSlug() + '.somelimits.json', serializeCoaster(trackName, nodes), 'application/json'));
+$('btnExportCsv').addEventListener('click', () => download(fileSlug() + '.nl2.csv', buildCSV(track), 'text/csv'));
+$('btnPng').addEventListener('click', () => {
+  renderer.render(scene, camera);
+  renderer.domElement.toBlob(b => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b); a.download = fileSlug() + '.png'; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  });
+});
+$('btnShare').addEventListener('click', async () => {
+  const url = location.origin + location.pathname + '#c=' + encodeCoaster(trackName, nodes);
+  try { await navigator.clipboard.writeText(url); toast('share link copied. the whole coaster is inside that URL.'); }
+  catch { prompt('copy this link - the coaster is encoded in it:', url); }
+  history.replaceState(null, '', url);
+});
+$('btnImportJson').addEventListener('click', () => $('fileImp').click());
+$('fileImp').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  f.text().then(t => {
+    let parsed = null;
+    try { parsed = f.name.toLowerCase().endsWith('.csv') ? (parseCSV(t) && {name: f.name.replace(/\.csv$/i, ''), nodes: parseCSV(t)}) : parseCoasterJSON(t); } catch {}
+    if (parsed) {
+      trackName = parsed.name; nodes = parsed.nodes; selected = 0;
+      buildTrack(); commit(); toast('imported "' + trackName + '".');
+    } else toast('that file did not parse as a coaster. some limits are file formats.');
+    e.target.value = '';
+  });
+});
+
+/* ---------------- overlays + keys ---------------- */
+$('btnStartBuild').addEventListener('click', () => $('titleScreen').classList.remove('open'));
+$('btnStartRide').addEventListener('click', () => { $('titleScreen').classList.remove('open'); startRide(); });
+$('btnManual').addEventListener('click', () => $('manualScreen').classList.add('open'));
+$('btnManualClose').addEventListener('click', () => $('manualScreen').classList.remove('open'));
+addEventListener('keydown', e => {
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea') { if (e.key === 'Escape') e.target.blur(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveToLibrary(); return; }
+  if (e.key === 'Escape') {
+    if (mode === 'ride') setMode('edit');
+    document.querySelectorAll('.overlay.open').forEach(o => { if (o.id !== 'titleScreen') o.classList.remove('open'); });
+  }
+  if (mode === 'ride' && (e.key === 'c' || e.key === 'C')) {
+    viewMode = viewMode === 'pov' ? 'chase' : viewMode === 'chase' ? 'orbit' : 'pov';
+    hud.view.textContent = viewMode.toUpperCase();
+  }
+  if (mode === 'edit') {
+    if (e.key === 'r' || e.key === 'R') startRide();
+    if (e.key === 'n' || e.key === 'N') addNode();
+    if (e.key === 'Delete' || e.key === 'Backspace') deleteNode();
+    if (e.key === 'l' || e.key === 'L') { renderLib(); $('libraryScreen').classList.add('open'); }
+    if (e.key === 'h' || e.key === 'H') $('manualScreen').classList.add('open');
+  } else if (e.key === 'e' || e.key === 'E') setMode('edit');
+});
+
+/* ---------------- boot + main loop ---------------- */
+(function boot() {
+  let shared = null;
+  if (location.hash.startsWith('#c=')) shared = decodeCoaster(location.hash.slice(3));
+  if (shared) {
+    trackName = shared.name; nodes = shared.nodes;
+    toast('a shared coaster rolled in: "' + trackName + '". it is yours now.');
+    $('titleScreen').classList.remove('open');
+  } else {
+    try {
+      const auto = JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+      if (auto && sanitizeNodes(auto.nodes)) { trackName = String(auto.name || 'untitled coaster'); nodes = sanitizeNodes(auto.nodes); }
+    } catch {}
+  }
+  buildTrack();
+  commit();
+})();
+const clock = new THREE.Clock();
+function loop() {
+  requestAnimationFrame(loop);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  if (mode === 'ride' && ride) poseRide(dt);
+  else controls.update();
+  renderer.render(scene, camera);
+}
+loop();
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>

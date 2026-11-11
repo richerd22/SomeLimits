@@ -1,0 +1,176 @@
+# Code
+
+How `play/index.html` works. One file, no build, no backend.
+
+This page documents the shipped v1. Anything else is marked planned.
+
+## Shape of the file
+
+- A single self-contained HTML file: markup, CSS, and one vanilla JavaScript module.
+- Three.js is the only dependency, loaded from the unpkg CDN via an importmap:
+
+```html
+<script type="importmap">
+{"imports": {"three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+             "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+```
+
+Pinned version: `three@0.160.0`. If the CDN is unreachable, the page does not run. That is the one external dependency and the docs do not pretend otherwise.
+
+- Layout stacks panels on small screens via responsive CSS. No framework.
+
+## State model
+
+The coaster is the nodes. Everything else is derived.
+
+```js
+// one node
+{ x, z, h, bank, lift, station }
+```
+
+- `x`, `z` - position on the ground plane, in metres.
+- `h` - height in metres.
+- `bank` - banking in degrees, -120 to 120.
+- `lift` - optional boolean: chain lift starts at this node.
+- `station` - boolean: exactly one node is the station. Setting a new one clears the old one.
+
+Plus app state: selected node index, mode (edit or ride), camera mode, the undo and redo stacks, and the sampled track (below). The sampled track is a cache. Rebuild it from the nodes, never edit it as source of truth.
+
+Minimum 6 nodes, enforced on delete.
+
+## Sampling pipeline
+
+Rebuilt whenever the nodes change.
+
+1. **Spline.** A closed centripetal Catmull-Rom spline through the node positions `(x, h, z)`. Centripetal, not uniform, so tight node spacing does not throw loops or cusps.
+2. **Sampling.** The spline is sampled at 900 points around the loop, with cumulative arc length `s` recorded per sample.
+3. **Frames.** Each sample gets a frame via parallel transport - rotation-minimizing frames. Start from an initial frame, then propagate the normal along the tangent, rotating only as much as the tangent change requires.
+
+   Why not Frenet frames: Frenet normals flip 180 degrees at inflection points and are undefined on straights. Parallel transport does not. The research notes in `research/SUMMARY.md` cover this.
+
+4. **Bank roll.** Banking is applied on top of the transported frame as a roll about the tangent.
+   - Node bank angles are interpolated between nodes with cosine easing.
+   - Interpolation takes the shortest angular path, with wrapping - so going from 110 to -110 travels through 180, the inversion, not back through 0.
+   - Result per sample: position, tangent, up vector (banked), side vector, arc length, and a lift flag (see Physics).
+
+5. **Lookup.** `sampleAt(s)` wraps `s` around the total track length and linearly interpolates between the two nearest samples for position, tangent, and up. The ride loop and the cameras both use it.
+
+## Geometry generation
+
+Built from the samples, rebuilt with the track. All code-rendered. No model files, no textures, no images.
+
+- **Rails.** Two steel rails as ribbon geometry, offset to either side of the centreline along the sample side vector. Vertices come straight from the frames, indexed into strips.
+- **Ties.** Wooden ties as instanced boxes, placed along the samples, oriented by each sample frame.
+- **Supports.** Auto supports: vertical posts from the ground to the track at intervals where the track is high enough to need them. Placement is automatic; there is no support editor in v1.
+- **Station platform.** A platform mesh at the station node's sample position, oriented by that sample's frame.
+- **Ground.** A ground plane under the layout - the plane the nodes sit on.
+- **Node handles.** In edit mode, a draggable handle mesh per node, tagged with its node index for picking via raycast against a horizontal drag plane at the node's height.
+
+## Editor interactions
+
+- Dragging moves a node in `x` and `z` on the ground plane. Height and banking come from the per-node sliders.
+- Double-clicking the track raycasts to a track point and inserts a node there.
+- On drag release, auto-smooth runs: a gentle relaxation over the moved node's neighbourhood, covering positions and banking. It is the built-in equivalent of the NL1 community's AHG smoothing ritual - small, local, and automatic.
+- Auto-lift is computed in the sample pass: a sample segment counts as lift if the source node has `lift` set, or if the climb between its two nodes is 8 m or more.
+- Undo and redo are snapshots of the node array on the undo and redo stacks.
+- The selected-node readout derives segment length, climb, and grade (climb over segment length) from the selected node to the next node. Pure display, no extra state.
+
+## Physics
+
+The simulator is energy-based, integrated per frame.
+
+- **Integration.** Semi-implicit Euler at the frame's `dt`.
+- **State.** Arc position `s` and scalar speed `v` along the track. The train's world position and orientation come from `sampleAt(s)`.
+- **Gravity.** From track slope: acceleration is `-g * dh/ds`, where `dh/ds` is estimated by comparing height at `s` with height a short look-ahead ahead.
+- **Drag.** Quadratic drag, proportional to `v * |v|`, plus a small constant rolling friction term.
+- **Lift constraint.** On lift samples, if the train is climbing and slower than chain speed, speed is held at about 5.2 m/s.
+- **Brake run.** In the final approach to the station, braking decelerates the train so it arrives back at the station at a stop. Reaching the station stopped ends the lap and triggers the summary.
+- **Start.** A ride starts at the station sample, at a low rolling speed.
+
+### G-force
+
+- Take the train's velocity vector at two successive steps, finite-difference them to get acceleration.
+- Add gravity back in - riders feel gravity plus acceleration, not acceleration alone.
+- Divide by `g` (9.81) for the G value, and low-pass filter it so the HUD does not jitter sample to sample.
+- The ride tracks max G, min G, and airtime: accumulated time where G stays under 0.5.
+- Lap summary reports lap time, max speed, max G, min G, and airtime seconds.
+
+### Cameras
+
+- POV: at the train, looking ahead along the track, camera up follows the track up vector - so inversions roll the view.
+- Chase: behind and above the train, world up.
+- Orbit: the editor orbit controls retargeted at the train.
+- C cycles, Esc exits to edit mode.
+
+## Save format
+
+### Library export / import object (v1)
+
+```json
+{
+  "name": "My Coaster",
+  "app": "somelimits",
+  "version": 1,
+  "nodes": [
+    { "x": 0, "z": 34, "h": 3, "bank": 0, "station": true },
+    { "x": 0, "z": 12, "h": 3.2, "bank": 0, "lift": true }
+  ]
+}
+```
+
+- `name` - coaster name.
+- `app` - the string `somelimits`. Import can check it.
+- `version` - format version, `1` in v1.
+- `nodes` - the full node array, in loop order. Node fields as in the state model; optional flags may be omitted when false.
+
+Import accepts two shapes:
+
+1. The v1 object above.
+2. The v0 raw format: a bare JSON array of nodes, no wrapper. Accepted so prototype-era files still load.
+
+Anything else fails import rather than loading half a coaster.
+
+## CSV bridge
+
+The NoLimits 2-style bridge. Plain CSV, one row per track sample, with these six columns in this order:
+
+```
+pos_x,pos_y,pos_z,up_x,up_y,up_z
+```
+
+Per row:
+
+- `pos_x, pos_y, pos_z` - sample position. Note the order on the page: position is x, height (y), z, matching the 3D scene's up axis.
+- `up_x, up_y, up_z` - the sample's banked up vector, normalized.
+
+Why this is enough: a spline importer needs a path and a roll reference. Position gives the path, up gives the roll. That pair is all SomeLimits sends, and all it reads.
+
+- **Export** writes all 900 samples in loop order.
+- **Import** reads rows in that layout, treats them as points on a loop, and decimates them back into an editable node set. You get nodes, not 900 handles - the imported coaster is editable here, not a frozen spline.
+
+No NoLimits binary formats are read or written. The `.nltrack` and `.nl2park` formats are not public and are out of scope. The CSV bridge is the whole interop story in v1.
+
+## Share links
+
+- Serialize the coaster as the v1 JSON object.
+- Encode the JSON string as base64url.
+- Put it in the URL hash: `#c=<base64url>`.
+- On load, if a `#c=` hash is present, decode base64url, parse the JSON, and load it as the current coaster.
+
+The hash is never sent to a server by the browser as part of a page request, and there is no server here anyway. A share link is self-contained: whoever has the link has the coaster, and there is no link to revoke.
+
+## Storage
+
+All in the browser's localStorage. No network storage anywhere in v1.
+
+- Library key: `somelimits-library-v1` - an array of saved coasters, each an entry holding the coaster data plus library metadata: name, saved date, and the derived stats shown on the card (node count, track length, max height - these can also be recomputed from the nodes on load).
+- Autosave: the current work in progress is written to localStorage on change, and restored on load if no share link overrides it.
+- Blueprint thumbnails are not stored as images. They are drawn on a 2D canvas from the node layout, top-down, when the library renders. The nodes are the storage; the picture is a redraw.
+
+Clearing site data deletes the library and the autosave. There is no backup copy. The code docs say this plainly because the player guide does too.
+
+## Title screen and manual
+
+- Title screen shows the hand-drawn SVG logo and short honest copy. No image assets beyond that SVG.
+- The Field Manual is an in-app overlay (H) summarizing the player guide. It is text in the file, not a separate document fetch.

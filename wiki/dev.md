@@ -1,0 +1,90 @@
+# Dev
+
+Working on SomeLimits itself.
+
+## Repo layout
+
+Repo: `richerd22/SomeLimits` (private).
+
+```
+play/          the shipped app - play/index.html is v1, the whole game
+prototype/     the v0 prototype the shipped app grew from - reference, not the product
+wiki/          these docs
+research/      NL1 vs NL2 research notes - see research/SUMMARY.md first
+logo/          the hand-drawn SVG logo (and exports of it)
+README.md      project pitch, scope lock, north star
+```
+
+Root `README.md` at the workspace is the founding doc - scope, design rules, and the no-AI-imagery rule were set there on day one. Read it before arguing with the design rules below. They are locked on purpose.
+
+## Running locally
+
+No build step, so running it is serving one file.
+
+Option 1, any static file server, from the repo root:
+
+```bash
+python3 -m http.server 8000
+# then open http://localhost:8000/play/
+```
+
+Option 2, just open `play/index.html` as a file in a modern browser.
+
+Either way you need internet once, for the Three.js CDN (`three@0.160.0` via unpkg, wired up through an importmap). Offline after the CDN is cached is the browser's business, not a feature we promise.
+
+## No build step, and why
+
+- One file is the deployment unit, the debugging unit, and the thing a fork gets. No transpiler, no bundler, no node_modules.
+- The audience includes people who will view source to learn how it works. A single readable file serves them; a build pipeline does not.
+- If a change needs a build step, that change is probably out of scope for this project.
+
+## Conventions
+
+- Vanilla JS in a single ES module. No framework.
+- Functions over classes. State lives in plain objects and arrays - see [Code](code.md) for the node model.
+- The core maths - spline sampling, parallel transport, bank interpolation, the physics step, G computation - lives in a clearly marked CORE section in the comments. Keep it free of DOM and Three.js scene side effects where the shipped code already is, so it can be lifted out and tested headlessly.
+- Rebuild derived data from nodes; never hand-edit samples. Samples are a cache.
+- Numbers mean metres, seconds, degrees where the code says degrees, km/h only at the HUD.
+- Style: dry comments, short functions, no hype in strings. UI copy follows the same voice as these docs.
+- Never use an em dash in project copy or docs. Hyphen only.
+- No AI-generated imagery, ever, in any file you add. Hand-drawn SVG, code-rendered geometry, or clean type. See [Admin](admin.md).
+
+## Testing
+
+There is no test suite in the repo and no test runner to install. What exists is a harness approach:
+
+- **Node harness for the core maths.** Extract the CORE section into a small Node script, stub or supply the vector maths it needs, and assert on the pure parts:
+  - bank interpolation takes the shortest path and wraps past 180 correctly
+  - a flat, unbanked loop holds about 1 G at rest speed
+  - parallel transport around a closed loop returns close to its starting frame
+  - a lift-flagged climb holds chain speed, an 8 m-plus climb is auto-lift
+  - an energy run with no drag loses no height it did not spend
+- **By hand, in the browser.** Load each preset, ride each one start to finish, check the lap summary appears, save and reload from the library, round-trip JSON out and back in, round-trip CSV out and back in, and open a share link in a private window.
+- **Round-trip rule.** Any change to the save format, CSV layout, or share encoding is not done until export, import in a fresh page, and ride all still work on an old file.
+
+If you add a harness, keep it in a scratch or tools folder, dependency-free, and say how to run it at the top of the file.
+
+## Planned
+
+Marked planned here so nobody documents or promises them as shipped:
+
+- Refinements to straight-section handling.
+- Anything listed under out-of-scope in the research summary: parks, terrain, multiple coasters, scripting, binary NoLimits formats.
+
+## Versioning
+
+- v1 is the current shipped app in `play/`.
+- `prototype/` is v0 and stays frozen as the reference it grew from.
+- Save format has its own version field (`version: 1` in the v1 object). Bump it if the node schema changes, and keep import accepting the older shapes - v1 import already accepts the v0 raw array, and that courtesy extends forward.
+
+## Contributing and forking
+
+- This is a single-owner project. Contributions are at the owner's discretion; there is no public issue-driven roadmap.
+- Forking: the code is readable on purpose. If you fork, rename your fork. Do not ship a fork as SomeLimits.
+- Keep the north star in the fork if you keep anything: place points, drag things, ride it within minutes.
+
+## License posture
+
+- The code belongs to Richard / Third Polar Arch. No open-source license has been granted in these docs, and the private repo is the current state of that - do not assume permissions the repo itself does not state.
+- The SomeLimits name and the hand-drawn logo are project marks of the project.
+- SomeLimits is not affiliated with NoLimits or Gravimetric. No NoLimits assets, code, or formats are used, beyond the documented CSV spline bridge (position plus up vectors) described in [Code](code.md).
