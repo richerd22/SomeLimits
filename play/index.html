@@ -31,6 +31,8 @@
   #hud .big{font-size:22px}
   #mode{top:12px;right:12px;font-size:12px;color:#8fa3b8}
   #mode b{color:#C6FF00}
+  #hint{top:12px;left:50%;transform:translateX(-50%);font-size:12px;color:#b9c7d6;white-space:nowrap;z-index:6}
+  #hint b{color:#C6FF00}
   #toast{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);background:#141c26;border:1px solid #C6FF00;color:#dfe6ee;border-radius:8px;padding:8px 14px;font-size:12px;z-index:60;display:none}
   .overlay{position:fixed;inset:0;background:rgba(5,8,12,.82);z-index:50;display:none;align-items:center;justify-content:center;padding:16px;box-sizing:border-box}
   .overlay.open{display:flex}
@@ -77,6 +79,7 @@
   <label>coaster name</label>
   <input type="text" id="inpName" maxlength="60">
   <div class="row" style="margin-top:6px">
+    <button id="btnNew">new</button>
     <button id="btnSaveLib">save to library</button>
     <button id="btnUndo">undo</button>
     <button id="btnRedo">redo</button>
@@ -130,6 +133,7 @@
 </div>
 
 <div id="mode" class="panel">mode: <b id="modeTxt">EDIT</b></div>
+<div id="hint" class="panel"><b>drag</b> the lime dots to shape it &middot; <b>double-click</b> the track to add a point &middot; <b>RIDE IT</b> when ready</div>
 <div id="toast"></div>
 
 <div id="titleScreen" class="overlay open">
@@ -649,6 +653,24 @@ function buildTrack() {
   syncPanel();
 }
 
+/* fit the whole circuit in view - the first-screen framing fix.
+   the camera used to sit at one fixed spot no matter what the
+   track looked like, so half the loop could hide behind the
+   panel or drift out of frame. */
+function frameTrack() {
+  if (!track) return;
+  const min = new THREE.Vector3(1e9, 1e9, 1e9), max = new THREE.Vector3(-1e9, -1e9, -1e9);
+  for (const sm of track.samples) { min.min(sm.pos); max.max(sm.pos); }
+  const center = min.clone().add(max).multiplyScalar(0.5);
+  const radius = Math.max(20, min.distanceTo(max) / 2);
+  const dist = radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) * 1.05;
+  const dir = new THREE.Vector3(0.85, 0.62, 1).normalize();
+  camera.position.copy(center).addScaledVector(dir, dist);
+  controls.target.copy(center);
+  camera.up.set(0, 1, 0);
+  controls.update();
+}
+
 /* top-down blueprint thumbnail (2D canvas drawing of the layout) */
 function blueprint(nodesForThumb, w = 264, h = 176) {
   const t = computeTrack(nodesForThumb);
@@ -744,6 +766,7 @@ function setMode(m) {
   mode = m;
   $('modeTxt').textContent = m.toUpperCase();
   $('hud').style.display = m === 'ride' ? 'block' : 'none';
+  $('hint').style.display = m === 'edit' ? 'block' : 'none';
   if (handleGroup) handleGroup.visible = m === 'edit';
   controls.enabled = m === 'edit';
   train.visible = m === 'ride';
@@ -776,7 +799,14 @@ function applyState(st) {
   selected = Math.min(selected, nodes.length - 1);
   buildTrack(); syncPanel(); autosave();
 }
-function undo() { if (hIndex > 0) { hIndex--; applyState(history[hIndex]); syncHistoryButtons(); } }
+/* start a fresh history whose ONLY entry is the current document.
+   loading a document (new / preset / library / import) is not an
+   edit - undo must never walk back into a different coaster. */
+function resetHistory() { history = []; hIndex = -1; commit(); }
+function undo() {
+  if (hIndex > 0) { hIndex--; applyState(history[hIndex]); syncHistoryButtons(); }
+  else toast('nothing to undo - this is the coaster you started with.');
+}
 function redo() { if (hIndex < history.length - 1) { hIndex++; applyState(history[hIndex]); syncHistoryButtons(); } }
 function syncHistoryButtons() {
   $('btnUndo').disabled = hIndex <= 0;
@@ -862,10 +892,27 @@ function smoothAround(idx) {
 document.querySelectorAll('[data-preset]').forEach(btn => btn.addEventListener('click', () => {
   nodes = structuredClone(PRESETS[btn.dataset.preset]);
   trackName = btn.textContent.trim();
-  selected = 0; buildTrack(); commit();
+  selected = 0; buildTrack(); resetHistory(); frameTrack();
   $('titleScreen').classList.remove('open');
   toast('preset loaded: ' + trackName + '. now make it yours.');
 }));
+
+/* NEW - a real new document: the complete classic circuit, a fresh
+   history with this as its floor, and the whole loop in frame.
+   there was no New button in v1 at all; "start building" only
+   dismissed the title card and revealed whatever the autosave
+   had silently restored. */
+function newDocument() {
+  if (hIndex > 0 && !confirm('start a new coaster? unsaved changes to "' + trackName + '" will be lost (library saves stay).')) return;
+  nodes = structuredClone(PRESETS.classic);
+  trackName = 'new coaster';
+  selected = 0;
+  setMode('edit');
+  buildTrack(); resetHistory(); frameTrack();
+  $('titleScreen').classList.remove('open');
+  toast('fresh circuit - complete and rideable right now. drag the lime dots to make it yours, or just hit RIDE IT.');
+}
+$('btnNew').addEventListener('click', newDocument);
 
 /* ---------------- dragging + insert ---------------- */
 const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
@@ -960,8 +1007,7 @@ function renderLib() {
       const act = b.dataset.act;
       if (act === 'open') {
         trackName = entry.name; nodes = structuredClone(entry.nodes); selected = 0;
-        history = []; hIndex = -1;
-        setMode('edit'); buildTrack(); commit();
+        setMode('edit'); buildTrack(); resetHistory(); frameTrack();
         $('libraryScreen').classList.remove('open');
         toast('loaded "' + entry.name + '".');
       } else if (act === 'rename') {
@@ -1018,7 +1064,7 @@ $('fileImp').addEventListener('change', e => {
     try { parsed = f.name.toLowerCase().endsWith('.csv') ? (parseCSV(t) && {name: f.name.replace(/\.csv$/i, ''), nodes: parseCSV(t)}) : parseCoasterJSON(t); } catch {}
     if (parsed) {
       trackName = parsed.name; nodes = parsed.nodes; selected = 0;
-      buildTrack(); commit(); toast('imported "' + trackName + '".');
+      buildTrack(); resetHistory(); frameTrack(); toast('imported "' + trackName + '".');
     } else toast('that file did not parse as a coaster. some limits are file formats.');
     e.target.value = '';
   });
@@ -1068,6 +1114,7 @@ addEventListener('keydown', e => {
   }
   buildTrack();
   commit();
+  frameTrack();
 })();
 const clock = new THREE.Clock();
 function loop() {
