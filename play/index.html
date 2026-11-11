@@ -134,7 +134,8 @@
   <div class="sub" id="saveMsg" style="margin-top:6px"></div>
   <hr>
   <div class="sub">
-    <b style="color:#dfe6ee">drag</b> a lime node to move it. <b style="color:#dfe6ee">double-click</b> the track to insert a node there.
+    <b style="color:#dfe6ee">drag</b> a lime node to move it. <b style="color:#dfe6ee">double-click</b> the track to insert a node there,
+    or <b style="color:#dfe6ee">click empty ground</b> to drop a node where you click.
     releasing a drag runs a gentle smoothing pass - the kink fix the old community did by hand, built in.
     climbs of 8m+ get a lift chain automatically. <b style="color:#dfe6ee">keys:</b> R ride, E edit, C camera, F frame track,
     N node, Del delete, ctrl+Z/Y undo/redo, ctrl+S save, H manual, L library.
@@ -246,7 +247,7 @@
       <li>hit <b>start building</b>. you get a working coaster immediately - the presets are complete circuits, not demos.</li>
       <li><b>drag</b> any lime node to move it. the height and banking sliders shape the selected node.</li>
       <li>make a hill taller than the rest - any climb of 8m or more grows a lift chain by itself.</li>
-      <li><b>double-click</b> the track to add a node exactly there. banking past +/-90 degrees is how you build inversions: you are the loop menu.</li>
+      <li><b>double-click</b> the track to add a node exactly there. <b>click empty ground</b> to drop a node where you click instead. banking past +/-90 degrees is how you build inversions: you are the loop menu.</li>
       <li>when you let go of a drag, a gentle smoothing pass runs over the neighbourhood. that's deliberate - it's the fix for kinked connections.</li>
       <li>press <b>RIDE IT</b> (or R). the train leaves the station, gravity does the rest, brakes bring it home.</li>
     </ul>
@@ -1384,6 +1385,21 @@ addEventListener('keydown', e => {
     if (e.key === 'h' || e.key === 'H') $('manualScreen').classList.add('open');
   } else if (e.key === 'e' || e.key === 'E') setMode('edit');
 });
+
+/* the hint bar rotates its one line - discovery, not a tutorial.
+   every line is a true sentence about a gesture that exists. */
+const HINTS = [
+  '<b>drag</b> the lime dots to shape it &middot; <b>double-click</b> the track to add a point &middot; <b>RIDE IT</b> when ready',
+  '<b>click empty ground</b> to drop a point right there',
+  'make a climb of <b>8m or more</b> between two nodes - the lift chain builds itself',
+  '<b>ctrl+Z</b> walks back through your edits - it never leaves this coaster'
+];
+let hintIdx = 0;
+setInterval(() => {
+  if (mode !== 'edit' || document.hidden) return;
+  hintIdx = (hintIdx + 1) % HINTS.length;
+  $('hint').innerHTML = HINTS[hintIdx];
+}, 6500);
 
 /* ---------------- boot + main loop ---------------- */
 (function boot() {
