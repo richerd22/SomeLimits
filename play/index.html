@@ -1240,8 +1240,32 @@ document.querySelectorAll('[data-preset]').forEach(btn => btn.addEventListener('
    there was no New button in v1 at all; "start building" only
    dismissed the title card and revealed whatever the autosave
    had silently restored. */
+/* the two-click guard: when there are edits to lose, the first click
+   arms BOTH new buttons ("sure? click again...") and the second one
+   inside ~6s does it. this used to be a native confirm() - which
+   dialog-less contexts (sandboxed frames, app webviews) silently
+   answer "false" to, leaving the button looking flat-out dead right
+   when a mid-build user reached for it. buttons + toast are the
+   app's own idiom, and they work everywhere the app does. with a
+   clean history (fresh boot) there is nothing to lose: one click. */
+let newArmUntil = 0;
 function newDocument() {
-  if (hIndex > 0 && !confirm('start a new coaster? unsaved changes to "' + trackName + '" will be lost (library saves stay).')) return;
+  if (hIndex > 0) {
+    if (performance.now() > newArmUntil) {
+      newArmUntil = performance.now() + 6000;
+      const label = 'sure? click again - replaces "' + trackName + '"';
+      $('btnNew').textContent = label; $('btnStartNew').textContent = label;
+      toast('one more click starts the new coaster - "' + trackName + '" and its undo history go away (library saves stay).', 6000);
+      setTimeout(() => {
+        if (performance.now() >= newArmUntil) {
+          $('btnNew').textContent = '+ new coaster'; $('btnStartNew').textContent = '-> + new coaster';
+        }
+      }, 6100);
+      return;
+    }
+    newArmUntil = 0;
+    $('btnNew').textContent = '+ new coaster'; $('btnStartNew').textContent = '-> + new coaster';
+  }
   nodes = structuredClone(PRESETS.classic);
   trackName = 'new coaster';
   selected = 0;
