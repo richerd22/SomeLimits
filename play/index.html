@@ -83,7 +83,7 @@
   <div class="row" style="margin-top:6px">
     <button id="btnNew" class="primary" style="flex:1">+ new coaster</button>
   </div>
-  <div class="sub" style="margin-top:4px">fresh complete circuit, rideable the second it lands. replaces the coaster on screen and overwrites its autosave - save to library first if you want to keep this one.</div>
+  <div class="sub" style="margin-top:4px">blank plot, nothing on it. you place the station, lay every point, close the loop yourself - the way it used to work. replaces the coaster on screen and overwrites its autosave - save to library first if you want to keep this one.</div>
   <div class="row" style="margin-top:6px">
     <button id="btnSaveLib">save to library</button>
     <button id="btnUndo">undo</button>
@@ -193,7 +193,7 @@
     <button class="bigbtn" id="btnStartBuild">-&gt; continue: classic circuit</button>
     <button class="bigbtn" id="btnStartRide">-&gt; ride the current coaster</button>
     <button class="bigbtn" id="btnStartLibrary">-&gt; my saved coasters</button>
-    <p class="sub" style="margin-top:10px">stuck on a coaster you don't want? <b style="color:#dfe6ee">new coaster</b> replaces it on the spot with a fresh, complete, rideable circuit - and wipes its undo history, so undo can't drag the old one back. "continue" just opens whatever is autosaved.</p>
+    <p class="sub" style="margin-top:10px">stuck on a coaster you don't want? <b style="color:#dfe6ee">new coaster</b> clears the plot to bare grid - station first, then your points, then close the loop - and wipes its undo history, so undo can't drag the old one back. "continue" just opens whatever is autosaved. the presets stay instant, for days when building from nothing sounds like homework.</p>
     <div class="row" style="margin-top:8px">
       <span class="sub" style="margin-right:4px">start from a preset:</span>
       <button data-preset="classic">classic circuit</button>
@@ -244,7 +244,7 @@
     <p class="sub">the full wiki lives in the repo under <code>/wiki</code>. this is the page you actually need.</p>
     <h3>your first coaster in five minutes</h3>
     <ul>
-      <li>hit <b>start building</b>. you get a working coaster immediately - the presets are complete circuits, not demos.</li>
+      <li>two ways in: <b>new coaster</b> gives you a blank plot - <b>click the ground</b> to place the station, click again to lay points out from it, and click the glowing ring at the station to close the circuit. or take a <b>preset</b> - complete circuits, not demos, rideable the second they land.</li>
       <li><b>drag</b> any lime node to move it. the height and banking sliders shape the selected node.</li>
       <li>make a hill taller than the rest - any climb of 8m or more grows a lift chain by itself.</li>
       <li><b>double-click</b> the track to add a node exactly there. <b>click empty ground</b> to drop a node where you click instead. banking past +/-90 degrees is how you build inversions: you are the loop menu.</li>
@@ -578,6 +578,15 @@ let selected = 0;
 let mode = 'edit';           // 'edit' | 'ride'
 let viewMode = 'pov';        // 'pov' | 'chase' | 'orbit'
 let track = null;            // result of computeTrack(nodes)
+/* building-from-blank state: the document is an open strip of
+   track growing out of a station (or an empty plot), not a
+   circuit. while this is on, the closed-loop code never runs -
+   computeOpenTrack renders the strip, ground clicks extend it,
+   and RIDE IT stays locked. closing the loop turns it off and
+   the normal game takes over completely. */
+let building = false;
+let hoverPt = null;          // ground point under the cursor (snap-ring hover)
+const CLOSE_R = 13;          // snap radius (m) around the station entry
 
 const app = document.getElementById('app');
 const renderer = new THREE.WebGLRenderer({antialias: true, preserveDrawingBuffer: true});
@@ -653,7 +662,12 @@ function terrainHeightAt(x, z) {
     const d = dx * dx + dz * dz;
     if (d < best) best = d;
   }
-  return terrainNoise(x, z) * THREE.MathUtils.smoothstep(Math.sqrt(best), 26, 58) - 0.02;
+  let f = THREE.MathUtils.smoothstep(Math.sqrt(best), 26, 58);
+  /* while building from blank, the whole plot is graph-paper flat:
+     the hills fade across the building square, not just the track
+     apron, so the ground reads as a sheet you draw on. */
+  if (building) f = Math.min(f, THREE.MathUtils.smoothstep(Math.max(Math.abs(x), Math.abs(z)), 80, 115));
+  return terrainNoise(x, z) * f - 0.02;
 }
 const terrainGeo = new THREE.PlaneGeometry(600, 600, 108, 108);
 terrainGeo.rotateX(-Math.PI / 2);
@@ -662,6 +676,32 @@ terrainGeo.setAttribute('color', terrainColors);
 const terrain = new THREE.Mesh(terrainGeo, new THREE.MeshStandardMaterial({roughness: 1, vertexColors: true}));
 terrain.receiveShadow = true;
 scene.add(terrain);
+
+/* the building plot: graph paper that exists only while you build
+   from blank. NL1 drew on a grid; so do you. the moment the circuit
+   closes, the grid gets out of the way and the hills come back.
+   fine lines every 5m, coarse every 25m, on the flattened plot. */
+const gridGroup = new THREE.Group();
+{
+  const fine = new THREE.GridHelper(220, 44, 0x51708f, 0x2c4356);
+  fine.material.transparent = true; fine.material.opacity = 0.34; fine.material.fog = true;
+  fine.position.y = 0.05;
+  const coarse = new THREE.GridHelper(200, 8, 0x6f96b8, 0x47637c);
+  coarse.material.transparent = true; coarse.material.opacity = 0.5; coarse.material.fog = true;
+  coarse.position.y = 0.07;
+  gridGroup.add(fine, coarse);
+  gridGroup.visible = false;
+}
+scene.add(gridGroup);
+/* the snap ring: a glowing circle on the station's entry side.
+   when it is showing, a ground click inside it closes the loop. */
+const snapRing = new THREE.Mesh(
+  new THREE.RingGeometry(CLOSE_R - 0.6, CLOSE_R, 56),
+  new THREE.MeshBasicMaterial({color: 0xC6FF00, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false})
+);
+snapRing.rotation.x = -Math.PI / 2;
+snapRing.visible = false;
+scene.add(snapRing);
 const _tcLow = new THREE.Color(0x242a30), _tcMid = new THREE.Color(0x2e3431), _tcHigh = new THREE.Color(0x454a3b), _tc = new THREE.Color();
 function updateTerrain() {
   const posA = terrainGeo.attributes.position, arr = terrainColors.array;
@@ -704,7 +744,8 @@ train.castShadow = true;
 scene.add(train);
 
 function buildTrack() {
-  track = computeTrack(nodes);
+  if (building && nodes.length < 2) { buildLoneStation(); return; }
+  track = building ? computeOpenTrack(nodes) : computeTrack(nodes);
   if (trackGroup) { scene.remove(trackGroup); trackGroup.traverse(o => o.geometry && o.geometry.dispose()); }
   if (handleGroup) { scene.remove(handleGroup); }
   trackGroup = new THREE.Group(); handleGroup = new THREE.Group();
@@ -844,7 +885,7 @@ function buildTrack() {
 
   const st = nodes.findIndex(n => n.station);
   if (st >= 0) {
-    const sm = samples[Math.floor(st / nodes.length * SAMPLES)];
+    const sm = samples[Math.floor((building ? st / (nodes.length - 1) : st / nodes.length) * SAMPLES)];
     const plat = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.5, 16),
       new THREE.MeshStandardMaterial({color: 0x27313d, roughness: 1}));
     plat.castShadow = true; plat.receiveShadow = true;
@@ -856,7 +897,7 @@ function buildTrack() {
 
   // invisible fat tube so double-clicks can find the track
   hitTube = new THREE.Mesh(
-    new THREE.TubeGeometry(track.curve, 200, 2.6, 5, true),
+    new THREE.TubeGeometry(track.curve, 200, 2.6, 5, !building),
     new THREE.MeshBasicMaterial({colorWrite: false, depthWrite: false})
   );
   trackGroup.add(hitTube);
@@ -876,7 +917,7 @@ function buildTrack() {
      spline barely moves while a node is in your hand. it settles on
      release, like everything else. */
   if (dragging < 0 && banking < 0) updateTerrain();
-  syncPanel();
+  syncPanel(); syncBuildUI();
 }
 
 /* fit the whole circuit in view - the first-screen framing fix.
@@ -895,6 +936,194 @@ function frameTrack() {
   controls.target.copy(center);
   camera.up.set(0, 1, 0);
   controls.update();
+}
+
+/* ---------------- building from blank ----------------
+   the open state, isolated: an explicit flag, its own track
+   computation, its own ground-click gesture. nothing in the
+   closed game above or below this section knows it exists. */
+
+/* the station's entry: the spot the track has to come home to.
+   the train leaves toward the next point, so home is one platform
+   length the other way. with no next point yet, home is north. */
+function stationEntry() {
+  const si = nodes.findIndex(n => n.station);
+  const st = si >= 0 ? nodes[si] : nodes[0];
+  if (!st) return null;
+  const nxt = nodes[si + 1];
+  let dx = 0, dz = -1;
+  if (nxt) {
+    dx = nxt.x - st.x; dz = nxt.z - st.z;
+    const l = Math.hypot(dx, dz);
+    if (l > 0.01) { dx /= l; dz /= l; }
+  }
+  return {x: st.x - dx * 7, z: st.z - dz * 7, sx: st.x, sz: st.z};
+}
+function canClose() { return building && nodes.length >= 4; }
+
+/* banking along an open strip: like bankAt, but the ends clamp
+   instead of wrapping - there is no other side of the loop yet. */
+function bankAtOpen(nodes, f) {
+  const N = nodes.length;
+  const i0 = Math.min(Math.floor(f), N - 1), i1 = Math.min(i0 + 1, N - 1);
+  const t = THREE.MathUtils.clamp(f - Math.floor(f), 0, 1), s = (1 - Math.cos(t * Math.PI)) / 2;
+  return lerpAngleDeg(nodes[i0].bank, nodes[i1].bank, s);
+}
+
+/* the open sibling of computeTrack: same sample shape, same lift
+   rule (a node's flag, or an 8m+ climb), but the spline doesn't
+   wrap, there's no seam twist to correct, and there are no brake
+   samples because nothing rides an open track. */
+function computeOpenTrack(nodes) {
+  const N = nodes.length;
+  if (N < 2) return null;
+  const pts = nodes.map(n => new THREE.Vector3(n.x, n.h, n.z));
+  const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5);
+  const pos = curve.getSpacedPoints(SAMPLES);
+  const tans = [];
+  for (let i = 0; i <= SAMPLES; i++) {
+    const a = pos[Math.max(0, i - 1)], b = pos[Math.min(SAMPLES, i + 1)];
+    tans.push(b.clone().sub(a).normalize());
+  }
+  const worldUp = new THREE.Vector3(0, 1, 0);
+  let up0 = worldUp.clone().addScaledVector(tans[0], -worldUp.dot(tans[0]));
+  if (up0.lengthSq() < 1e-6) up0 = new THREE.Vector3(1, 0, 0);
+  up0.normalize();
+  const transported = [up0.clone()];
+  const q = new THREE.Quaternion();
+  for (let i = 1; i <= SAMPLES; i++) {
+    q.setFromUnitVectors(tans[i - 1], tans[i]);
+    transported.push(transported[i - 1].clone().applyQuaternion(q).normalize());
+  }
+  const stIdx = Math.max(0, nodes.findIndex(n => n.station));
+  const samples = [];
+  let dist = 0;
+  for (let i = 0; i <= SAMPLES; i++) {
+    const p = pos[i], tan = tans[i];
+    if (i > 0) dist += pos[i].distanceTo(pos[i - 1]);
+    const f = (i / SAMPLES) * (N - 1);
+    const i0 = Math.min(Math.floor(f), N - 1), i1 = Math.min(i0 + 1, N - 1);
+    const bankDeg = bankAtOpen(nodes, f);
+    const up = transported[i].clone().applyAxisAngle(tan, -THREE.MathUtils.degToRad(bankDeg)).normalize();
+    const side = new THREE.Vector3().crossVectors(up, tan).normalize();
+    const climb = nodes[i1].h - nodes[i0].h;
+    const lift = !!nodes[i0].lift || climb >= 8;
+    samples.push({pos: p.clone(), tan, up, side, s: dist, lift, bankDeg, brake: false});
+  }
+  return {samples, totalLen: dist, stationS: (stIdx / (N - 1)) * dist, curve};
+}
+
+/* fewer than 2 points: no spline exists yet. an empty plot, or a
+   lone station standing on it. handles + platform, nothing else. */
+function buildLoneStation() {
+  track = null; hitTube = null;
+  if (trackGroup) { scene.remove(trackGroup); trackGroup.traverse(o => o.geometry && o.geometry.dispose()); }
+  if (handleGroup) { scene.remove(handleGroup); }
+  trackGroup = new THREE.Group(); handleGroup = new THREE.Group();
+  if (nodes.length === 1) {
+    const n = nodes[0];
+    const plat = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.5, 16),
+      new THREE.MeshStandardMaterial({color: 0x27313d, roughness: 1}));
+    plat.castShadow = true; plat.receiveShadow = true;
+    plat.position.set(n.x, n.h - 0.55, n.z);
+    trackGroup.add(plat);
+  }
+  scene.add(trackGroup);
+  const hGeo = new THREE.SphereGeometry(1.05, 16, 12);
+  nodes.forEach((n, i) => {
+    const mat = new THREE.MeshStandardMaterial({color: i === selected ? 0xffffff : 0xC6FF00, emissive: i === selected ? 0x445500 : 0x222a00});
+    const h = new THREE.Mesh(hGeo, mat);
+    h.position.set(n.x, n.h, n.z);
+    h.userData.nodeIndex = i;
+    handleGroup.add(h);
+  });
+  handleGroup.visible = (mode === 'edit');
+  scene.add(handleGroup);
+  if (dragging < 0 && banking < 0) updateTerrain();
+  syncPanel();
+  /* syncPanel bails on an empty document - clear the sheet by hand */
+  els.name.value = trackName; refreshContinue();
+  els.idx.textContent = nodes.length ? '#1 of 1' : '-';
+  els.seg.textContent = nodes.length ? 'the station. everything leaves from here.' : 'empty plot - no station yet.';
+  for (const id of ['dsLen', 'dsH', 'dsDrop', 'dsAng', 'dsV', 'dsN']) $(id).textContent = '-';
+  syncBuildUI();
+}
+
+/* frame the empty plot - there is no track to fit yet, just the
+   graph paper and the dirt. same three-quarter eye as a framed
+   circuit, aimed at the middle of the sheet. */
+function framePlot() {
+  camera.position.set(52, 46, 74);
+  controls.target.set(0, 2, 0);
+  camera.up.set(0, 1, 0);
+  controls.update();
+}
+
+/* the hint line while building teaches the build, in order. */
+function buildHint() {
+  return nodes.length === 0 ? '<b>click the ground</b> to place the station - everything starts there' :
+    nodes.length === 1 ? 'station is down. <b>click the ground</b> to lay track out from it' :
+    nodes.length < 4 ? '<b>click</b> to extend &middot; <b>drag</b> points to shape &middot; the slider raises them - 8m+ climbs grow a lift' :
+    'bring it home - <b>click the glowing ring</b> at the station to close the circuit';
+}
+
+/* everything the building state shows that a circuit doesn't:
+   the grid, the snap ring, a locked RIDE IT, the build hint, and
+   a station checkbox that stays out of it (the station is the
+   first point down; it is structural until the loop closes). */
+let buildUIKey = '';
+function syncBuildUI() {
+  gridGroup.visible = building;
+  const entry = building ? stationEntry() : null;
+  snapRing.visible = !!(entry && canClose());
+  if (snapRing.visible) snapRing.position.set(entry.x, 0.12, entry.z);
+  $('btnRide').disabled = building;
+  $('btnRide').textContent = building ? 'RIDE IT - close the loop first' : 'RIDE IT';
+  els.station.disabled = building;
+  const key = (building ? 'b' : '-') + nodes.length;
+  if (key === buildUIKey) return;
+  const wasBuilding = buildUIKey.charAt(0) === 'b';
+  buildUIKey = key;
+  if (building) $('hint').innerHTML = buildHint();
+  else if (wasBuilding) $('hint').innerHTML = HINTS[0];
+}
+
+/* one ground click while building, in NL1 order of business:
+   station first, then points out from it, then home. */
+function buildClickAtGround(pt) {
+  if (nodes.length === 0) {
+    nodes = [{x: Math.round(pt.x * 10) / 10, z: Math.round(pt.z * 10) / 10, h: 3, bank: 0, station: true}];
+    selected = 0;
+    buildTrack(); commit();
+    toast('station placed. now click the ground to lay track out from it - every click is the next point.');
+    return;
+  }
+  const entry = stationEntry();
+  if (entry && nodes.length >= 2 && Math.hypot(pt.x - entry.x, pt.z - entry.z) <= CLOSE_R) {
+    if (canClose()) { closeLoop(); return; }
+    toast('not yet - a circuit needs at least 4 points. keep laying track.');
+    return;
+  }
+  for (const n of nodes) {
+    if (Math.hypot(pt.x - n.x, pt.z - n.z) < 3) { toast('too close to an existing point - give the track room to breathe.'); return; }
+  }
+  const prev = nodes[nodes.length - 1];
+  nodes.push({x: Math.round(pt.x * 10) / 10, z: Math.round(pt.z * 10) / 10, h: prev.h, bank: prev.bank});
+  selected = nodes.length - 1;
+  buildTrack(); commit();
+  if (nodes.length === 2) toast('track is growing. drag points to shape it, the slider raises them - 8m climbs grow a lift chain.');
+  else if (nodes.length === 4) toast('that is enough track to come home - click the glowing ring at the station to close the circuit.');
+}
+
+/* the click that makes it a coaster: the strip becomes the loop,
+   the flag flips off, and the closed game takes over untouched. */
+function closeLoop() {
+  const st = nodes[0];
+  if (nodes.length > 4 && Math.hypot(nodes[nodes.length - 1].x - st.x, nodes[nodes.length - 1].z - st.z) < 2) nodes.pop();
+  building = false;
+  selected = Math.max(0, nodes.findIndex(n => n.station));
+  buildTrack(); commit();
+  toast('circuit closed - she is rideable. RIDE IT when ready.', 3600);
 }
 
 /* top-down blueprint thumbnail (2D canvas drawing of the layout) */
@@ -943,6 +1172,7 @@ function fmtTime(sec) {
 }
 
 function startRide() {
+  if (building) { toast('no circuit, no ride - bring the track home to the station first.'); return; }
   buildTrack();
   ensureAudio();   // born here, inside a user gesture, per browser rules
   ride = createRide(track);
@@ -1101,7 +1331,7 @@ const els = {idx: $('nodeIdx'), h: $('rngH'), b: $('rngB'), hVal: $('hVal'), bVa
              name: $('inpName'), seg: $('segInfo')};
 
 let history = [], hIndex = -1;
-function snapshot() { return {name: trackName, nodes: structuredClone(nodes)}; }
+function snapshot() { return {name: trackName, nodes: structuredClone(nodes), building}; }
 function commit() {
   history = history.slice(0, hIndex + 1);
   history.push(snapshot());
@@ -1112,7 +1342,8 @@ function commit() {
 }
 function applyState(st) {
   trackName = st.name; nodes = structuredClone(st.nodes);
-  selected = Math.min(selected, nodes.length - 1);
+  building = !!st.building;
+  selected = nodes.length ? Math.min(selected, nodes.length - 1) : 0;
   buildTrack(); syncPanel(); autosave();
 }
 /* start a fresh history whose ONLY entry is the current document.
@@ -1142,7 +1373,7 @@ function syncHistoryButtons() {
     : 'nothing to undo - this is the coaster you started with.';
 }
 function autosave() {
-  try { localStorage.setItem('somelimits-autosave-v1', JSON.stringify({name: trackName, nodes})); } catch {}
+  try { localStorage.setItem('somelimits-autosave-v1', JSON.stringify({name: trackName, nodes, building})); } catch {}
 }
 
 function syncPanel() {
@@ -1156,14 +1387,20 @@ function syncPanel() {
   els.bVal.textContent = n.bank + ' deg';
   els.lift.checked = !!n.lift; els.station.checked = !!n.station;
   if (track) {
-    const N = nodes.length, nxt = nodes[(selected + 1) % N];
-    const s1 = track.samples[Math.round(selected / N * SAMPLES)].s;
-    let s2 = track.samples[Math.round(((selected + 1) % N) / N * SAMPLES)].s;
-    if (s2 <= s1) s2 += track.totalLen;
-    const segLen = s2 - s1, climb = nxt.h - n.h;
-    els.seg.textContent = 'to next node: ' + segLen.toFixed(1) + ' m of track, ' +
-      (climb >= 0 ? '+' : '') + climb.toFixed(1) + ' m climb (' + (segLen ? (climb / segLen * 100).toFixed(0) : 0) + '% grade)' +
-      (n.lift || climb >= 8 ? ' - lift chain on this climb' : '');
+    const N = nodes.length;
+    if (building && selected === N - 1) {
+      els.seg.textContent = 'end of the line - click ground to extend it, or close the circuit at the station.';
+    } else {
+      const nxt = nodes[(selected + 1) % N];
+      const den = building ? N - 1 : N;
+      const s1 = track.samples[Math.round(selected / den * SAMPLES)].s;
+      let s2 = track.samples[Math.round((building ? selected + 1 : (selected + 1) % N) / den * SAMPLES)].s;
+      if (s2 <= s1) s2 += track.totalLen;
+      const segLen = s2 - s1, climb = nxt.h - n.h;
+      els.seg.textContent = 'to next node: ' + segLen.toFixed(1) + ' m of track, ' +
+        (climb >= 0 ? '+' : '') + climb.toFixed(1) + ' m climb (' + (segLen ? (climb / segLen * 100).toFixed(0) : 0) + '% grade)' +
+        (n.lift || climb >= 8 ? ' - lift chain on this climb' : '');
+    }
     const td = trackData(nodes, track);
     $('dsLen').textContent = Math.round(td.lengthM) + ' m';
     $('dsH').textContent = td.maxHeightM.toFixed(1) + ' m';
@@ -1174,11 +1411,11 @@ function syncPanel() {
   }
 }
 
-els.h.addEventListener('input', () => { nodes[selected].h = parseFloat(els.h.value); buildTrack(); });
+els.h.addEventListener('input', () => { if (!nodes[selected]) return; nodes[selected].h = parseFloat(els.h.value); buildTrack(); });
 els.h.addEventListener('change', commit);
-els.b.addEventListener('input', () => { nodes[selected].bank = parseInt(els.b.value); buildTrack(); });
+els.b.addEventListener('input', () => { if (!nodes[selected]) return; nodes[selected].bank = parseInt(els.b.value); buildTrack(); });
 els.b.addEventListener('change', commit);
-els.lift.addEventListener('change', () => { nodes[selected].lift = els.lift.checked; buildTrack(); commit(); });
+els.lift.addEventListener('change', () => { if (!nodes[selected]) return; nodes[selected].lift = els.lift.checked; buildTrack(); commit(); });
 els.station.addEventListener('change', () => {
   nodes.forEach(n => n.station = false);
   nodes[selected].station = els.station.checked; buildTrack(); commit();
@@ -1186,11 +1423,42 @@ els.station.addEventListener('change', () => {
 els.name.addEventListener('change', () => { trackName = els.name.value.trim() || 'untitled coaster'; refreshContinue(); commit(); });
 
 function addNode() {
+  if (building) {
+    if (!nodes.length) { toast('place the station first - click the ground.'); return; }
+    if (selected >= nodes.length - 1) {
+      /* the button extends the line: one more point out past the
+         end, along the last stretch's direction */
+      const a = nodes[nodes.length - 1], b = nodes[nodes.length - 2];
+      const dx = b ? a.x - b.x : 0, dz = b ? a.z - b.z : -14;
+      const l = Math.hypot(dx, dz) || 1, s = 14 / l;
+      nodes.push({x: THREE.MathUtils.clamp(a.x + dx * s, -150, 150), z: THREE.MathUtils.clamp(a.z + dz * s, -150, 150), h: a.h, bank: a.bank});
+      selected = nodes.length - 1;
+    } else {
+      const a = nodes[selected], b = nodes[selected + 1];
+      nodes.splice(selected + 1, 0, {x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, h: (a.h + b.h) / 2, bank: Math.round((a.bank + b.bank) / 2)});
+      selected++;
+    }
+    buildTrack(); commit();
+    return;
+  }
   const a = nodes[selected], b = nodes[(selected + 1) % nodes.length];
   nodes.splice(selected + 1, 0, {x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, h: (a.h + b.h) / 2, bank: Math.round((a.bank + b.bank) / 2)});
   selected++; buildTrack(); commit();
 }
 function deleteNode() {
+  if (building) {
+    /* building has no floor: points come back off one at a time,
+       the station's job passes to the first point left, and
+       deleting the last point is just a clear plot again. */
+    if (!nodes.length) return;
+    const wasStation = !!nodes[selected].station;
+    nodes.splice(selected, 1);
+    if (wasStation && nodes.length) nodes[0].station = true;
+    selected = Math.max(0, Math.min(selected, nodes.length - 1));
+    buildTrack(); commit();
+    if (!nodes.length) toast('plot is clear again. click the ground for a new station.');
+    return;
+  }
   if (nodes.length <= 6) { toast('six nodes is the floor. some limits are load-bearing.'); return; }
   if (nodes[selected].station && nodes.filter(n => n.station).length === 1) {
     const nxt = (selected + 1) % nodes.length; nodes[nxt].station = true;
@@ -1217,8 +1485,11 @@ function smoothAround(idx) {
     return THREE.MathUtils.radToDeg(Math.atan2(y, x));
   };
   for (let d = -2; d <= 2; d++) {
-    const i = ((idx + d) % N + N) % N;
-    const p = orig[(i - 1 + N) % N], c = orig[i], q = orig[(i + 1) % N];
+    if (building && (idx + d < 0 || idx + d >= N)) continue;   // an open strip has no wrap to smooth across
+    const i = building ? idx + d : ((idx + d) % N + N) % N;
+    const pi = building ? Math.max(0, i - 1) : (i - 1 + N) % N;
+    const qi = building ? Math.min(N - 1, i + 1) : (i + 1) % N;
+    const p = orig[pi], c = orig[i], q = orig[qi];
     const w = d === 0 ? 0.18 : 0.3;
     nodes[i].x = c.x + ((p.x + q.x) / 2 - c.x) * w;
     nodes[i].z = c.z + ((p.z + q.z) / 2 - c.z) * w;
@@ -1229,17 +1500,20 @@ function smoothAround(idx) {
 
 document.querySelectorAll('[data-preset]').forEach(btn => btn.addEventListener('click', () => {
   nodes = structuredClone(PRESETS[btn.dataset.preset]);
+  building = false;
   trackName = btn.textContent.trim();
   selected = 0; buildTrack(); resetHistory(); frameTrack();
   $('titleScreen').classList.remove('open');
   toast('preset loaded: ' + trackName + '. now make it yours.');
 }));
 
-/* NEW - a real new document: the complete classic circuit, a fresh
-   history with this as its floor, and the whole loop in frame.
-   there was no New button in v1 at all; "start building" only
-   dismissed the title card and revealed whatever the autosave
-   had silently restored. */
+/* NEW - a real new document, and "new" means new: an empty plot.
+   the old behaviour (v1.2-v1.3) loaded the classic circuit here,
+   which made New a liar twice over - it looked exactly like the
+   boot track, and it was pre-built. NL1 started you on a bare
+   grid with a station to place, so that is what this does now:
+   blank plot, building state on, station first. presets are the
+   instant-track path; this button is the build-it path. */
 /* the two-click guard: when there are edits to lose, the first click
    arms BOTH new buttons ("sure? click again...") and the second one
    inside ~6s does it. this used to be a native confirm() - which
@@ -1266,13 +1540,14 @@ function newDocument() {
     newArmUntil = 0;
     $('btnNew').textContent = '+ new coaster'; $('btnStartNew').textContent = '-> + new coaster';
   }
-  nodes = structuredClone(PRESETS.classic);
+  nodes = [];
+  building = true;
   trackName = 'new coaster';
   selected = 0;
   setMode('edit');
-  buildTrack(); resetHistory(); frameTrack();
+  buildTrack(); resetHistory(); framePlot();
   $('titleScreen').classList.remove('open');
-  toast('fresh circuit - complete and rideable right now. drag the lime dots to make it yours, or just hit RIDE IT.');
+  toast('blank plot - the grid, the dirt, nothing else. click the ground to place your station.');
 }
 $('btnNew').addEventListener('click', newDocument);
 
@@ -1331,6 +1606,14 @@ renderer.domElement.addEventListener('pointerdown', e => {
   }
 });
 renderer.domElement.addEventListener('pointermove', e => {
+  if (building && mode === 'edit' && dragging < 0 && banking < 0) {
+    /* track the cursor's ground point so the snap ring can light
+       up when a closing click is on the table */
+    castAt(e);
+    dragPlane.constant = 0;
+    const hp = new THREE.Vector3();
+    hoverPt = ray.ray.intersectPlane(dragPlane, hp) ? hp : null;
+  }
   if (banking >= 0) {
     const nb = THREE.MathUtils.clamp(Math.round(bankStartVal + (e.clientX - bankStartX) * 0.45), -180, 180);
     if (nb !== nodes[banking].bank) { nodes[banking].bank = nb; bankMoved = true; buildTrack(); }
@@ -1368,7 +1651,7 @@ renderer.domElement.addEventListener('pointerup', e => {
       Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) < 6) {
     castAt(e);
     const onTrack = hitTube && ray.intersectObject(hitTube).length > 0;
-    if (!onTrack && ray.ray.direction.y < -0.04) {
+    if ((building || !onTrack) && ray.ray.direction.y < -0.04) {
       dragPlane.constant = 0;
       const out = new THREE.Vector3();
       if (ray.ray.intersectPlane(dragPlane, out) &&
@@ -1377,7 +1660,8 @@ renderer.domElement.addEventListener('pointerup', e => {
         lastGroundAdd = performance.now();
         out.x = THREE.MathUtils.clamp(out.x, -150, 150);
         out.z = THREE.MathUtils.clamp(out.z, -150, 150);
-        addNodeAtGround(out);
+        if (building) buildClickAtGround(out);
+        else addNodeAtGround(out);
       }
     }
   }
@@ -1387,7 +1671,7 @@ renderer.domElement.addEventListener('pointerup', e => {
    gets a say in edit mode (right-drag on empty space still pans). */
 renderer.domElement.addEventListener('contextmenu', e => { if (mode === 'edit') e.preventDefault(); });
 renderer.domElement.addEventListener('dblclick', e => {
-  if (mode !== 'edit' || !hitTube) return;
+  if (mode !== 'edit' || !hitTube || building) return;
   castAt(e);
   const hits = ray.intersectObject(hitTube);
   if (!hits.length) return;
@@ -1410,6 +1694,7 @@ const LIB_KEY = 'somelimits-library-v1';
 function loadLib() { try { return JSON.parse(localStorage.getItem(LIB_KEY)) || []; } catch { return []; } }
 function storeLib(lib) { try { localStorage.setItem(LIB_KEY, JSON.stringify(lib)); } catch { toast('library storage is full or blocked. export json instead.'); } }
 function saveToLibrary() {
+  if (building) { toast('the library shelves finished circuits - close the loop first.'); return; }
   const lib = loadLib();
   const st = trackStats(nodes, track);
   const entry = {
@@ -1442,7 +1727,7 @@ function renderLib() {
     div.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
       const act = b.dataset.act;
       if (act === 'open') {
-        trackName = entry.name; nodes = structuredClone(entry.nodes); selected = Math.max(0, nodes.findIndex(n => n.station));
+        trackName = entry.name; nodes = structuredClone(entry.nodes); building = false; selected = Math.max(0, nodes.findIndex(n => n.station));
         setMode('edit'); buildTrack(); resetHistory(); frameTrack();
         $('libraryScreen').classList.remove('open');
         toast('loaded "' + entry.name + '".');
@@ -1476,8 +1761,14 @@ function download(filename, content, type) {
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 const fileSlug = () => trackName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'coaster';
-$('btnExportJson').addEventListener('click', () => download(fileSlug() + '.somelimits.json', serializeCoaster(trackName, nodes), 'application/json'));
-$('btnExportCsv').addEventListener('click', () => download(fileSlug() + '.nl2.csv', buildCSV(track), 'text/csv'));
+$('btnExportJson').addEventListener('click', () => {
+  if (building) { toast('that exports a finished circuit - close the loop first.'); return; }
+  download(fileSlug() + '.somelimits.json', serializeCoaster(trackName, nodes), 'application/json');
+});
+$('btnExportCsv').addEventListener('click', () => {
+  if (building) { toast('that exports a finished circuit - close the loop first.'); return; }
+  download(fileSlug() + '.nl2.csv', buildCSV(track), 'text/csv');
+});
 $('btnPng').addEventListener('click', () => {
   renderer.render(scene, camera);
   renderer.domElement.toBlob(b => {
@@ -1487,6 +1778,7 @@ $('btnPng').addEventListener('click', () => {
   });
 });
 $('btnShare').addEventListener('click', async () => {
+  if (building) { toast('share links carry finished circuits - close the loop first.'); return; }
   const url = location.origin + location.pathname + '#c=' + encodeCoaster(trackName, nodes);
   try { await navigator.clipboard.writeText(url); toast('share link copied. the whole coaster is inside that URL.'); }
   catch { prompt('copy this link - the coaster is encoded in it:', url); }
@@ -1499,7 +1791,7 @@ $('fileImp').addEventListener('change', e => {
     let parsed = null;
     try { parsed = f.name.toLowerCase().endsWith('.csv') ? (parseCSV(t) && {name: f.name.replace(/\.csv$/i, ''), nodes: parseCSV(t)}) : parseCoasterJSON(t); } catch {}
     if (parsed) {
-      trackName = parsed.name; nodes = parsed.nodes; selected = Math.max(0, nodes.findIndex(n => n.station));
+      trackName = parsed.name; nodes = parsed.nodes; building = false; selected = Math.max(0, nodes.findIndex(n => n.station));
       buildTrack(); resetHistory(); frameTrack(); toast('imported "' + trackName + '".');
     } else toast('that file did not parse as a coaster. some limits are file formats.');
     e.target.value = '';
@@ -1548,6 +1840,7 @@ const HINTS = [
 let hintIdx = 0;
 setInterval(() => {
   if (mode !== 'edit' || document.hidden) return;
+  if (building) { $('hint').innerHTML = buildHint(); return; }
   hintIdx = (hintIdx + 1) % HINTS.length;
   $('hint').innerHTML = HINTS[hintIdx];
 }, 6500);
@@ -1563,7 +1856,23 @@ setInterval(() => {
   } else {
     try {
       const auto = JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
-      if (auto && sanitizeNodes(auto.nodes)) { trackName = String(auto.name || 'untitled coaster'); nodes = sanitizeNodes(auto.nodes); }
+      if (auto && auto.building && Array.isArray(auto.nodes)) {
+        /* a half-built coaster restores as a half-built coaster:
+           open track, station first, no circuit forced around it.
+           the lenient parse is only for this branch - a building
+           document may legitimately hold 0-3 points, which the
+           closed-document sanitizer would refuse. */
+        nodes = auto.nodes.filter(n => n && isFinite(n.x) && isFinite(n.z) && isFinite(n.h)).map(n => ({
+          x: THREE.MathUtils.clamp(+n.x, -200, 200),
+          z: THREE.MathUtils.clamp(+n.z, -200, 200),
+          h: THREE.MathUtils.clamp(+n.h, 0.5, 120),
+          bank: THREE.MathUtils.clamp(isFinite(n.bank) ? +n.bank : 0, -180, 180),
+          lift: !!n.lift, station: false
+        }));
+        if (nodes.length) nodes[0].station = true;
+        building = true;
+        trackName = String(auto.name || 'untitled coaster');
+      } else if (auto && sanitizeNodes(auto.nodes)) { trackName = String(auto.name || 'untitled coaster'); nodes = sanitizeNodes(auto.nodes); }
     } catch {}
   }
   selected = Math.max(0, nodes.findIndex(n => n.station));
@@ -1575,6 +1884,15 @@ const clock = new THREE.Clock();
 function loop() {
   requestAnimationFrame(loop);
   const dt = Math.min(clock.getDelta(), 0.05);
+  if (snapRing.visible) {
+    /* the ring breathes; when the cursor's ground point is inside
+       it, it stops breathing and just glows - click means home. */
+    const entry = stationEntry();
+    const near = !!(entry && hoverPt && Math.hypot(hoverPt.x - entry.x, hoverPt.z - entry.z) <= CLOSE_R);
+    const t = performance.now() / 1000;
+    snapRing.material.opacity = near ? 0.9 : 0.38 + 0.2 * Math.sin(t * 4);
+    snapRing.scale.setScalar(near ? 1.05 : 1 + 0.03 * Math.sin(t * 4));
+  }
   if (mode === 'ride' && ride) poseRide(dt);
   else controls.update();
   renderer.render(scene, camera);
