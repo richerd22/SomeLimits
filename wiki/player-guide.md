@@ -157,8 +157,8 @@ Auto-smooth. On drag release, the moved node's neighbourhood gets a gentle smoot
 **Can I make a straight?**
 Drag nodes into a line. There is no strict-node system to learn in v1, and that omission is deliberate. Planned refinements are marked planned in the dev docs, not promised here.
 
-**Does it have parks, terrain, other rides, scripting?**
-No. v1 is one closed-circuit coaster, built well, then ridden. Other stuff is planned at most, and most of it is not planned at all.
+**Does it have parks, terrain editing, other rides, scripting?**
+No parks, no other rides, no scripting - and the ground is code-drawn hills you can't shape. v1 is one closed-circuit coaster, built well, then ridden. Other stuff is planned at most, and most of it is not planned at all.
 
 **It needs the internet?**
 Once, for the Three.js library from the CDN. After that the page is just a file doing maths. Your saves do not need the internet at all - they never leave the browser.
