@@ -250,7 +250,7 @@
       <li>two ways in: <b>new coaster</b> gives you a blank plot - <b>click the ground</b> to place the station, click again to lay points out from it, and click the glowing ring at the station to close the circuit. or take a <b>preset</b> - complete circuits, not demos, rideable the second they land.</li>
       <li><b>drag</b> any lime node to move it. the height and banking sliders shape the selected node.</li>
       <li>make a hill taller than the rest - any climb of 8m or more grows a lift chain by itself.</li>
-      <li><b>double-click</b> the track to add a node exactly there. <b>click empty ground</b> to drop a node where you click instead. banking past +/-90 degrees is how you build inversions: you are the loop menu.</li>
+      <li><b>double-click</b> the track to add a node exactly there. <b>click empty ground</b> to drop a node where you click instead. banking past +/-90 degrees rolls the train over - rolls are banking, loops are shapes (next section). you are the loop menu.</li>
       <li><b>shift-drag</b> (or right-drag) a node sideways to bank it - the track twists as you pull. the slider drives the same number; both stay in sync.</li>
       <li>when you let go of a drag, a gentle smoothing pass runs over the neighbourhood. that's deliberate - it's the fix for kinked connections.</li>
       <li>press <b>RIDE IT</b> (or R). the train leaves the station, gravity does the rest, brakes bring it home.</li>
@@ -582,7 +582,14 @@ function stepRide(track, ride, dt) {
 
 /* ---------------- formats: json / csv / share link ---------------- */
 function serializeCoaster(name, nodes) {
-  return JSON.stringify({app: 'somelimits', version: 1, name, nodes}, null, 1);
+  /* export the sanitized form: every node carrying the same keys
+     in the same order. import sanitizes anyway, so without this
+     an export -> import -> export round-trip quietly changed the
+     file (falsy lift/station flags appearing as explicit falses).
+     canonical out, canonical in - the round-trip is a fixed
+     point. (round-7 audit catch.) */
+  const clean = sanitizeNodes(nodes);
+  return JSON.stringify({app: 'somelimits', version: 1, name, nodes: clean || nodes}, null, 1);
 }
 function parseCoasterJSON(text) {
   const data = JSON.parse(text);
@@ -626,7 +633,8 @@ function parseCSV(text) {
   return sanitizeNodes(nodes);
 }
 function encodeCoaster(name, nodes) {
-  const json = JSON.stringify({name, nodes});
+  const clean = sanitizeNodes(nodes);   // canonical form, same as serializeCoaster
+  const json = JSON.stringify({name, nodes: clean || nodes});
   const bytes = new TextEncoder().encode(json);
   let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b));
   return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -699,6 +707,33 @@ scene.fog = new THREE.Fog(0xbfa68d, 260, 820);
   scene.add(new THREE.Mesh(new THREE.SphereGeometry(880, 28, 14), skyMat));
 }
 
+/* clouds: flattened code-rendered puffs, high and slow - the sky
+   was a bare gradient and it showed. one shared geometry, one
+   material, no textures; the whole group rotates a hair per
+   frame, which is all the drift bookkeeping they get. */
+const cloudGroup = new THREE.Group();
+{
+  const geo = new THREE.SphereGeometry(1, 10, 7);
+  const mat = new THREE.MeshStandardMaterial({color: 0xf3e9d8, roughness: 1, emissive: 0x4a4238, flatShading: true});
+  let seed = 31;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 7; i++) {
+    const cl = new THREE.Group();
+    const a = rnd() * Math.PI * 2, r = 190 + rnd() * 190, y = 120 + rnd() * 55;
+    const puffs = 3 + Math.floor(rnd() * 3);
+    for (let k = 0; k < puffs; k++) {
+      const m = new THREE.Mesh(geo, mat);
+      const s = 16 + rnd() * 20;
+      m.position.set((rnd() - 0.5) * 44, (rnd() - 0.5) * 5, (rnd() - 0.5) * 20);
+      m.scale.set(s, s * 0.36, s * 0.62);
+      cl.add(m);
+    }
+    cl.position.set(Math.cos(a) * r, y, Math.sin(a) * r);
+    cloudGroup.add(cl);
+  }
+}
+scene.add(cloudGroup);
+
 const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 1000);
 camera.position.set(60, 55, 85);
 
@@ -728,9 +763,9 @@ function terrainNoise(x, z) {
        + 2.8 * Math.sin(x * 0.047 - 2.1) * Math.sin(z * 0.041 + 1.2)
        + 1.2 * Math.sin((x + z) * 0.093 + 0.4);
 }
-function terrainHeightAt(x, z) {
-  // distance to the node polyline (plan view): hills fade to zero
-  // across a 26m apron around the track, full height by 58m out
+/* plan-view distance to the node polyline. the terrain fade
+   reads it, and so does the ground tint in updateTerrain. */
+function plotDist(x, z) {
   let best = 1e18;
   for (let i = 0; i < nodes.length; i++) {
     const a = nodes[i], b = nodes[(i + 1) % nodes.length];
@@ -741,7 +776,12 @@ function terrainHeightAt(x, z) {
     const d = dx * dx + dz * dz;
     if (d < best) best = d;
   }
-  let f = THREE.MathUtils.smoothstep(Math.sqrt(best), 26, 58);
+  return Math.sqrt(best);
+}
+function terrainHeightAt(x, z) {
+  // hills fade to zero across a 26m apron around the track,
+  // full height by 58m out
+  let f = THREE.MathUtils.smoothstep(plotDist(x, z), 26, 58);
   /* while building from blank, the whole plot is graph-paper flat:
      the hills fade across the building square, not just the track
      apron, so the ground reads as a sheet you draw on. */
@@ -782,6 +822,7 @@ snapRing.rotation.x = -Math.PI / 2;
 snapRing.visible = false;
 scene.add(snapRing);
 const _tcLow = new THREE.Color(0x242a30), _tcMid = new THREE.Color(0x2e3431), _tcHigh = new THREE.Color(0x454a3b), _tc = new THREE.Color();
+const _tcDry = new THREE.Color(0x4d4630), _tcDirt = new THREE.Color(0x38312a);
 function updateTerrain() {
   const posA = terrainGeo.attributes.position, arr = terrainColors.array;
   for (let i = 0; i < posA.count; i++) {
@@ -790,6 +831,13 @@ function updateTerrain() {
     posA.setY(i, h);
     const t = THREE.MathUtils.clamp((h + 2.5) / 11, 0, 1);
     _tc.copy(_tcLow).lerp(_tcMid, Math.min(1, t * 1.7)).lerp(_tcHigh, Math.max(0, t - 0.5) * 1.6);
+    /* the ground stops being one flat tone in both directions:
+       dry patches out in the hills (a cheap two-sine hash, no
+       textures), worn dirt on the apron the track sits on. */
+    const n2 = Math.sin(x * 0.11 + z * 0.043) * Math.sin(z * 0.09 - x * 0.031);
+    if (n2 > 0.25) _tc.lerp(_tcDry, Math.min(0.45, (n2 - 0.25) * 0.8));
+    const d = plotDist(x, z);
+    if (d < 14) _tc.lerp(_tcDirt, (1 - d / 14) * 0.55);
     arr[i * 3] = _tc.r; arr[i * 3 + 1] = _tc.g; arr[i * 3 + 2] = _tc.b;
   }
   posA.needsUpdate = true; terrainColors.needsUpdate = true;
@@ -798,21 +846,54 @@ function updateTerrain() {
 }
 
 const treeParts = [];
-{ // cheap pine-cone scenery for scale (code-rendered, like everything here)
-  const geo = new THREE.ConeGeometry(2.2, 7, 6);
-  const mat = new THREE.MeshStandardMaterial({color: 0x1d3320, roughness: 1});
-  const trunk = new THREE.CylinderGeometry(0.35, 0.45, 2, 5);
-  const tmat = new THREE.MeshStandardMaterial({color: 0x2e2119});
+{ // cheap code-rendered scenery for scale, in two species - a park
+  // of 90 identical cones read as a parking lot for triangles.
+  // pines grow a second tier as they get big; broadleafs are
+  // squashed flat-shaded blobs on the same trunk. a sparser ring
+  // of bigger trees stands out at the terrain's edge, where the
+  // fog can soften them into a horizon.
+  const pineGeo = new THREE.ConeGeometry(2.2, 7, 6);
+  const pine2Geo = new THREE.ConeGeometry(1.5, 4.6, 6);
+  const pineMat = new THREE.MeshStandardMaterial({color: 0x1d3320, roughness: 1});
+  const leafGeo = new THREE.IcosahedronGeometry(2.7, 0); leafGeo.scale(1, 0.78, 1);
+  const leafMat = new THREE.MeshStandardMaterial({color: 0x2e4d24, roughness: 1, flatShading: true});
+  const trunkGeo = new THREE.CylinderGeometry(0.35, 0.45, 2, 5);
+  const trunkMat = new THREE.MeshStandardMaterial({color: 0x2e2119});
   let seed = 7;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const addTree = (x, z, sc, kind) => {
+    const gy = terrainHeightAt(x, z);   // trees stand on the terrain, not the table
+    const t = new THREE.Mesh(trunkGeo, trunkMat); t.position.set(x, gy + 1, z); t.castShadow = true; scene.add(t);
+    const part = {trunk: t, x, z, parts: []};
+    if (kind === 'leaf') {
+      const c = new THREE.Mesh(leafGeo, leafMat);
+      const dy = 2 + 3.1 * sc;
+      c.position.set(x, gy + dy, z); c.scale.setScalar(sc); c.castShadow = true; scene.add(c);
+      part.parts.push({mesh: c, dy});
+    } else {
+      const c = new THREE.Mesh(pineGeo, pineMat);
+      const dy = 2 + 3.4 * sc;
+      c.position.set(x, gy + dy, z); c.scale.setScalar(sc); c.castShadow = true; scene.add(c);
+      part.parts.push({mesh: c, dy});
+      if (sc > 1.05) {
+        const c2 = new THREE.Mesh(pine2Geo, pineMat);
+        const dy2 = dy + 3.0 * sc;
+        c2.position.set(x, gy + dy2, z); c2.scale.setScalar(sc); c2.castShadow = true; scene.add(c2);
+        part.parts.push({mesh: c2, dy: dy2});
+      }
+    }
+    treeParts.push(part);
+  };
   for (let i = 0; i < 90; i++) {
     const x = (rnd() - 0.5) * 340, z = (rnd() - 0.5) * 340;
     if (Math.abs(x) < 70 && Math.abs(z) < 75) continue;
-    const gy = terrainHeightAt(x, z);   // trees stand on the terrain, not the table
-    const t = new THREE.Mesh(trunk, tmat); t.position.set(x, gy + 1, z); t.castShadow = true; scene.add(t);
-    const sc = 0.8 + rnd() * 0.9;
-    const c = new THREE.Mesh(geo, mat); c.position.set(x, gy + 2 + 3.4 * sc, z); c.scale.setScalar(sc); c.castShadow = true; scene.add(c);
-    treeParts.push({trunk: t, cone: c, x, z, sc});
+    addTree(x, z, 0.8 + rnd() * 0.9, rnd() < 0.34 ? 'leaf' : 'pine');
+  }
+  for (let i = 0; i < 30; i++) {
+    const a = rnd() * Math.PI * 2, r = 245 + rnd() * 45;
+    const x = Math.cos(a) * r, z = Math.sin(a) * r;
+    if (Math.abs(x) > 292 || Math.abs(z) > 292) continue;
+    addTree(x, z, 1.7 + rnd() * 1.1, rnd() < 0.3 ? 'leaf' : 'pine');
   }
 }
 /* the trees were seated once at boot against the boot layout's
@@ -825,7 +906,7 @@ function reseatTrees() {
   for (const p of treeParts) {
     const gy = terrainHeightAt(p.x, p.z);
     p.trunk.position.y = gy + 1;
-    p.cone.position.y = gy + 2 + 3.4 * p.sc;
+    for (const part of p.parts) part.mesh.position.y = gy + part.dy;
   }
 }
 
@@ -956,7 +1037,7 @@ function buildTrack() {
     }
     return false;
   };
-  const bents = [];
+  const bents = [], frameCands = [];
   {
     let acc = 0, prev = samples[0];
     for (let i = 1; i <= SAMPLES; i++) {
@@ -965,6 +1046,12 @@ function buildTrack() {
       if (acc >= (sm.lift ? 7.5 : 11)) {
         acc = 0;
         if (sm.pos.y > 2.2 && sm.up.y > -0.05 && !spearsTrack(sm)) bents.push({sm, gy: terrainHeightAt(sm.pos.x, sm.pos.z)});
+        /* a candidate the centre post had to refuse - inverted
+           track, or a lower pass in the way - is not written off:
+           it becomes a side-frame candidate below. near the
+           ground a frame would be taller than the track is high,
+           so those stay unposted, like the bents. */
+        else if (sm.pos.y > 3.4) frameCands.push(sm);
       }
     }
   }
@@ -1011,6 +1098,110 @@ function buildTrack() {
   }
   braces.count = nx;
   trackGroup.add(braces);
+
+  /* side frames: where a centre post cannot go - inverted track
+     (a loop's upper half) or a lower pass underneath (a crossover)
+     - the track gets a goalpost instead: two legs flanking the
+     centreline, a beam across under the spine. it is how real
+     loops are held up, and unlike a centre post it can be PROVED
+     clear before anything is placed: every leg is a vertical
+     segment, every beam a straight segment, and both are
+     distance-checked against every far-off sample (the supported
+     pass itself is excluded by arc distance - the beam is meant
+     to touch it). a frame that cannot prove itself clear is
+     skipped, the same honesty rule as the centre posts. the
+     numbers land on window.__slSupports so the proof is
+     inspectable, not just asserted. */
+  const LEG_OFF = 2.3;   // leg offset from the centreline (m)
+  const farOf = sm => {
+    const out = [];
+    for (const q of samples) {
+      let dArc = Math.abs(q.s - sm.s);
+      if (!building) dArc = Math.min(dArc, track.totalLen - dArc);
+      if (dArc >= 8) out.push(q);
+    }
+    return out;
+  };
+  /* worst a far pass gets to a vertical leg at (lx, lz) spanning
+     [gy, topY]: -1 if any pass enters the 1.4m keep-out inside
+     that height band, else the closest approach seen. */
+  const legClear = (far, lx, lz, gy, topY) => {
+    let minD2 = Infinity;
+    for (const q of far) {
+      if (q.pos.y < gy - 0.3 || q.pos.y > topY + 0.7) continue;
+      const dx = q.pos.x - lx, dz = q.pos.z - lz;
+      const d2 = dx * dx + dz * dz;
+      if (d2 < 1.96) return -1;
+      if (d2 < minD2) minD2 = d2;
+    }
+    return Math.sqrt(minD2);
+  };
+  /* closest a far pass gets to the beam segment, end to end. */
+  const beamClear = (far, beamC, sideU, halfLen) => {
+    let min = Infinity;
+    for (let k = 0; k <= 8; k++) {
+      const t = (k / 8 * 2 - 1) * halfLen;
+      const px = beamC.x + sideU.x * t, py = beamC.y + sideU.y * t, pz = beamC.z + sideU.z * t;
+      for (const q of far) {
+        const d = Math.hypot(q.pos.x - px, q.pos.y - py, q.pos.z - pz);
+        if (d < min) min = d;
+      }
+    }
+    return min;
+  };
+  const frameReport = {placed: 0, skipped: 0, minLeg: Infinity, minBeam: Infinity};
+  const frames = [];
+  for (const sm of frameCands) {
+    if (frames.length >= 40) { frameReport.skipped++; continue; }
+    /* legs stand on the horizontal of the track's side vector;
+       where the side points mostly up or down (a near-90 bank on
+       a diagonal climb) there is no sane "beside the track" -
+       skip it rather than plant legs through the ride. */
+    const sideH = new THREE.Vector3(sm.side.x, 0, sm.side.z);
+    if (sideH.length() < 0.45) { frameReport.skipped++; continue; }
+    sideH.normalize();
+    const beamC = sm.pos.clone().addScaledVector(sm.up, -0.45);
+    const ax = sm.pos.x + sideH.x * LEG_OFF, az = sm.pos.z + sideH.z * LEG_OFF;
+    const bx = sm.pos.x - sideH.x * LEG_OFF, bz = sm.pos.z - sideH.z * LEG_OFF;
+    const gyA = terrainHeightAt(ax, az), gyB = terrainHeightAt(bx, bz);
+    const far = farOf(sm);
+    const lcA = legClear(far, ax, az, gyA, beamC.y);
+    const lcB = legClear(far, bx, bz, gyB, beamC.y);
+    const bc = beamClear(far, beamC, sm.side, LEG_OFF + 0.4);
+    if (lcA < 0 || lcB < 0 || bc < 1.15) { frameReport.skipped++; continue; }
+    frameReport.placed++;
+    if (lcA < frameReport.minLeg) frameReport.minLeg = lcA;
+    if (lcB < frameReport.minLeg) frameReport.minLeg = lcB;
+    if (bc < frameReport.minBeam) frameReport.minBeam = bc;
+    frames.push({sm, beamC, ax, az, gyA, bx, bz, gyB});
+  }
+  const MAXF = 40;
+  const fCols = new THREE.InstancedMesh(colGeo, supMat, MAXF * 2); fCols.castShadow = true;
+  const fBeams = new THREE.InstancedMesh(capBeamGeo, supMat, MAXF); fBeams.castShadow = true;
+  const fFoots = new THREE.InstancedMesh(footGeo, concMat, MAXF * 2); fFoots.receiveShadow = true;
+  let nf = 0, nfl = 0;
+  for (const fr of frames) {
+    for (const leg of [[fr.ax, fr.az, fr.gyA], [fr.bx, fr.bz, fr.gyB]]) {
+      const lx = leg[0], lz = leg[1], gy = leg[2];
+      const hLeg = Math.max(0.5, fr.beamC.y - (gy - 0.3));
+      const r = Math.min(0.24 + hLeg * 0.006, 0.48);
+      m4.compose(new THREE.Vector3(lx, gy - 0.3, lz), new THREE.Quaternion(), new THREE.Vector3(r, hLeg, r));
+      fCols.setMatrixAt(nfl, m4);
+      m4.compose(new THREE.Vector3(lx, gy + 0.13, lz), new THREE.Quaternion(), new THREE.Vector3(r * 4.6, 0.3, r * 4.6));
+      fFoots.setMatrixAt(nfl, m4);
+      nfl++;
+    }
+    q.setFromRotationMatrix(new THREE.Matrix4().lookAt(new THREE.Vector3(), fr.sm.tan, fr.sm.up));
+    m4.compose(fr.beamC, q, new THREE.Vector3((LEG_OFF + 0.4) * 2, 0.34, 0.9));
+    fBeams.setMatrixAt(nf++, m4);
+  }
+  fCols.count = fFoots.count = nfl; fBeams.count = nf;
+  trackGroup.add(fCols, fBeams, fFoots);
+  window.__slSupports = {
+    centreBents: nb, frames: frameReport.placed, framesSkipped: frameReport.skipped,
+    minLegClear: isFinite(frameReport.minLeg) ? +frameReport.minLeg.toFixed(2) : null,
+    minBeamClear: isFinite(frameReport.minBeam) ? +frameReport.minBeam.toFixed(2) : null
+  };
 
   const st = nodes.findIndex(n => n.station);
   if (st >= 0) {
@@ -2036,7 +2227,12 @@ $('btnShare').addEventListener('click', async () => {
   const url = location.origin + location.pathname + '#c=' + encodeCoaster(trackName, nodes);
   try { await navigator.clipboard.writeText(url); toast('share link copied. the whole coaster is inside that URL.'); }
   catch { prompt('copy this link - the coaster is encoded in it:', url); }
-  history.replaceState(null, '', url);
+  /* window.history, spelled out: this module's own `history` is
+     the undo stack, and it shadows the global in here. the bare
+     name threw a TypeError on every share click - the link still
+     reached the clipboard, but the address bar never updated and
+     the console ate an error. (round-7 audit catch.) */
+  window.history.replaceState(null, '', url);
 });
 $('btnImportJson').addEventListener('click', () => $('fileImp').click());
 $('fileImp').addEventListener('change', e => {
@@ -2091,7 +2287,7 @@ const HINTS = [
   '<b>drag</b> the lime dots to shape it &middot; <b>double-click</b> the track to add a point &middot; <b>RIDE IT</b> when ready',
   '<b>click empty ground</b> to drop a point right there',
   'make a climb of <b>8m or more</b> between two nodes - the lift chain builds itself',
-  '<b>shift-drag</b> a dot sideways to bank it - past 90&deg; is how loops happen',
+  '<b>shift-drag</b> a dot sideways to bank it - past 90&deg; rolls the train; a loop is points stacked in a circle',
   '<b>ctrl+Z</b> walks back through your edits - it never leaves this coaster'
 ];
 let hintIdx = 0;
@@ -2152,6 +2348,7 @@ function loop() {
   }
   if (mode === 'ride' && ride) poseRide(dt);
   else controls.update();
+  cloudGroup.rotation.y = performance.now() * 0.0000012;
   renderer.render(scene, camera);
 }
 loop();
