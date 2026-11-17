@@ -120,6 +120,7 @@
     <button data-preset="classic">classic circuit</button>
     <button data-preset="oval">oval cruiser</button>
     <button data-preset="wild">get wild</button>
+    <button data-preset="loop">looper</button>
   </div>
   <hr>
   <div class="sub">EXPORT / SHARE</div>
@@ -200,6 +201,7 @@
       <button data-preset="classic">classic circuit</button>
       <button data-preset="oval">oval cruiser</button>
       <button data-preset="wild">get wild</button>
+      <button data-preset="loop">looper</button>
     </div>
     <p class="sub" style="margin-top:12px">some limits, honestly: your saves live in this browser only.
     there's no park, no scenery designer, no online anything. the coaster is the whole game.</p>
@@ -252,6 +254,12 @@
       <li><b>shift-drag</b> (or right-drag) a node sideways to bank it - the track twists as you pull. the slider drives the same number; both stay in sync.</li>
       <li>when you let go of a drag, a gentle smoothing pass runs over the neighbourhood. that's deliberate - it's the fix for kinked connections.</li>
       <li>press <b>RIDE IT</b> (or R). the train leaves the station, gravity does the rest, brakes bring it home.</li>
+    </ul>
+    <h3>loops and rolls (you will try these first)</h3>
+    <ul>
+      <li><b>a vertical loop is a shape, not a setting:</b> run straight, then stack points over the same ground in a circle - up one side, across the top, down the other, out the bottom. points may share a ground spot when their heights differ; the stacking is the technique, not a mistake. the <b>looper</b> preset is one, ready to ride and pull apart.</li>
+      <li><b>the loop spends the drop:</b> keep the loop's top well below your highest point. the train pays for every metre of loop out of the fall before it - a loop nearly as tall as your lift ends with the train crawling over the top at walking pace. smaller loop or taller hill: those are the only fixes, same as the real ones.</li>
+      <li><b>a corkscrew is banking:</b> set four points in a row to 0, 120, -120, 0 degrees. the blend wraps the short way round, so after 120 the roll keeps turning the same direction through -120 instead of unwinding - one full roll, no menu involved.</li>
     </ul>
     <h3>riding</h3>
     <ul>
@@ -314,6 +322,23 @@ const PRESETS = {
     {x:52,z:-18,h:24,bank:-110},{x:44,z:6,h:30,bank:110},
     {x:24,z:16,h:12,bank:60},{x:16,z:36,h:20,bank:-60},
     {x:26,z:50,h:8,bank:-20},{x:8,z:48,h:3.4,bank:0}
+  ],
+  /* a real vertical loop, built the way a player builds one:
+     points stacked over the same ground in a circle, bank 0
+     all the way round. the loop's top (16.5) sits well under
+     the crest (27) - that proportion is the whole trick, and
+     the manual now says so. */
+  loop: [
+    {x:0,z:44,h:3,bank:0,station:true},{x:0,z:22,h:3.2,bank:0,lift:true},
+    {x:1,z:-4,h:24,bank:0,lift:true},{x:4,z:-24,h:27,bank:0},
+    {x:8,z:-38,h:12,bank:0},{x:10,z:-46,h:3.4,bank:0},
+    {x:10,z:-53,h:3.2,bank:0},{x:10,z:-59,h:6,bank:0},
+    {x:10,z:-60.5,h:10,bank:0},{x:10,z:-58,h:14,bank:0},
+    {x:10,z:-53,h:16.5,bank:0},{x:10,z:-48,h:14,bank:0},
+    {x:10,z:-46.5,h:10,bank:0},{x:11,z:-49,h:5.5,bank:0},
+    {x:14,z:-55,h:3.2,bank:0},{x:20,z:-68,h:5,bank:0},
+    {x:26,z:-50,h:9,bank:0},{x:24,z:-24,h:12,bank:0},
+    {x:16,z:2,h:8,bank:0},{x:8,z:26,h:5,bank:0}
   ]
 };
 
@@ -340,6 +365,48 @@ function bankAt(nodes, f) {
   const i0 = Math.floor(f) % N, i1 = (i0 + 1) % N;
   const t = f - Math.floor(f), s = (1 - Math.cos(t * Math.PI)) / 2;
   return lerpAngleDeg(nodes[i0].bank, nodes[i1].bank, s);
+}
+
+/* the exact arc position of a point that lies ON the curve.
+   the naive address - node index over node count, times the
+   loop length - is only right when every segment runs the same
+   length; on an uneven layout it can sit metres away from the
+   point it names (25.8m, on the classic with its station moved
+   to node 5). the point lies on the curve, so its true sample
+   is the one at distance ~0: search the whole loop for it, then
+   refine by projecting onto the touching segments. if a layout
+   crosses itself exactly at the point, two samples tie at ~0 -
+   the tie breaks toward the naive guess. */
+function arcOfPoint(samples, target, frac, closed, totalLen) {
+  const approx = Math.round(frac * SAMPLES);
+  let bd = Infinity;
+  for (let i = 0; i <= SAMPLES; i++) {
+    const d = samples[i].pos.distanceToSquared(target);
+    if (d < bd) bd = d;
+  }
+  let bi = -1, bestKey = Infinity;
+  for (let i = 0; i < SAMPLES; i++) {
+    if (samples[i].pos.distanceToSquared(target) > bd + 0.0004) continue;
+    let key = Math.abs(i - approx);
+    if (closed) key = Math.min(key, SAMPLES - key);
+    if (key < bestKey) { bestKey = key; bi = i; }
+  }
+  if (bi < 0) return frac * totalLen;
+  let s = samples[bi].s;
+  const prev = closed ? (bi + SAMPLES - 1) % SAMPLES : bi - 1;
+  for (const j of [prev, bi]) {
+    if (j < 0 || j >= SAMPLES) continue;
+    const A = samples[j], B = samples[j + 1];
+    const abx = B.pos.x - A.pos.x, aby = B.pos.y - A.pos.y, abz = B.pos.z - A.pos.z;
+    const len2 = abx * abx + aby * aby + abz * abz;
+    if (len2 < 1e-12) continue;
+    let t = ((target.x - A.pos.x) * abx + (target.y - A.pos.y) * aby + (target.z - A.pos.z) * abz) / len2;
+    t = THREE.MathUtils.clamp(t, 0, 1);
+    const px = A.pos.x + abx * t - target.x, py = A.pos.y + aby * t - target.y, pz = A.pos.z + abz * t - target.z;
+    const dd = px * px + py * py + pz * pz;
+    if (dd < bd) { bd = dd; s = A.s + Math.sqrt(len2) * t; }
+  }
+  return closed ? ((s % totalLen) + totalLen) % totalLen : s;
 }
 
 /* Build the sampled track: closed Catmull-Rom, parallel-transport
@@ -389,7 +456,13 @@ function computeTrack(nodes) {
     samples.push({pos: p.clone(), tan, up, side, s: dist, lift, bankDeg});
   }
   const totalLen = dist;
-  const stationS = (stIdx / N) * totalLen;
+  /* the station's real address on the loop. this was the
+     (stIdx / N) fraction until round 6 - on an uneven layout
+     with the station reassigned off node 0, the platform, the
+     brake zone and the ride start all sat metres from the node
+     they belonged to. for a station at node 0 (every preset)
+     the exact answer is still 0, so nothing established moves. */
+  const stationS = arcOfPoint(samples, pts[stIdx], stIdx / N, true, totalLen);
   for (const sm of samples) {
     const dToStation = ((stationS - sm.s) % totalLen + totalLen) % totalLen;
     sm.brake = dToStation < 32 && dToStation > 0.5;
@@ -721,8 +794,10 @@ function updateTerrain() {
   }
   posA.needsUpdate = true; terrainColors.needsUpdate = true;
   terrainGeo.computeVertexNormals();
+  reseatTrees();
 }
 
+const treeParts = [];
 { // cheap pine-cone scenery for scale (code-rendered, like everything here)
   const geo = new THREE.ConeGeometry(2.2, 7, 6);
   const mat = new THREE.MeshStandardMaterial({color: 0x1d3320, roughness: 1});
@@ -737,6 +812,20 @@ function updateTerrain() {
     const t = new THREE.Mesh(trunk, tmat); t.position.set(x, gy + 1, z); t.castShadow = true; scene.add(t);
     const sc = 0.8 + rnd() * 0.9;
     const c = new THREE.Mesh(geo, mat); c.position.set(x, gy + 2 + 3.4 * sc, z); c.scale.setScalar(sc); c.castShadow = true; scene.add(c);
+    treeParts.push({trunk: t, cone: c, x, z, sc});
+  }
+}
+/* the trees were seated once at boot against the boot layout's
+   terrain (a round-2 note, open through round 5): drag the
+   track a long way and a tree could stand proud of the moved
+   plateau edge, floating or buried. now they re-seat every
+   time the terrain settles - same spots, same sizes, new
+   ground height. called from updateTerrain, above. */
+function reseatTrees() {
+  for (const p of treeParts) {
+    const gy = terrainHeightAt(p.x, p.z);
+    p.trunk.position.y = gy + 1;
+    p.cone.position.y = gy + 2 + 3.4 * p.sc;
   }
 }
 
@@ -851,6 +940,22 @@ function buildTrack() {
      track, a concrete footing, X-braces between neighbours. a floating
      track is the number-one toy signal - this is all generated from
      the spline, there is nothing here for the builder to place. */
+  /* would a support post at this sample stab a different pass
+     of the track? inside a loop (or under a crossover) the
+     centre post spears straight through the lower pass - real
+     loops get side frames, but the honest v1 answer is no post
+     rather than a post through the ride. a post is clear when
+     no far-off sample passes low over the same ground. */
+  const spearsTrack = sm => {
+    for (const q of samples) {
+      let dArc = Math.abs(q.s - sm.s);
+      if (!building) dArc = Math.min(dArc, track.totalLen - dArc);
+      if (dArc < 8) continue;
+      const dx = q.pos.x - sm.pos.x, dz = q.pos.z - sm.pos.z;
+      if (dx * dx + dz * dz < 2.9 && q.pos.y < sm.pos.y - 1.2) return true;
+    }
+    return false;
+  };
   const bents = [];
   {
     let acc = 0, prev = samples[0];
@@ -859,7 +964,7 @@ function buildTrack() {
       acc += sm.pos.distanceTo(prev.pos); prev = sm;
       if (acc >= (sm.lift ? 7.5 : 11)) {
         acc = 0;
-        if (sm.pos.y > 2.2) bents.push({sm, gy: terrainHeightAt(sm.pos.x, sm.pos.z)});
+        if (sm.pos.y > 2.2 && sm.up.y > -0.05 && !spearsTrack(sm)) bents.push({sm, gy: terrainHeightAt(sm.pos.x, sm.pos.z)});
       }
     }
   }
@@ -909,7 +1014,12 @@ function buildTrack() {
 
   const st = nodes.findIndex(n => n.station);
   if (st >= 0) {
-    const sm = samples[Math.floor((building ? st / (nodes.length - 1) : st / nodes.length) * SAMPLES)];
+    /* the platform sits at the station's exact arc position -
+       the same address the ride starts from. it used to be
+       placed at the st/N fraction of the samples, which on an
+       uneven layout with a reassigned station put it metres
+       away from its own node (round-5 leftover, fixed). */
+    const sm = sampleAt(track, track.stationS);
     const plat = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.5, 16),
       new THREE.MeshStandardMaterial({color: 0x27313d, roughness: 1}));
     plat.castShadow = true; plat.receiveShadow = true;
@@ -1034,7 +1144,7 @@ function computeOpenTrack(nodes) {
     const lift = !!nodes[i0].lift || climb >= 8;
     samples.push({pos: p.clone(), tan, up, side, s: dist, lift, bankDeg, brake: false});
   }
-  return {samples, totalLen: dist, stationS: (stIdx / (N - 1)) * dist, curve};
+  return {samples, totalLen: dist, stationS: arcOfPoint(samples, pts[stIdx], stIdx / (N - 1), false, dist), curve};
 }
 
 /* fewer than 2 points: no spline exists yet. an empty plot, or a
@@ -1128,10 +1238,20 @@ function buildClickAtGround(pt) {
     toast('not yet - a circuit needs at least 4 points. keep laying track.');
     return;
   }
-  for (const n of nodes) {
-    if (Math.hypot(pt.x - n.x, pt.z - n.z) < 3) { toast('too close to an existing point - give the track room to breathe.'); return; }
-  }
   const prev = nodes[nodes.length - 1];
+  for (const n of nodes) {
+    /* "too close" is a 3D question. a loop stacks points over
+       the same ground on purpose - same spot, different height
+       is a building technique, not a misclick. what gets
+       refused is the same point in space: same ground AND the
+       height this click would inherit. (the old rule measured
+       ground distance only, at 3m - it refused exactly the
+       stacked points a loop is made of.) */
+    if (Math.hypot(pt.x - n.x, pt.z - n.z) < 1 && Math.abs(prev.h - n.h) < 2) {
+      toast('that is already a point - stack it higher or lower, or nudge it sideways.');
+      return;
+    }
+  }
   nodes.push({x: Math.round(pt.x * 10) / 10, z: Math.round(pt.z * 10) / 10, h: prev.h, bank: prev.bank});
   selected = nodes.length - 1;
   buildTrack(); commit();
@@ -1181,7 +1301,7 @@ function blueprint(nodesForThumb, w = 264, h = 176) {
   ctx.closePath(); ctx.stroke();
   const st = nodesForThumb.findIndex(n => n.station);
   if (st >= 0) {
-    const sm = t.samples[Math.floor(st / nodesForThumb.length * SAMPLES)];
+    const sm = sampleAt(t, t.stationS);
     ctx.fillStyle = '#ffffff';
     ctx.beginPath(); ctx.arc(ox + (sm.pos.x - minX) * sc, oz + (sm.pos.z - minZ) * sc, 3.5, 0, 7); ctx.fill();
   }
@@ -1461,8 +1581,11 @@ function syncPanel() {
     } else {
       const nxt = nodes[(selected + 1) % N];
       const den = building ? N - 1 : N;
-      const s1 = track.samples[Math.round(selected / den * SAMPLES)].s;
-      let s2 = track.samples[Math.round((building ? selected + 1 : (selected + 1) % N) / den * SAMPLES)].s;
+      /* arc positions measured off the samples, not read from
+         the node fraction - the fraction only tells the truth
+         on even layouts, and this readout is the numbers page. */
+      const s1 = arcOfPoint(track.samples, new THREE.Vector3(n.x, n.h, n.z), selected / den, !building, track.totalLen);
+      let s2 = arcOfPoint(track.samples, new THREE.Vector3(nxt.x, nxt.h, nxt.z), (building ? selected + 1 : (selected + 1) % N) / den, !building, track.totalLen);
       if (s2 <= s1) s2 += track.totalLen;
       const segLen = s2 - s1, climb = nxt.h - n.h;
       els.seg.textContent = 'to next node: ' + segLen.toFixed(1) + ' m of track, ' +
@@ -1574,7 +1697,7 @@ function smoothAround(idx) {
    the coaster's name comes from this map, not the button label -
    the wild preset's button says "get wild", and a coaster named
    "get wild" is a menu item, not a name. */
-const PRESET_NAMES = {classic: 'classic circuit', oval: 'oval cruiser', wild: 'the wild one'};
+const PRESET_NAMES = {classic: 'classic circuit', oval: 'oval cruiser', wild: 'the wild one', loop: 'looper'};
 let presetArmUntil = 0, presetArmBtn = null;
 document.querySelectorAll('[data-preset]').forEach(btn => btn.addEventListener('click', () => {
   if (hIndex > 0) {
