@@ -2371,6 +2371,44 @@ function castAt(e) {
   ptr.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   ray.setFromCamera(ptr, camera);
 }
+/* cap vs grip arbitration (round 14): when a press - or a
+   hover - catches BOTH handles of the selected point, the
+   winner is the handle the pointer is actually aimed at:
+   each handle's centre projected to the screen, nearer pixel
+   wins. the round-10 rule compared ray distances to the hit
+   surfaces, and at portrait depth (~138 m) the two centres
+   sit ~20px apart inside halos that overlap almost fully -
+   a press on the cap's own pixel could surface the grip's
+   halo first and start a bank drag, the height label then
+   reading "bank -79 deg" (round-13 debug probe 2). aim is
+   screen-space, so the arbitration is too. inside 2px it is
+   a genuine coin flip - the grip parked on the cap at bank
+   -90 - and there the round-10 rule decides, unchanged:
+   grip wins near-equal rays. */
+const projV = new THREE.Vector3();
+function screenDistTo(objPos, e) {
+  projV.copy(objPos).project(camera);
+  return Math.hypot((projV.x * 0.5 + 0.5) * innerWidth - e.clientX,
+                    (-projV.y * 0.5 + 0.5) * innerHeight - e.clientY);
+}
+function capGripWinner(capHit, gripHit, e) {
+  const dCap = screenDistTo(capHit.object.position, e);
+  const dGrip = screenDistTo(gripHit.object.position, e);
+  if (Math.abs(dCap - dGrip) > 2) return dCap < dGrip ? capHit : gripHit;
+  return gripHit.distance <= capHit.distance + 1.5 ? gripHit : capHit;
+}
+/* both handles on the ray: the aimed one takes it - but only
+   when the press was already headed for a handle (the ray's
+   first grabbable hit is one of them, or the old ray rule
+   would have handed it to the grip anyway). a press the ray
+   gave to the node ball itself stays the node's. */
+function arbitrateHandles(hit, capHit, gripHit, e) {
+  if (capHit && gripHit &&
+      (hit === capHit || hit === gripHit || gripHit.distance <= capHit.distance + 1.5)) {
+    return capGripWinner(capHit, gripHit, e);
+  }
+  return hit;
+}
 /* click empty ground, get a point there - the most relaxed gesture
    there is. the nearest stretch of track adopts it, at the spline's
    own height and bank at that spot, so the circuit stays complete
@@ -2414,13 +2452,14 @@ renderer.domElement.addEventListener('pointerdown', e => {
   /* cap vs grip: rolled to +/-90 the grip parks within 0.2 m of
      the cap (ring radius 2.6, cap floats at +2.4) and the bigger
      cap sphere swallows every ray - the grip becomes ungrabbable
-     exactly when it sits at the top. so when both are on the ray
-     and the grip is about as close as the cap, the grip wins:
-     it is the smaller, more specific target, and the height it
-     shadows for those few degrees is still on the slider. */
+     exactly when it sits at the top. round 10 answered with a
+     ray rule (grip wins near-equal rays, it being the smaller,
+     more specific target, its shadowed height still on the
+     slider); round 14 keeps that rule for coin flips but
+     arbitrates real presses by aim - see capGripWinner. */
   const capHit = hits.find(h => h.object.userData.heightNode !== undefined);
   const gripHit = hits.find(h => h.object.userData.bankNode !== undefined);
-  if (capHit && gripHit && gripHit.distance <= capHit.distance + 1.5) hit = gripHit;
+  hit = arbitrateHandles(hit, capHit, gripHit, e);
   if (hit && hit.object.userData.heightNode !== undefined) {
     /* the orange cap: a vertical drag. the drag plane stands
        upright through the point, facing the camera, so screen-up
@@ -2534,7 +2573,7 @@ renderer.domElement.addEventListener('pointermove', e => {
       let hit = hits.find(h => h.object.userData.nodeIndex !== undefined || h.object.userData.heightNode !== undefined || h.object.userData.bankNode !== undefined);
       const capHit = hits.find(h => h.object.userData.heightNode !== undefined);
       const gripHit = hits.find(h => h.object.userData.bankNode !== undefined);
-      if (capHit && gripHit && gripHit.distance <= capHit.distance + 1.5) hit = gripHit;
+      hit = arbitrateHandles(hit, capHit, gripHit, e);
       renderer.domElement.style.cursor = !hit ? '' :
         hit.object.userData.heightNode !== undefined ? 'ns-resize' :
         hit.object.userData.bankNode !== undefined ? 'grab' : 'move';
