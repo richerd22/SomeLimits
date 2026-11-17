@@ -10,9 +10,9 @@ Two free options:
 
 ### GitHub Pages
 
-- Repo Settings, then Pages, then deploy from a branch.
-- Serve from the branch root if there is a root index pointing at the game, or from the `/play` path as the site folder arrangement allows.
-- Note: the repo is private. Whether Pages is available on a private repo depends on the account plan. Enabling Pages is a settings click only the repo owner can make. These docs do not flip it.
+- Repo Settings, then Pages, then Build and deployment: deploy from a branch.
+- Branch: `main`, folder: `/ (root)`. The repo root has an `index.html` that sends visitors straight to `play/`, and a `.nojekyll` file so Pages serves the files as-is.
+- New commits on `main` deploy automatically once Pages is on.
 
 ### Cloudflare Pages
 
@@ -24,21 +24,19 @@ Either host picks up new commits on the served branch automatically. Nothing els
 
 ## How updates flow
 
-1. Edit `play/index.html` in the workspace copy of the project.
+1. Edit `play/index.html`.
 2. Test locally - see [Dev](dev.md): serve it, ride a preset, round-trip a save.
-3. Push to the repo.
-   - In the agent sandbox, git protocol is blocked, so pushes go through the GitHub Git Data API with the project's stored credential, following the script pattern in the workspace's existing push helper (`foreverset-push.py` is the model: blobs, tree, commit, ref update, one commit per change set).
-   - From a normal machine with git access, a normal git push is fine. The API route is a sandbox workaround, not a project rule.
+3. Push to the repo with a normal git push.
 4. The static host deploys the new commit on its own. Check the live page after it settles - a pushed commit is not a verified deploy until the page you open is the page you edited.
 
 Saves compatibility on every update: import must keep accepting the previous save shapes. See the versioning notes in [Dev](dev.md).
 
 ## Ownership and moderation
 
-- Single-owner project: Richard / Third Polar Arch. One person owns the repo, the hosting, and the call on what ships.
+- SomeLimits is an open-source project, MIT licensed - see [../LICENSE](../LICENSE) and [Dev](dev.md).
 - There is nothing to moderate server-side, by design:
   - No accounts, no uploads, no comments, no user content stored anywhere.
-  - Saves live in each visitor's own browser localStorage. The owner cannot see them, and neither can anyone else.
+  - Saves live in each visitor's own browser localStorage. Nobody else can see them.
   - Share links encode the track data in the URL hash itself. Whoever holds a link holds that coaster. There is no listing, feed, or directory of links to moderate, and no link can be revoked centrally.
 - Support, such as it is, is: if your saves vanished, your browser cleared its storage. Export JSON next time. The player guide says the same thing in friendlier words, barely.
 
@@ -60,7 +58,7 @@ What is allowed, and is the whole list:
 - code-rendered geometry, like everything in the 3D view and the canvas blueprint thumbnails
 - clean type
 
-Reason, stated once: it is the owner's standing aesthetic rule for the project. AI-generated imagery reads as slop against the project's ASCII and hand-made register, and a coaster builder whose pictures are generated while its tracks are hand-built would be off-brand in a way visitors can feel. The rule has been in force since day one (Nov 11, 2026) and applies to contributors and forks that want to be associated with the project, not just to the main repo.
+Reason, stated once: it is the project's standing aesthetic rule. AI-generated imagery reads as slop against the project's hand-made register, and a coaster builder whose pictures are generated while its tracks are hand-built would be off-brand in a way visitors can feel. The rule has been in force since day one and applies to contributors and forks that want to be associated with the project, not just to the main repo.
 
 Screenshots of the actual running app are fine - they are the code-rendered game, captured, not generated.
 
