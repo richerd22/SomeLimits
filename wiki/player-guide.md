@@ -6,19 +6,34 @@ This guide is also summarized in the app as the Field Manual. Press H.
 
 ## Your first coaster in five minutes
 
+This is the preset path - a complete circuit first, pulled apart second. For the blank-plot path, see "From blank" below.
+
 1. Open the app. You start on the title screen, then in the editor with a preset already loaded. It is already a complete, rideable circuit. You do not have to fix it before it works.
 2. Drag a node. Click and drag any node on the ground plane to move it. The track is a smooth loop through all the nodes, so it follows.
-3. Pick a node and use the height slider. Raise it to make a hill, lower it to make a valley.
+3. Pick a node and raise it: drag the orange cap floating above it, or use the height slider - same number, the cap is just your hand on it. Raise it to make a hill, lower it to make a valley.
 4. Use the banking slider on that node. Banking runs from -180 to 180 degrees. Bank into turns so the ride does not throw you sideways.
 5. Let go. On drag release, auto-smooth gently tidies the moved node's neighbourhood - positions and banking. It is the built-in version of the old smoothing ritual. You do not need to do it by hand.
-6. Want a lift? Tick lift on a node, or just make a climb of 8 m or more between two nodes. That gets a chain lift automatically. Your first hill cannot stall because you missed a menu.
+6. Want a lift? Just make a climb of 8 m or more between two nodes - the chain lift grows by itself, drawn as a bright strip on the track. (A checkbox on the node can force a chain onto a shorter climb; it is an override, not the way.) Your first hill cannot stall because you missed a menu.
 7. Press RIDE IT, or press R. You start at the station.
 
 If that took more than five minutes, try a preset instead and pull it apart: Classic Circuit, Oval Cruiser, Get Wild, or Looper. All four are rideable as loaded - Looper has a real vertical loop in it, built the same way you would build one.
 
+## From blank
+
+The other way in, and the one the game is really about. **+ new coaster** clears the plot to bare grid - no track, no station, nothing.
+
+1. Click the ground to place the station. Everything leaves from there.
+2. Keep clicking to lay points out from it. Each click is the next point, and each point lands at ground level - the track runs flat until you raise something, and a drop is just what happens after a hill.
+3. Drag points to shape the run. Raise one by dragging the orange cap above it - height by hand; a climb of 8 m or more grows its own lift chain, drawn as a bright strip on the track.
+4. Click the glowing ring at the station to close the circuit. Under 4 points it refuses, politely.
+5. Press RIDE IT, or press R.
+
+Closed the loop with no hill at all? It still rides - at walking pace, for a long time. The game will tell you so, and it is right: raise a point and let the chain do the work.
+
 ## The editor
 
 - The track is a closed loop of nodes. One node is the station. That is where rides start and end.
+- The selected node grows a pole down to the ground, a ring on its footprint, and an orange cap floating above it. The cap is the height handle: drag it up or down and the node's height follows, with the number floating beside it. Heights are never smoothed, inherited, or second-guessed - what you set is what stays. The panel sliders drive the same numbers for precision.
 - Double-click the track to insert a node at that point.
 - Use + node and delete node buttons if you prefer buttons. Minimum is 4 nodes - below that, a loop stops being a loop.
 - Selected-node readout, bottom of the panel: segment length to the next node, climb to the next node, and grade. Use it when a drop feels too steep or too flat. The numbers tell you before the ride does.
@@ -31,6 +46,7 @@ If that took more than five minutes, try a preset instead and pull it apart: Cla
 | Action | How |
 |---|---|
 | Select and move a node | Drag the node on the ground plane |
+| Raise or lower a node | Drag the orange cap above it up or down |
 | Bank a node | Shift-drag (or right-drag) the node sideways - it rolls as you pull |
 | Insert a node | Double-click the track, or click empty ground to drop one where you click |
 | Orbit the camera | Drag empty space |
