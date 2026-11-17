@@ -83,6 +83,27 @@
     #mode{top:8px;right:8px}
     .card{padding:16px}
   }
+  /* portrait fold (round 13): docked at the bottom of a tall
+     narrow screen, the panel covered the lower half of the
+     plot and ground projecting there could not be tapped
+     (round-12 audit #7). in portrait the panel starts folded
+     to its own header strip - title, RIDE IT, and the fold
+     toggle - and "panel +" opens the whole panel. LIBRARY,
+     MANUAL and EDIT wait inside the fold: EDIT is redundant
+     in edit mode, and the ride HUD carries its own exit.
+     the strip stays one row tall even while RIDE IT wears
+     its long "close the loop first" label. the toggle
+     renders only inside this query, and the slim class only
+     ever applies inside it, so landscape and desktop keep
+     the panel they have always had. */
+  #btnPanel{display:none}
+  @media (max-width:760px) and (orientation:portrait){
+    #btnPanel{display:inline-block}
+    #ui.slim{max-height:none;overflow:hidden}
+    #ui.slim>*:not(h1):not(.mainrow){display:none}
+    #ui.slim .mainrow #btnLibrary,#ui.slim .mainrow #btnManual,#ui.slim .mainrow #btnEdit{display:none}
+    #ui.slim .mainrow button{padding:8px 9px}
+  }
   /* thumbs are not cursors (round 12): on a coarse pointer every
      control grows to a size a thumb can land on, and the page
      stops treating double-taps as a zoom it should answer. the
@@ -105,11 +126,12 @@
 <div id="ui" class="panel">
   <h1>SOMELIMITS</h1>
   <div class="sub">a coaster sim with some limits. there always were.</div>
-  <div class="row" style="margin-top:8px">
+  <div class="row mainrow" style="margin-top:8px">
     <button id="btnRide" class="primary">RIDE IT</button>
     <button id="btnEdit">EDIT</button>
     <button id="btnLibrary">LIBRARY</button>
     <button id="btnManual">MANUAL</button>
+    <button id="btnPanel">panel +</button>
   </div>
   <hr>
   <label>coaster name</label>
@@ -179,6 +201,7 @@
     N node, Del delete, ctrl+Z/Y undo/redo, ctrl+S save, H manual, L library.
     <b style="color:#dfe6ee">orbit</b> left-drag empty space, <b style="color:#dfe6ee">pan</b> right-drag, <b style="color:#dfe6ee">zoom</b> wheel.
     <b style="color:#dfe6ee">touch:</b> a tap is a click, one finger drags and orbits, two fingers pan and pinch to zoom - the whole game, no keyboard owed.
+    on a portrait phone this panel starts folded to a strip so the whole plot stays tappable - <b style="color:#dfe6ee">panel +</b> opens it, panel - folds it back.
   </div>
 </div>
 
@@ -1891,6 +1914,33 @@ $('btnRestart').addEventListener('click', () => { ride = createRide(track); lapS
 $('btnExitRide').addEventListener('click', () => setMode('edit'));
 $('btnLapAgain').addEventListener('click', () => { $('lapScreen').classList.remove('open'); ride = createRide(track); lapShown = false; setMode('ride'); });
 $('btnLapEdit').addEventListener('click', () => { $('lapScreen').classList.remove('open'); setMode('edit'); });
+
+/* the portrait fold (round 13): in portrait the docked panel
+   sits across the lower half of the plot, and ground that
+   projects behind it cannot be tapped - the round-12 audit
+   logged it as a layout problem, and this is the layout fix.
+   the panel starts folded to its header strip; the toggle in
+   the strip opens the whole panel and folds it back. it is
+   panel chrome, not a mode - the strip is the same panel,
+   folded. the media query is the same string the CSS keys
+   off, and outside it the fold class is stripped and the
+   toggle never renders, so desktop and landscape layouts
+   are exactly what they were. the fold choice survives a
+   rotation: fold state is the user's, orientation is the
+   phone's. */
+const portraitDock = typeof matchMedia !== 'undefined' ? matchMedia('(max-width: 760px) and (orientation: portrait)') : null;
+let panelOpen = false;
+function applyPanelFold() {
+  const fold = !!portraitDock && portraitDock.matches && !panelOpen;
+  $('ui').classList.toggle('slim', fold);
+  $('btnPanel').textContent = panelOpen ? 'panel -' : 'panel +';
+}
+$('btnPanel').addEventListener('click', () => { panelOpen = !panelOpen; applyPanelFold(); });
+if (portraitDock) {
+  if (portraitDock.addEventListener) portraitDock.addEventListener('change', applyPanelFold);
+  else if (portraitDock.addListener) portraitDock.addListener(applyPanelFold);
+}
+applyPanelFold();
 
 /* ---------------- sound: generated, minimal ----------------
    chain clack on the lift, wind that follows speed. WebAudio,
