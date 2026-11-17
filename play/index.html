@@ -38,6 +38,7 @@
   #hint{top:12px;left:50%;transform:translateX(-50%);font-size:12px;color:#b9c7d6;white-space:nowrap;z-index:6}
   #hint b{color:#C6FF00}
   #toast{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);background:#141c26;border:1px solid #C6FF00;color:#dfe6ee;border-radius:4px;padding:8px 14px;font-size:12px;z-index:60;display:none}
+  #hLabel{position:absolute;transform:translate(-50%,-100%);background:#141c26;border:1px solid #e8720c;color:#ffd9ae;border-radius:3px;padding:2px 7px;font-size:12px;z-index:6;display:none;pointer-events:none;white-space:nowrap}
   .overlay{position:fixed;inset:0;background:rgba(5,8,12,.82);z-index:50;display:none;align-items:center;justify-content:center;padding:16px;box-sizing:border-box}
   .overlay.open{display:flex}
   .card{background:#10161f;border:1px solid #2b3644;border-radius:8px;padding:22px;max-width:640px;width:100%;max-height:calc(100% - 32px);overflow-y:auto;box-sizing:border-box}
@@ -114,7 +115,8 @@
     <button id="btnAdd">+ node</button>
     <button id="btnDel" class="warn">delete node</button>
   </div>
-  <label class="chk"><input type="checkbox" id="chkLift"> lift hill after this node</label>
+  <label class="chk"><input type="checkbox" id="chkLift"> lift chain after this node (override)</label>
+  <div class="sub" style="margin-top:2px">climbs of 8m+ grow a chain by themselves - watch for the bright strip on the track. this box only forces one onto a shorter climb.</div>
   <label class="chk"><input type="checkbox" id="chkStation"> station at this node</label>
   <hr>
   <div class="sub">PRESETS</div>
@@ -139,8 +141,9 @@
   <div class="sub">
     <b style="color:#dfe6ee">drag</b> a lime node to move it. <b style="color:#dfe6ee">double-click</b> the track to insert a node there,
     or <b style="color:#dfe6ee">click empty ground</b> to drop a node where you click (while building from blank, ground clicks
-    lay the track out from the station instead, one point at a time). <b style="color:#dfe6ee">shift-drag</b> a node sideways to bank it.
-    releasing a drag runs a gentle smoothing pass - the kink fix the old community did by hand, built in.
+    lay the track out from the station instead, one point at a time, each at ground level). <b style="color:#dfe6ee">shift-drag</b> a node sideways to bank it.
+    <b style="color:#dfe6ee">drag the orange cap</b> above the selected node to set its height by hand - the number rides above it.
+    releasing a drag runs a gentle smoothing pass over positions and banking - heights stay exactly where you put them.
     climbs of 8m+ get a lift chain automatically. <b style="color:#dfe6ee">keys:</b> R ride, E edit, C camera, F frame track,
     N node, Del delete, ctrl+Z/Y undo/redo, ctrl+S save, H manual, L library.
     <b style="color:#dfe6ee">orbit</b> left-drag empty space, <b style="color:#dfe6ee">pan</b> right-drag, <b style="color:#dfe6ee">zoom</b> wheel.
@@ -161,6 +164,7 @@
 <div id="mode" class="panel">mode: <b id="modeTxt">EDIT</b></div>
 <div id="hint" class="panel"><b>drag</b> the lime dots to shape it &middot; <b>double-click</b> the track to add a point &middot; <b>RIDE IT</b> when ready</div>
 <div id="toast"></div>
+<div id="hLabel"></div>
 
 <div id="titleScreen" class="overlay open">
   <div class="card">
@@ -249,9 +253,9 @@
     <p class="sub">the full wiki lives in the repo under <code>/wiki</code>. this is the page you actually need.</p>
     <h3>your first coaster in five minutes</h3>
     <ul>
-      <li>two ways in: <b>new coaster</b> gives you a blank plot - <b>click the ground</b> to place the station, click again to lay points out from it, and click the glowing ring at the station to close the circuit. or take a <b>preset</b> - complete circuits, not demos, rideable the second they land.</li>
-      <li><b>drag</b> any lime node to move it. the height and banking sliders shape the selected node.</li>
-      <li>make a hill taller than the rest - any climb of 8m or more grows a lift chain by itself.</li>
+      <li>two ways in: <b>new coaster</b> gives you a blank plot - <b>click the ground</b> to place the station, click again to lay points out from it (each point lands at ground level, so a drop is just what happens after a hill), and click the glowing ring at the station to close the circuit. or take a <b>preset</b> - complete circuits, not demos, rideable the second they land.</li>
+      <li><b>drag</b> any lime node to move it. <b>drag the orange cap</b> floating above the selected node to raise or lower it - a pole ties it to the ground, the number floats beside it, and the height stays where you leave it. the height and banking sliders drive the same numbers, for precision.</li>
+      <li>make a hill taller than the rest - any climb of 8m or more grows a lift chain by itself, drawn as a bright strip on the track. nobody presses a lift button; there effectively isn't one.</li>
       <li><b>double-click</b> the track to add a node exactly there. <b>click empty ground</b> to drop a node where you click instead. banking past +/-90 degrees rolls the train over - rolls are banking, loops are shapes (next section). you are the loop menu.</li>
       <li><b>shift-drag</b> (or right-drag) a node sideways to bank it - the track twists as you pull. the slider drives the same number; both stay in sync.</li>
       <li>when you let go of a drag, a gentle smoothing pass runs over the neighbourhood. that's deliberate - it's the fix for kinked connections.</li>
@@ -446,6 +450,24 @@ function computeTrack(nodes) {
   const pts = nodes.map(n => new THREE.Vector3(n.x, n.h, n.z));
   const curve = new THREE.CatmullRomCurve3(pts, true, 'centripetal', 0.5);
   const pos = curve.getSpacedPoints(SAMPLES); // SAMPLES+1 pts, last == first
+  /* height guardrail: the spline may bulge past its own segment's
+     heights, but only a little. past ~1.5m of escape the bulge
+     stops reading as "smooth" and starts reading as the track
+     doing something nobody asked for - a spike beside a cliff, a
+     sag under a crest. clamp each sample into its own segment's
+     height range plus that allowance. the presets' worst genuine
+     escape is 1.34m (measured), so on every shipped layout this
+     never binds and nothing established moves; it only catches
+     the extremes a builder can force by hand. the segment comes
+     from the curve's own parameter via getUtoTmapping, never the
+     node fraction - the fraction lies on uneven layouts. */
+  for (let i = 0; i <= SAMPLES; i++) {
+    const t = curve.getUtoTmapping(i / SAMPLES);
+    const seg = Math.min(Math.floor(t * N), N - 1);
+    const lo = Math.min(nodes[seg].h, nodes[(seg + 1) % N].h) - 1.5;
+    const hi = Math.max(nodes[seg].h, nodes[(seg + 1) % N].h) + 1.5;
+    pos[i].y = THREE.MathUtils.clamp(pos[i].y, lo, hi);
+  }
   const tans = [];
   for (let i = 0; i <= SAMPLES; i++) {
     const a = pos[Math.max(0, i - 1)], b = pos[Math.min(SAMPLES, i + 1)];
@@ -967,9 +989,22 @@ const trainCars = [];
 trainGroup.visible = false;
 scene.add(trainGroup);
 
+/* lift-toast state: the moment a lift is born from an edit is
+   worth one sentence, because the whole point is that nobody
+   pressed anything. prevLiftSeen tracks the last build's answer;
+   the mute window covers wholesale loads (presets, library,
+   undo) where a lift arriving is not news. */
+let prevLiftSeen = null, liftToastMutedUntil = 0, gestureActive = false;
+
 function buildTrack() {
   if (building && nodes.length < 2) { buildLoneStation(); return; }
   track = building ? computeOpenTrack(nodes) : computeTrack(nodes);
+  const hasLift = track.samples.some(s => s.lift);
+  if (prevLiftSeen === false && hasLift && gestureActive &&
+      performance.now() > liftToastMutedUntil) {
+    toast('a lift chain just grew on that climb - no button involved. the chain does the work.', 3600);
+  }
+  prevLiftSeen = hasLift;
   if (trackGroup) { scene.remove(trackGroup); trackGroup.traverse(o => o.geometry && o.geometry.dispose()); }
   if (handleGroup) { scene.remove(handleGroup); }
   trackGroup = new THREE.Group(); handleGroup = new THREE.Group();
@@ -1033,6 +1068,30 @@ function buildTrack() {
     g.setIndex(idx); g.computeVertexNormals();
     const spine = new THREE.Mesh(g, spineMat); spine.castShadow = true;
     trackGroup.add(spine);
+  }
+  /* the lift chain, drawn: a bright steel strip down the middle
+     of the track wherever the samples say lift. it used to be
+     invisible - the only sign was denser supports - so a lift
+     read as a thing you switch on with a checkbox, not a thing
+     the track grows on a climb. now the climb shows its chain,
+     in the editor and on the ride. */
+  {
+    const verts = [], idx = [];
+    for (let i = 0; i <= SAMPLES; i++) {
+      const sm = samples[i];
+      const c = sm.pos.clone().addScaledVector(sm.up, 0.02);
+      const l = c.clone().addScaledVector(sm.side, -0.17), r = c.clone().addScaledVector(sm.side, 0.17);
+      verts.push(l.x, l.y, l.z, r.x, r.y, r.z);
+      if (i < SAMPLES && samples[i].lift && samples[i + 1].lift) {
+        const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2);
+      }
+    }
+    if (idx.length) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+      g.setIndex(idx); g.computeVertexNormals();
+      trackGroup.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({color: 0xd7dee6, roughness: 0.35, metalness: 0.85, side: THREE.DoubleSide})));
+    }
   }
   const tieGeo = new THREE.BoxGeometry(1.8, 0.09, 0.42);
   const tieCount = 300, ties = new THREE.InstancedMesh(tieGeo, tieMat, tieCount);
@@ -1265,13 +1324,39 @@ function buildTrack() {
     h.userData.nodeIndex = i;
     handleGroup.add(h);
   });
+  /* the selected point's height kit: a pole tying it to the
+     ground (its height becomes visible instead of guessed), a
+     ring on its footprint, and an orange cap floating above it.
+     the cap is a handle - drag it up or down and the height
+     follows your hand, with the number floating beside it.
+     height stops living on a panel slider you have to remember;
+     the slider stays as the precision backup. */
+  if (nodes[selected]) {
+    const n = nodes[selected];
+    const gy = terrainHeightAt(n.x, n.z);
+    const poleGeo = new THREE.CylinderGeometry(0.06, 0.06, 1, 6); poleGeo.translate(0, 0.5, 0);
+    const pole = new THREE.Mesh(poleGeo, new THREE.MeshBasicMaterial({color: 0x8fa3b8, transparent: true, opacity: 0.55}));
+    pole.position.set(n.x, gy, n.z);
+    pole.scale.y = Math.max(0.1, n.h + 2.4 - gy);
+    handleGroup.add(pole);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(1.15, 1.45, 28),
+      new THREE.MeshBasicMaterial({color: 0xe8720c, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false}));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(n.x, gy + 0.07, n.z);
+    handleGroup.add(ring);
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.8, 14, 10),
+      new THREE.MeshStandardMaterial({color: 0xe8720c, emissive: 0x592c00, roughness: 0.4}));
+    cap.position.set(n.x, n.h + 2.4, n.z);
+    cap.userData.heightNode = selected;
+    handleGroup.add(cap);
+  }
   handleGroup.visible = (mode === 'edit');
   scene.add(handleGroup);
   /* the terrain apron follows the track - but not mid-drag: the mesh
      rebuild is the one heavy pass here, and the plateau under the
      spline barely moves while a node is in your hand. it settles on
      release, like everything else. */
-  if (dragging < 0 && banking < 0) updateTerrain();
+  if (dragging < 0 && banking < 0 && heightDrag < 0) updateTerrain();
   syncPanel(); syncBuildUI();
 }
 
@@ -1335,6 +1420,15 @@ function computeOpenTrack(nodes) {
   const pts = nodes.map(n => new THREE.Vector3(n.x, n.h, n.z));
   const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5);
   const pos = curve.getSpacedPoints(SAMPLES);
+  /* the same height guardrail as the closed track: a sample may
+     escape its own segment's heights by 1.5m, no more. */
+  for (let i = 0; i <= SAMPLES; i++) {
+    const t = curve.getUtoTmapping(i / SAMPLES);
+    const seg = Math.min(Math.floor(t * (N - 1)), N - 2);
+    const lo = Math.min(nodes[seg].h, nodes[seg + 1].h) - 1.5;
+    const hi = Math.max(nodes[seg].h, nodes[seg + 1].h) + 1.5;
+    pos[i].y = THREE.MathUtils.clamp(pos[i].y, lo, hi);
+  }
   const tans = [];
   for (let i = 0; i <= SAMPLES; i++) {
     const a = pos[Math.max(0, i - 1)], b = pos[Math.min(SAMPLES, i + 1)];
@@ -1372,6 +1466,7 @@ function computeOpenTrack(nodes) {
    lone station standing on it. handles + platform, nothing else. */
 function buildLoneStation() {
   track = null; hitTube = null;
+  prevLiftSeen = false;
   if (trackGroup) { scene.remove(trackGroup); trackGroup.traverse(o => o.geometry && o.geometry.dispose()); }
   if (handleGroup) { scene.remove(handleGroup); }
   trackGroup = new THREE.Group(); handleGroup = new THREE.Group();
@@ -1394,7 +1489,7 @@ function buildLoneStation() {
   });
   handleGroup.visible = (mode === 'edit');
   scene.add(handleGroup);
-  if (dragging < 0 && banking < 0) updateTerrain();
+  if (dragging < 0 && banking < 0 && heightDrag < 0) updateTerrain();
   syncPanel();
   /* syncPanel bails on an empty document - clear the sheet by hand */
   els.name.value = trackName; refreshContinue();
@@ -1418,7 +1513,7 @@ function framePlot() {
 function buildHint() {
   return nodes.length === 0 ? '<b>click the ground</b> to place the station - everything starts there' :
     nodes.length === 1 ? 'station is down. <b>click the ground</b> to lay track out from it' :
-    nodes.length < 4 ? '<b>click</b> to extend &middot; <b>drag</b> points to shape &middot; the slider raises them - 8m+ climbs grow a lift' :
+    nodes.length < 4 ? '<b>click</b> to extend &middot; <b>drag</b> points to shape &middot; drag the <b>orange cap</b> above a point to raise it' :
     'bring it home - <b>click the glowing ring</b> at the station to close the circuit';
 }
 
@@ -1473,10 +1568,17 @@ function buildClickAtGround(pt) {
       return;
     }
   }
-  nodes.push({x: Math.round(pt.x * 10) / 10, z: Math.round(pt.z * 10) / 10, h: prev.h, bank: prev.bank});
+  /* the new point lands at ground height - the click was on the
+     ground, so that is where the point goes. it used to inherit
+     the previous point's height, which made a drop unbuildable
+     by clicking: every point after a crest arrived AT crest
+     height, a plateau only a panel slider could break. now the
+     drop is the default outcome of clicking onward, and height
+     is something you add by hand, with the cap. */
+  nodes.push({x: Math.round(pt.x * 10) / 10, z: Math.round(pt.z * 10) / 10, h: 3, bank: prev.bank});
   selected = nodes.length - 1;
   buildTrack(); commit();
-  if (nodes.length === 2) toast('track is growing. drag points to shape it, the slider raises them - 8m climbs grow a lift chain.');
+  if (nodes.length === 2) toast('track is growing. drag points to shape it, drag the orange cap above a point to raise it - 8m climbs grow a lift chain.');
   else if (nodes.length === 4) toast('that is enough track to come home - click the glowing ring at the station to close the circuit.');
 }
 
@@ -1495,7 +1597,7 @@ function closeLoop() {
      max 4 km/h. say the fix out loud instead of overselling. */
   const td = trackData(nodes, track);
   if (td.maxDropM < 2 && !track.samples.some(s => s.lift)) {
-    toast('circuit closed - flat as a pancake, though: no lift, no drop, so she will crawl. raise a point 8m or more and the chain does the work.', 5200);
+    toast('circuit closed - flat as a pancake, though: no lift, no drop, so she will crawl. drag a cap up 8m or more and the chain does the work.', 5200);
   } else {
     toast('circuit closed - she is rideable. RIDE IT when ready.', 3600);
   }
@@ -1753,6 +1855,7 @@ function applyState(st) {
   trackName = st.name; nodes = structuredClone(st.nodes);
   building = !!st.building;
   selected = nodes.length ? Math.min(selected, nodes.length - 1) : 0;
+  liftToastMutedUntil = performance.now() + 2500; // a restored lift is not a newborn lift
   buildTrack(); syncPanel(); autosave();
 }
 /* start a fresh history whose ONLY entry is the current document.
@@ -1843,7 +1946,7 @@ function addNode() {
       const a = nodes[nodes.length - 1], b = nodes[nodes.length - 2];
       const dx = b ? a.x - b.x : 0, dz = b ? a.z - b.z : -14;
       const l = Math.hypot(dx, dz) || 1, s = 14 / l;
-      nodes.push({x: THREE.MathUtils.clamp(a.x + dx * s, -150, 150), z: THREE.MathUtils.clamp(a.z + dz * s, -150, 150), h: a.h, bank: a.bank});
+      nodes.push({x: THREE.MathUtils.clamp(a.x + dx * s, -150, 150), z: THREE.MathUtils.clamp(a.z + dz * s, -150, 150), h: 3, bank: a.bank});
       selected = nodes.length - 1;
     } else {
       const a = nodes[selected], b = nodes[selected + 1];
@@ -1905,7 +2008,15 @@ function smoothAround(idx) {
     const w = d === 0 ? 0.18 : 0.3;
     nodes[i].x = c.x + ((p.x + q.x) / 2 - c.x) * w;
     nodes[i].z = c.z + ((p.z + q.z) / 2 - c.z) * w;
-    if (!c.station) nodes[i].h = c.h + ((p.h + q.h) / 2 - c.h) * w;
+    /* heights are NOT smoothed. they used to be - and at a grade
+       break (the top of a lift, the foot of a drop) the pass
+       rewrote the crest and filled the drop every time a nearby
+       point was dragged: one plan-drag of the point at a cliff's
+       foot sagged the plateau above it by 3.6m and raised the
+       dragged point 2.1m (measured, round 9). the builder's
+       heights are the builder's word; the spline between them
+       is already the smooth part. this pass tidies plan position
+       and banking, nothing else. */
     nodes[i].bank = Math.round(lerpAngleDeg(c.bank, meanAngle(p.bank, q.bank), w));
   }
 }
@@ -1936,6 +2047,7 @@ document.querySelectorAll('[data-preset]').forEach(btn => btn.addEventListener('
     presetArmBtn = null; presetArmUntil = 0;
   }
   nodes = structuredClone(PRESETS[btn.dataset.preset]);
+  liftToastMutedUntil = performance.now() + 2500; // a loaded lift is not a newborn lift
   building = false;
   trackName = PRESET_NAMES[btn.dataset.preset] || btn.dataset.preset;
   selected = 0; buildTrack(); resetHistory(); frameTrack();
@@ -1990,6 +2102,8 @@ $('btnNew').addEventListener('click', newDocument);
 /* ---------------- dragging + insert ---------------- */
 const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
 let dragging = -1, dragMoved = false;
+let heightDrag = -1, heightMoved = false;  // vertical cap-drag state
+const vertPlane = new THREE.Plane();       // the upright plane a cap drag runs on
 let banking = -1, bankStartX = 0, bankStartVal = 0, bankMoved = false;  // sideways bank-drag state
 let downAt = null;       // press spot with no node under it - a ground-click candidate
 let lastGroundAdd = 0;   // so the second half of a double-click doesn't add twice
@@ -2020,8 +2134,31 @@ renderer.domElement.addEventListener('pointerdown', e => {
   if (mode !== 'edit') return;
   castAt(e);
   const hits = ray.intersectObjects(handleGroup.children);
-  if (hits.length) {
-    const i = hits[0].object.userData.nodeIndex;
+  /* the pole and the ground ring carry no userData - they are
+     scenery on the selected point, not handles. skip past them
+     to the first hit that is actually grabbable, or a click on
+     the pole would select node "undefined" and fall over. */
+  const hit = hits.find(h => h.object.userData.nodeIndex !== undefined || h.object.userData.heightNode !== undefined);
+  if (hit && hit.object.userData.heightNode !== undefined) {
+    /* the orange cap: a vertical drag. the drag plane stands
+       upright through the point, facing the camera, so screen-up
+       is world-up and the height follows the hand directly. */
+    const i = hit.object.userData.heightNode;
+    selected = i; heightDrag = i; heightMoved = false;
+    controls.enabled = false;
+    renderer.domElement.setPointerCapture(e.pointerId);
+    downAt = null;
+    const nrm = new THREE.Vector3();
+    camera.getWorldDirection(nrm); nrm.y = 0;
+    if (nrm.lengthSq() < 1e-6) nrm.set(0, 0, 1);
+    nrm.normalize();
+    vertPlane.setFromNormalAndCoplanarPoint(nrm, new THREE.Vector3(nodes[i].x, nodes[i].h, nodes[i].z));
+    renderer.domElement.style.cursor = 'ns-resize';
+    syncPanel();
+    return;
+  }
+  if (hit) {
+    const i = hit.object.userData.nodeIndex;
     selected = i; dragMoved = false;
     controls.enabled = false;
     renderer.domElement.setPointerCapture(e.pointerId);
@@ -2042,6 +2179,19 @@ renderer.domElement.addEventListener('pointerdown', e => {
   }
 });
 renderer.domElement.addEventListener('pointermove', e => {
+  if (heightDrag >= 0) {
+    castAt(e);
+    const out = new THREE.Vector3();
+    if (ray.ray.intersectPlane(vertPlane, out)) {
+      const nh = THREE.MathUtils.clamp(Math.round(out.y * 10) / 10, 1, 80);
+      if (nh !== nodes[heightDrag].h) {
+        nodes[heightDrag].h = nh; heightMoved = true;
+        els.h.value = nh; els.hVal.textContent = nh.toFixed(1) + ' m';
+        buildTrack();
+      }
+    }
+    return;
+  }
   if (building && mode === 'edit' && dragging < 0 && banking < 0) {
     /* track the cursor's ground point so the snap ring can light
        up when a closing click is on the table */
@@ -2066,6 +2216,17 @@ renderer.domElement.addEventListener('pointermove', e => {
   }
 });
 renderer.domElement.addEventListener('pointerup', e => {
+  if (heightDrag >= 0) {
+    /* no smoothing pass on a height drag either - the height you
+       set is the height that stays (see smoothAround). */
+    if (heightMoved) commit();
+    heightDrag = -1; heightMoved = false;
+    renderer.domElement.style.cursor = '';
+    controls.enabled = mode === 'edit';
+    downAt = null;
+    syncPanel();
+    return;
+  }
   if (banking >= 0) {
     /* no smoothing pass on a bank drag: the roll you set is the
        roll you keep - bankAt()'s local blend is the smoothing. */
@@ -2316,6 +2477,7 @@ addEventListener('keydown', e => {
 const HINTS = [
   '<b>drag</b> the lime dots to shape it &middot; <b>double-click</b> the track to add a point &middot; <b>RIDE IT</b> when ready',
   '<b>click empty ground</b> to drop a point right there',
+  '<b>drag the orange cap</b> above a point to set its height by hand - the slider is just the backup',
   'make a climb of <b>8m or more</b> between two nodes - the lift chain builds itself',
   '<b>shift-drag</b> a dot sideways to bank it - past 90&deg; rolls the train; a loop is points stacked in a circle',
   '<b>ctrl+Z</b> walks back through your edits - it never leaves this coaster'
@@ -2364,7 +2526,22 @@ setInterval(() => {
   frameTrack();
   window.__slBooted = true; /* the CDN watchdog above reads this */
 })();
+/* a gesture is a press in progress (plus a short tail for the
+   rebuilds that land just after release). the lift toast keys
+   off it to tell "born from your edit just now" apart from "was
+   already there when the page loaded". a plain clock window
+   would fail a slow, thoughtful drag - the press can be seconds
+   old by the time the climb crosses 8m - so this tracks the
+   press itself, not the time since it started. */
+let gestureTail = 0;
+addEventListener('pointerdown', () => { gestureActive = true; clearTimeout(gestureTail); }, true);
+addEventListener('pointerup', () => {
+  clearTimeout(gestureTail);
+  gestureTail = setTimeout(() => { gestureActive = false; }, 1200);
+}, true);
+
 const clock = new THREE.Clock();
+const _hv = new THREE.Vector3();
 function loop() {
   requestAnimationFrame(loop);
   const dt = Math.min(clock.getDelta(), 0.05);
@@ -2377,6 +2554,19 @@ function loop() {
     snapRing.material.opacity = near ? 0.9 : 0.38 + 0.2 * Math.sin(t * 4);
     snapRing.scale.setScalar(near ? 1.05 : 1 + 0.03 * Math.sin(t * 4));
   }
+  /* the height label rides above the selected point's cap: the
+     number lives on the point, where the height itself lives. */
+  const hl = $('hLabel');
+  if (mode === 'edit' && track && nodes[selected] && !document.querySelector('.overlay.open')) {
+    const n = nodes[selected];
+    _hv.set(n.x, n.h + 4.4, n.z).project(camera);
+    if (_hv.z < 1) {
+      hl.style.display = 'block';
+      hl.style.left = ((_hv.x * 0.5 + 0.5) * innerWidth) + 'px';
+      hl.style.top = ((-_hv.y * 0.5 + 0.5) * innerHeight) + 'px';
+      hl.textContent = n.h.toFixed(1) + ' m';
+    } else hl.style.display = 'none';
+  } else hl.style.display = 'none';
   if (mode === 'ride' && ride) poseRide(dt);
   else controls.update();
   cloudGroup.rotation.y = performance.now() * 0.0000012;
