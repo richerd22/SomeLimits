@@ -8,6 +8,12 @@ Place points, drag them around, set height and banking, close the loop, and ride
 
 ![SomeLimits logo](logo/somelimits-logo.svg)
 
+![A coaster built from a blank plot with clicks and two cap drags - lift, crest, drop, home](screenshots/built-by-clicks.png)
+
+*Built from a blank plot the way the game teaches it: nine ground clicks and two drags of the orange height cap. Nothing else.*
+
+![The classic preset in the editor at dusk, the chain strip showing on its lift](screenshots/editor-classic.png)
+
 ## Why this exists
 
 NoLimits 1 (2001) was a relaxed, easy coaster builder: you laid track, and it worked. NoLimits 2 is far more powerful, and its editor is also where a lot of casual builders quietly bounce off - separate roll points, strict nodes, separators to learn before the first hill exists.
@@ -23,8 +29,9 @@ The name is a dry joke: there always were some limits. We are owning them.
 - A complete closed-circuit coaster, end to end: station, lift hill, drops, banked turns, inversions if you build them, brake run back to the station.
 - Building is just placing points and dragging things:
   - Banking lives on the point itself (a slider, or shift-drag), with a local blend. No roll-node objects.
-  - Any climb of 8 m or more between points gets a chain lift automatically, so a first build cannot stall for want of a menu.
-  - Auto-smooth on drag release does the old community smoothing ritual for you, gently and locally.
+  - Any climb of 8 m or more between points gets a chain lift automatically - drawn on the track as a bright strip - so a first build cannot stall for want of a menu. There is no lift button to find.
+  - Height is by hand: drag the orange cap floating above a point and its height follows, number and all. Points land at ground level, so a drop is simply what happens after a hill.
+  - Auto-smooth on drag release tidies positions and banking, gently and locally - never heights. The heights you set are the heights that stay.
 - Ride mode with POV, chase, and orbit cameras, a live G-force HUD, and an honest lap summary.
 - Presets that are rideable as loaded, including a vertical loop you can pull apart to see how it is built.
 - A library in your browser (localStorage), plus JSON export/import, share links that encode the coaster in the URL, a NoLimits 2-style CSV spline bridge both ways, and PNG screenshots.
