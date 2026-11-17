@@ -269,7 +269,7 @@
     <p class="sub">the full wiki lives in the repo under <code>/wiki</code>. this is the page you actually need.</p>
     <h3>your first coaster in five minutes</h3>
     <ul>
-      <li>two ways in: <b>new coaster</b> gives you a blank plot - <b>click the ground</b> to place the station, click again to lay points out from it (each point lands at ground level, so a drop is just what happens after a hill), and click the glowing ring at the station to close the circuit. or take a <b>preset</b> - complete circuits, not demos, rideable the second they land.</li>
+      <li>two ways in: <b>new coaster</b> gives you a blank plot - <b>click the ground</b> to place the station, click again to lay points out from it (each point lands at ground level, so a drop is just what happens after a hill), and click the station to close the circuit. or take a <b>preset</b> - complete circuits, not demos, rideable the second they land.</li>
       <li><b>drag</b> any lime node to move it. <b>drag the orange cap</b> floating above the selected node to raise or lower it - a pole ties it to the ground, the number floats beside it, and the height stays where you leave it. the height and banking sliders drive the same numbers, for precision.</li>
       <li>make a hill taller than the rest - any climb of 8m or more grows a lift chain by itself, drawn as a bright strip on the track. nobody presses a lift button; there effectively isn't one.</li>
       <li><b>double-click</b> the track to add a node exactly there. <b>click empty ground</b> to drop a node where you click instead. banking past +/-90 degrees rolls the train over - rolls are banking, loops are shapes (next section). you are the loop menu.</li>
@@ -1579,7 +1579,7 @@ function buildHint() {
   return nodes.length === 0 ? '<b>click the ground</b> to place the station - everything starts there' :
     nodes.length === 1 ? 'station is down. <b>click the ground</b> to lay track out from it' :
     nodes.length < 4 ? '<b>click</b> to extend &middot; <b>drag</b> points to shape &middot; drag the <b>orange cap</b> above a point to raise it' :
-    'bring it home - <b>click the glowing ring</b> at the station to close the circuit';
+    'bring it home - <b>click the station</b> to close the circuit';
 }
 
 /* everything the building state shows that a circuit doesn't:
@@ -1610,7 +1610,12 @@ function buildClickAtGround(pt) {
     nodes = [{x: Math.round(pt.x * 10) / 10, z: Math.round(pt.z * 10) / 10, h: 3, bank: 0, station: true}];
     selected = 0;
     buildTrack(); commit();
-    toast('station placed. now click the ground to lay track out from it - every click is the next point.');
+    /* the build-path teaching toasts get longer dwells than the
+       2600 ms default - the round-11 stranger run clocked the
+       25-word cap lesson at ~2.4 s of screen time, which is a
+       skim, not a read. the hint bar repeats the lesson and
+       stays; these just stop rushing it. */
+    toast('station placed. now click the ground to lay track out from it - every click is the next point.', 4200);
     return;
   }
   const entry = stationEntry();
@@ -1643,8 +1648,8 @@ function buildClickAtGround(pt) {
   nodes.push({x: Math.round(pt.x * 10) / 10, z: Math.round(pt.z * 10) / 10, h: 3, bank: prev.bank});
   selected = nodes.length - 1;
   buildTrack(); commit();
-  if (nodes.length === 2) toast('track is growing. drag points to shape it, drag the orange cap above a point to raise it - 8m climbs grow a lift chain.');
-  else if (nodes.length === 4) toast('that is enough track to come home - click the glowing ring at the station to close the circuit.');
+  if (nodes.length === 2) toast('track is growing. drag points to shape it, drag the orange cap above a point to raise it - 8m climbs grow a lift chain.', 5200);
+  else if (nodes.length === 4) toast('that is enough track to come home - click the station to close the circuit.', 4200);
 }
 
 /* the click that makes it a coaster: the strip becomes the loop,
@@ -2160,7 +2165,7 @@ function newDocument() {
   setMode('edit');
   buildTrack(); resetHistory(); framePlot();
   $('titleScreen').classList.remove('open');
-  toast('blank plot - the grid, the dirt, nothing else. click the ground to place your station.');
+  toast('blank plot - the grid, the dirt, nothing else. click the ground to place your station.', 3600);
 }
 $('btnNew').addEventListener('click', newDocument);
 
@@ -2325,13 +2330,30 @@ renderer.domElement.addEventListener('pointermove', e => {
     }
     return;
   }
-  if (building && mode === 'edit' && dragging < 0 && banking < 0) {
-    /* track the cursor's ground point so the snap ring can light
-       up when a closing click is on the table */
+  if (mode === 'edit' && dragging < 0 && banking < 0) {
     castAt(e);
-    dragPlane.constant = 0;
-    const hp = new THREE.Vector3();
-    hoverPt = ray.ray.intersectPlane(dragPlane, hp) ? hp : null;
+    if (building) {
+      /* track the cursor's ground point so the snap ring can
+         light up when a closing click is on the table */
+      dragPlane.constant = 0;
+      const hp = new THREE.Vector3();
+      hoverPt = ray.ray.intersectPlane(dragPlane, hp) ? hp : null;
+    }
+    if (e.buttons === 0) {
+      /* say what is grabbable before it is grabbed. the cursors
+         used to exist only mid-drag, so a first-timer hovering
+         the handles got no answer at all (round-11 stranger
+         run). same hit order as the grab itself, cap/grip tie
+         included, so the promise matches the press. */
+      const hits = ray.intersectObjects(handleGroup.children);
+      let hit = hits.find(h => h.object.userData.nodeIndex !== undefined || h.object.userData.heightNode !== undefined || h.object.userData.bankNode !== undefined);
+      const capHit = hits.find(h => h.object.userData.heightNode !== undefined);
+      const gripHit = hits.find(h => h.object.userData.bankNode !== undefined);
+      if (capHit && gripHit && gripHit.distance <= capHit.distance + 1.5) hit = gripHit;
+      renderer.domElement.style.cursor = !hit ? '' :
+        hit.object.userData.heightNode !== undefined ? 'ns-resize' :
+        hit.object.userData.bankNode !== undefined ? 'grab' : 'move';
+    }
   }
   if (banking >= 0) {
     const nb = THREE.MathUtils.clamp(Math.round(bankStartVal + (e.clientX - bankStartX) * 0.45), -180, 180);
@@ -2380,6 +2402,18 @@ renderer.domElement.addEventListener('pointerup', e => {
     renderer.domElement.style.cursor = '';
     controls.enabled = mode === 'edit';
     downAt = null;
+    return;
+  }
+  if (dragging >= 0 && !dragMoved && building && canClose() && nodes[dragging] && nodes[dragging].station) {
+    /* a still click on the station dot itself closes the loop.
+       the glowing ring on the ground is the advertised target,
+       but the hand aims at the dot (round-11 stranger run: the
+       dot only selected, and the builder went hunting for what
+       to click). a press that turns into a drag still moves the
+       station - only the click that goes nowhere means "home". */
+    dragging = -1; controls.enabled = mode === 'edit';
+    downAt = null;
+    closeLoop();
     return;
   }
   if (dragging >= 0 && dragMoved) { smoothAround(dragging); buildTrack(); commit(); }
@@ -2630,6 +2664,7 @@ const HINTS = [
 let hintIdx = 0;
 setInterval(() => {
   if (mode !== 'edit' || document.hidden) return;
+  if (document.querySelector('.overlay.open')) return;   // no rotating hints behind a modal - the title screen is not a billboard
   if (building) { $('hint').innerHTML = buildHint(); return; }
   hintIdx = (hintIdx + 1) % HINTS.length;
   $('hint').innerHTML = HINTS[hintIdx];
