@@ -11,7 +11,7 @@ This is the preset path - a complete circuit first, pulled apart second. For the
 1. Open the app. You start on the title screen, then in the editor with a preset already loaded. It is already a complete, rideable circuit. You do not have to fix it before it works.
 2. Drag a node. Click and drag any node on the ground plane to move it. The track is a smooth loop through all the nodes, so it follows.
 3. Pick a node and raise it: drag the orange cap floating above it, or use the height slider - same number, the cap is just your hand on it. Raise it to make a hill, lower it to make a valley.
-4. Use the banking slider on that node. Banking runs from -180 to 180 degrees. Bank into turns so the ride does not throw you sideways.
+4. Bank that node: drag the blue grip around it - it rides a ring around the point, and the track rolls as you pull it around. Banking runs from -180 to 180 degrees. Bank into turns so the ride does not throw you sideways.
 5. Let go. On drag release, auto-smooth gently tidies the moved node's neighbourhood - positions and banking. It is the built-in version of the old smoothing ritual. You do not need to do it by hand.
 6. Want a lift? Just make a climb of 8 m or more between two nodes - the chain lift grows by itself, drawn as a bright strip on the track. (A checkbox on the node can force a chain onto a shorter climb; it is an override, not the way.) Your first hill cannot stall because you missed a menu.
 7. Press RIDE IT, or press R. You start at the station.
@@ -34,6 +34,7 @@ Closed the loop with no hill at all? It still rides - at walking pace, for a lon
 
 - The track is a closed loop of nodes. One node is the station. That is where rides start and end.
 - The selected node grows a pole down to the ground, a ring on its footprint, and an orange cap floating above it. The cap is the height handle: drag it up or down and the node's height follows, with the number floating beside it. Heights are never smoothed, inherited, or second-guessed - what you set is what stays. The panel sliders drive the same numbers for precision.
+- The selected node also grows a blue grip on the end of a bar, riding a faint ring around the point. The grip is the banking handle: it sits wherever the current bank has rolled it, and dragging it around the ring rolls the track with it, degrees floating by the point. Shift-dragging the node sideways does the same thing the old way.
 - Double-click the track to insert a node at that point.
 - Use + node and delete node buttons if you prefer buttons. Minimum is 4 nodes - below that, a loop stops being a loop.
 - Selected-node readout, bottom of the panel: segment length to the next node, climb to the next node, and grade. Use it when a drop feels too steep or too flat. The numbers tell you before the ride does.
@@ -47,12 +48,12 @@ Closed the loop with no hill at all? It still rides - at walking pace, for a lon
 |---|---|
 | Select and move a node | Drag the node on the ground plane |
 | Raise or lower a node | Drag the orange cap above it up or down |
-| Bank a node | Shift-drag (or right-drag) the node sideways - it rolls as you pull |
+| Bank a node | Drag the blue grip around the node - it rolls as you pull (or shift-drag / right-drag the node sideways) |
 | Insert a node | Double-click the track, or click empty ground to drop one where you click |
 | Orbit the camera | Drag empty space |
 | Pan and zoom | Use the editor camera controls - drag and scroll as labelled in the app |
 
-Height is a slider per selected node. Banking is the slider or the sideways drag - both drive the same number on the same node, and they stay in sync.
+Height is the cap drag or a slider per selected node. Banking is the grip drag, the sideways shift-drag, or the slider - all three drive the same number on the same node, and they stay in sync.
 
 ### Keys
 
