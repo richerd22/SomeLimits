@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>SomeLimits - a coaster sim with some limits</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="data:,">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23f4f1e8'/%3E%3Cellipse cx='16' cy='16' rx='7' ry='11' fill='none' stroke='%232b5aa6' stroke-width='3'/%3E%3Crect x='12' y='1' width='4' height='3' fill='%23e8720c'/%3E%3Crect x='17' y='1' width='4' height='3' fill='%23e8720c'/%3E%3C/svg%3E">
 <style>
   html,body{margin:0;height:100%;background:#0b0e13;color:#dfe6ee;font-family:ui-monospace,Menlo,Consolas,monospace;overflow:hidden}
   #app{position:fixed;inset:0}
@@ -106,7 +106,7 @@
   <label>height <span id="hVal" class="val"></span></label>
   <input id="rngH" type="range" min="1" max="80" step="0.5">
   <label>banking <span id="bVal" class="val"></span></label>
-  <input id="rngB" type="range" min="-120" max="120" step="1">
+  <input id="rngB" type="range" min="-180" max="180" step="1">
   <div class="sub" id="segInfo" style="margin-top:4px"></div>
   <div class="row" style="margin-top:4px">
     <button id="btnAdd">+ node</button>
@@ -135,7 +135,8 @@
   <hr>
   <div class="sub">
     <b style="color:#dfe6ee">drag</b> a lime node to move it. <b style="color:#dfe6ee">double-click</b> the track to insert a node there,
-    or <b style="color:#dfe6ee">click empty ground</b> to drop a node where you click. <b style="color:#dfe6ee">shift-drag</b> a node sideways to bank it.
+    or <b style="color:#dfe6ee">click empty ground</b> to drop a node where you click (while building from blank, ground clicks
+    lay the track out from the station instead, one point at a time). <b style="color:#dfe6ee">shift-drag</b> a node sideways to bank it.
     releasing a drag runs a gentle smoothing pass - the kink fix the old community did by hand, built in.
     climbs of 8m+ get a lift chain automatically. <b style="color:#dfe6ee">keys:</b> R ride, E edit, C camera, F frame track,
     N node, Del delete, ctrl+Z/Y undo/redo, ctrl+S save, H manual, L library.
@@ -269,7 +270,7 @@
     <ul>
       <li><i>is this NoLimits?</i> no. it's a loving knockoff that owns its limits. no shared code, no shared assets.</li>
       <li><i>where are my saves?</i> in your browser's localStorage, nowhere else. clear your browser data and they're gone - export json for keeps.</li>
-      <li><i>can it do parks / multiple coasters / terrain?</i> not in v1. one coaster, flat ground, full heart.</li>
+      <li><i>can it do parks / multiple coasters / terrain editing?</i> no. one coaster, riding on code-drawn hills you can't shape, full heart.</li>
     </ul>
     <div class="row"><button id="btnManualClose" class="primary">back</button></div>
   </div>
@@ -586,7 +587,12 @@ let track = null;            // result of computeTrack(nodes)
    the normal game takes over completely. */
 let building = false;
 let hoverPt = null;          // ground point under the cursor (snap-ring hover)
-const CLOSE_R = 13;          // snap radius (m) around the station entry
+const CLOSE_R = 9;           // snap radius (m) around the station entry.
+                             // was 13 until the round-5 playtest caught it
+                             // eating legitimate point placements near the
+                             // station (a click 10m out closed the circuit
+                             // instead of laying the return leg). 9 is
+                             // still a fat target to hit on purpose.
 
 const app = document.getElementById('app');
 const renderer = new THREE.WebGLRenderer({antialias: true, preserveDrawingBuffer: true});
@@ -735,13 +741,31 @@ function updateTerrain() {
 }
 
 let trackGroup = null, handleGroup = null, hitTube = null;
-const train = new THREE.Mesh(
-  new THREE.BoxGeometry(1.4, 0.9, 3.6),
-  new THREE.MeshStandardMaterial({color: 0xC6FF00, roughness: 0.5, metalness: 0.2})
-);
-train.visible = false;
-train.castShadow = true;
-scene.add(train);
+/* the train: three articulated cars, not one box. each car is
+   posed off the spline at its own arc offset, so the consist
+   bends through curves and over crests the way a train does -
+   in chase and orbit views this is most of the ride feel.
+   (car local -Z is the nose: the lookAt basis points +Z back
+   along the travel direction.) */
+const trainGroup = new THREE.Group();
+const trainCars = [];
+{
+  const carGeo = new THREE.BoxGeometry(1.4, 0.9, 3.6);
+  const carMat = new THREE.MeshStandardMaterial({color: 0xC6FF00, roughness: 0.5, metalness: 0.2});
+  const cabMat = new THREE.MeshStandardMaterial({color: 0x2b3644, roughness: 0.4, metalness: 0.3});
+  for (let k = 0; k < 3; k++) {
+    const car = new THREE.Mesh(carGeo, carMat);
+    car.castShadow = true;
+    if (k === 0) {
+      const nose = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.5, 0.5), cabMat);
+      nose.position.set(0, 0.12, -1.6);
+      car.add(nose);
+    }
+    trainGroup.add(car); trainCars.push(car);
+  }
+}
+trainGroup.visible = false;
+scene.add(trainGroup);
 
 function buildTrack() {
   if (building && nodes.length < 2) { buildLoneStation(); return; }
@@ -1123,7 +1147,17 @@ function closeLoop() {
   building = false;
   selected = Math.max(0, nodes.findIndex(n => n.station));
   buildTrack(); commit();
-  toast('circuit closed - she is rideable. RIDE IT when ready.', 3600);
+  /* honest about a pancake: a circuit with no lift and no drop
+     is rideable the way a parking lot is drivable - the train
+     creeps at walking pace and the lap screen will say so. the
+     round-5 physics run clocked a flat 100m loop at 90 seconds,
+     max 4 km/h. say the fix out loud instead of overselling. */
+  const td = trackData(nodes, track);
+  if (td.maxDropM < 2 && !track.samples.some(s => s.lift)) {
+    toast('circuit closed - flat as a pancake, though: no lift, no drop, so she will crawl. raise a point 8m or more and the chain does the work.', 5200);
+  } else {
+    toast('circuit closed - she is rideable. RIDE IT when ready.', 3600);
+  }
 }
 
 /* top-down blueprint thumbnail (2D canvas drawing of the layout) */
@@ -1158,6 +1192,7 @@ function blueprint(nodesForThumb, w = 264, h = 176) {
 const $ = id => document.getElementById(id);
 const hud = {speed: $('hudSpeed'), h: $('hudH'), g: $('hudG'), view: $('hudView'), lap: $('hudLap'), max: $('hudMax')};
 let ride = null;
+let lapShown = false;   // finishLap populates the lap screen once per lap, not every frame after
 
 let toastTimer = null;
 function toast(msg, ms = 2600) {
@@ -1176,6 +1211,7 @@ function startRide() {
   buildTrack();
   ensureAudio();   // born here, inside a user gesture, per browser rules
   ride = createRide(track);
+  lapShown = false;
   gHist.length = 0;
   setMode('ride');
   toast('off you go. C changes camera, ESC bails.');
@@ -1195,9 +1231,13 @@ function poseRide(dt) {
   stepRide(track, ride, dt);
   poseAudio(dt);
   const sm = sampleAt(track, ride.s);
-  train.visible = true;
-  train.position.copy(sm.pos).addScaledVector(sm.up, 0.55);
-  train.quaternion.setFromRotationMatrix(new THREE.Matrix4().lookAt(new THREE.Vector3(), sm.tan, sm.up));
+  trainGroup.visible = true;
+  for (let k = 0; k < trainCars.length; k++) {
+    const csm = k === 0 ? sm : sampleAt(track, ride.s - k * 4.1);
+    const car = trainCars[k];
+    car.position.copy(csm.pos).addScaledVector(csm.up, 0.55);
+    car.quaternion.setFromRotationMatrix(new THREE.Matrix4().lookAt(new THREE.Vector3(), csm.tan, csm.up));
+  }
   const aheadSm = sampleAt(track, ride.s + 6);
   if (viewMode === 'pov') {
     // front-row seat: just past the car nose (the car is 4.6 long,
@@ -1223,7 +1263,7 @@ function poseRide(dt) {
   gHist.push({v: ride.gVert, l: ride.gLat});
   if (gHist.length > 2400) gHist.splice(0, 600);
   drawGraph();
-  if (ride.finished) finishLap();
+  if (ride.finished && !lapShown) { lapShown = true; finishLap(); }
 }
 
 /* the signature instrument: a live G trace, vertical + lateral,
@@ -1265,14 +1305,14 @@ function setMode(m) {
   $('hint').style.display = m === 'edit' ? 'block' : 'none';
   if (handleGroup) handleGroup.visible = m === 'edit';
   controls.enabled = m === 'edit';
-  train.visible = m === 'ride';
+  trainGroup.visible = m === 'ride';
   if (m === 'edit') { ride = null; camera.up.set(0, 1, 0); if (AC && windGain) windGain.gain.setTargetAtTime(0, AC.currentTime, 0.08); }
 }
 $('btnRide').addEventListener('click', startRide);
 $('btnEdit').addEventListener('click', () => setMode('edit'));
-$('btnRestart').addEventListener('click', () => { ride = createRide(track); });
+$('btnRestart').addEventListener('click', () => { ride = createRide(track); lapShown = false; });
 $('btnExitRide').addEventListener('click', () => setMode('edit'));
-$('btnLapAgain').addEventListener('click', () => { $('lapScreen').classList.remove('open'); ride = createRide(track); setMode('ride'); });
+$('btnLapAgain').addEventListener('click', () => { $('lapScreen').classList.remove('open'); ride = createRide(track); lapShown = false; setMode('ride'); });
 $('btnLapEdit').addEventListener('click', () => { $('lapScreen').classList.remove('open'); setMode('edit'); });
 
 /* ---------------- sound: generated, minimal ----------------
@@ -1280,7 +1320,9 @@ $('btnLapEdit').addEventListener('click', () => { $('lapScreen').classList.remov
    synthesized from one noise buffer - no audio files exist in
    this game. the context is born inside startRide because
    browsers only allow audio after a user gesture. */
-let AC = null, windGain = null, windFilter = null, soundOn = true, clackAt = 0;
+let AC = null, windGain = null, windFilter = null, brakeGain = null, brakeFilter = null, clackAt = 0, lastJoint = -1;
+let soundOn = true;
+try { soundOn = localStorage.getItem('somelimits-sound') !== 'off'; } catch {}
 function ensureAudio() {
   if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
   try {
@@ -1293,15 +1335,22 @@ function ensureAudio() {
     windGain = AC.createGain(); windGain.gain.value = 0;
     src.connect(windFilter); windFilter.connect(windGain); windGain.connect(AC.destination);
     src.start();
+    /* the brake run-in gets its own thin band of the same noise:
+       a hiss that only exists while the brakes are working. */
+    const bsrc = AC.createBufferSource(); bsrc.buffer = buf; bsrc.loop = true; bsrc.playbackRate.value = 0.7;
+    brakeFilter = AC.createBiquadFilter(); brakeFilter.type = 'bandpass'; brakeFilter.frequency.value = 2900; brakeFilter.Q.value = 2.2;
+    brakeGain = AC.createGain(); brakeGain.gain.value = 0;
+    bsrc.connect(brakeFilter); brakeFilter.connect(brakeGain); brakeGain.connect(AC.destination);
+    bsrc.start();
   } catch { AC = null; }
 }
-function clack() {
+function clack(vol = 0.22) {
   const t = AC.currentTime;
   const src = AC.createBufferSource(); src.buffer = AC._noise; src.playbackRate.value = 0.9 + Math.random() * 0.25;
   const f = AC.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 2100 + Math.random() * 500; f.Q.value = 1.1;
   const g = AC.createGain();
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(0.22, t + 0.006);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.006);
   g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
   src.connect(f); f.connect(g); g.connect(AC.destination);
   src.start(t, Math.random() * 1.2, 0.09);
@@ -1318,11 +1367,30 @@ function poseAudio(dt) {
     clackAt -= dt;
     if (clackAt <= 0) { clack(); clackAt = 0.24 + Math.random() * 0.05; }
   }
+  if (brakeGain) {
+    const hiss = soundOn && sm.brake && ride.v > 2.5 ? 0.016 * Math.min(1, (ride.v - 2.5) / 6) : 0;
+    brakeGain.gain.setTargetAtTime(hiss, AC.currentTime, 0.1);
+  }
+  /* rail joints: a soft double-tap (two bogies) every ~12m of
+     travel once you're actually moving - the clickety under the
+     wind. tracked even while muted so unmuting never bursts. */
+  const j = Math.floor(ride.traveled / 11.9);
+  if (j !== lastJoint) {
+    lastJoint = j;
+    if (soundOn && ride.v > 3) {
+      const vol = 0.05 + Math.min(0.13, ride.v * 0.003);
+      clack(vol);
+      setTimeout(() => { if (AC && soundOn) clack(vol * 0.8); }, 85);
+    }
+  }
 }
+$('btnMute').textContent = soundOn ? 'sound: on' : 'sound: off';
 $('btnMute').addEventListener('click', () => {
   soundOn = !soundOn;
+  try { localStorage.setItem('somelimits-sound', soundOn ? 'on' : 'off'); } catch {}
   $('btnMute').textContent = soundOn ? 'sound: on' : 'sound: off';
   if (!soundOn && AC && windGain) windGain.gain.setTargetAtTime(0, AC.currentTime, 0.05);
+  if (!soundOn && AC && brakeGain) brakeGain.gain.setTargetAtTime(0, AC.currentTime, 0.05);
 });
 
 /* ---------------- panel + history ---------------- */
@@ -1459,7 +1527,7 @@ function deleteNode() {
     if (!nodes.length) toast('plot is clear again. click the ground for a new station.');
     return;
   }
-  if (nodes.length <= 6) { toast('six nodes is the floor. some limits are load-bearing.'); return; }
+  if (nodes.length <= 4) { toast('four nodes is the floor. some limits are load-bearing.'); return; }
   if (nodes[selected].station && nodes.filter(n => n.station).length === 1) {
     const nxt = (selected + 1) % nodes.length; nodes[nxt].station = true;
   }
@@ -1498,10 +1566,34 @@ function smoothAround(idx) {
   }
 }
 
+/* presets are a document replace, same as New - so they get the
+   same two-click guard New got in round 3. the round-5 playtest
+   caught a single stray click on a preset wiping a coaster with
+   unsaved edits (and its autosave) with no warning at all. with
+   a clean history there is nothing to lose: one click, as ever.
+   the coaster's name comes from this map, not the button label -
+   the wild preset's button says "get wild", and a coaster named
+   "get wild" is a menu item, not a name. */
+const PRESET_NAMES = {classic: 'classic circuit', oval: 'oval cruiser', wild: 'the wild one'};
+let presetArmUntil = 0, presetArmBtn = null;
 document.querySelectorAll('[data-preset]').forEach(btn => btn.addEventListener('click', () => {
+  if (hIndex > 0) {
+    if (presetArmBtn !== btn || performance.now() > presetArmUntil) {
+      presetArmBtn = btn; presetArmUntil = performance.now() + 6000;
+      btn.dataset.label = btn.dataset.label || btn.textContent;
+      btn.textContent = 'sure? click again - replaces "' + trackName + '"';
+      toast('one more click loads the preset - "' + trackName + '" and its undo history go away (library saves stay).', 6000);
+      setTimeout(() => {
+        if (presetArmBtn === btn && performance.now() >= presetArmUntil) { btn.textContent = btn.dataset.label; presetArmBtn = null; }
+      }, 6100);
+      return;
+    }
+    btn.textContent = btn.dataset.label || btn.textContent;
+    presetArmBtn = null; presetArmUntil = 0;
+  }
   nodes = structuredClone(PRESETS[btn.dataset.preset]);
   building = false;
-  trackName = btn.textContent.trim();
+  trackName = PRESET_NAMES[btn.dataset.preset] || btn.dataset.preset;
   selected = 0; buildTrack(); resetHistory(); frameTrack();
   $('titleScreen').classList.remove('open');
   toast('preset loaded: ' + trackName + '. now make it yours.');
@@ -1691,6 +1783,8 @@ renderer.domElement.addEventListener('dblclick', e => {
 
 /* ---------------- library ---------------- */
 const LIB_KEY = 'somelimits-library-v1';
+let libArmId = null, libArmUntil = 0;   // two-click guard state for "open"
+let libDelId = null, libDelUntil = 0;   // ...and for "delete"
 function loadLib() { try { return JSON.parse(localStorage.getItem(LIB_KEY)) || []; } catch { return []; } }
 function storeLib(lib) { try { localStorage.setItem(LIB_KEY, JSON.stringify(lib)); } catch { toast('library storage is full or blocked. export json instead.'); } }
 function saveToLibrary() {
@@ -1727,21 +1821,58 @@ function renderLib() {
     div.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
       const act = b.dataset.act;
       if (act === 'open') {
+        /* opening a saved coaster replaces the one on screen -
+           same two-click guard as New and the presets when there
+           are edits to lose. the round-5 playtest watched an edit
+           vanish in one click here, autosave and all. */
+        if (hIndex > 0 && !(libArmId === entry.id && performance.now() < libArmUntil)) {
+          libArmId = entry.id; libArmUntil = performance.now() + 6000;
+          b.textContent = 'sure?';
+          toast('one more click opens "' + entry.name + '" - the coaster on screen and its autosave get replaced.', 6000);
+          setTimeout(() => { if (libArmId === entry.id && performance.now() >= libArmUntil) { libArmId = null; renderLib(); } }, 6100);
+          return;
+        }
+        libArmId = null;
         trackName = entry.name; nodes = structuredClone(entry.nodes); building = false; selected = Math.max(0, nodes.findIndex(n => n.station));
         setMode('edit'); buildTrack(); resetHistory(); frameTrack();
         $('libraryScreen').classList.remove('open');
         toast('loaded "' + entry.name + '".');
       } else if (act === 'rename') {
-        const nm = prompt('new name:', entry.name);
-        if (nm && nm.trim()) { entry.name = nm.trim().slice(0, 60); storeLib(lib); renderLib(); }
+        /* inline rename - prompt() silently returns null in
+           dialog-less contexts (sandboxed frames, app webviews),
+           which made this button look dead there. same lesson
+           round 3 learned with confirm() on the New button. */
+        if (b.dataset.editing) {
+          const inp = div.querySelector('.nm input');
+          const nm = inp ? inp.value.trim() : '';
+          if (nm) { entry.name = nm.slice(0, 60); storeLib(lib); }
+          renderLib();
+          return;
+        }
+        const nmDiv = div.querySelector('.nm');
+        const inp = document.createElement('input');
+        inp.type = 'text'; inp.value = entry.name; inp.maxLength = 60;
+        nmDiv.textContent = ''; nmDiv.appendChild(inp);
+        b.textContent = 'save name'; b.dataset.editing = '1';
+        inp.focus(); inp.select();
+        inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') b.click(); });
       } else if (act === 'dup') {
         const copy = structuredClone(entry);
         copy.id = Date.now().toString(36); copy.name = (entry.name + ' copy').slice(0, 60);
         lib.unshift(copy); storeLib(lib); renderLib();
       } else if (act === 'del') {
-        if (confirm('delete "' + entry.name + '" from this browser? (json exports are forever; this is not.)')) {
-          storeLib(lib.filter(e => e.id !== entry.id)); renderLib();
+        /* arm-to-delete, like everything destructive here -
+           confirm() is silently answered "false" in dialog-less
+           contexts, so the old delete could never fire there. */
+        if (!(libDelId === entry.id && performance.now() < libDelUntil)) {
+          libDelId = entry.id; libDelUntil = performance.now() + 6000;
+          b.textContent = 'sure?';
+          toast('one more click deletes "' + entry.name + '" from this browser. json exports are forever; this is not.', 6000);
+          setTimeout(() => { if (libDelId === entry.id && performance.now() >= libDelUntil) { libDelId = null; renderLib(); } }, 6100);
+          return;
         }
+        libDelId = null;
+        storeLib(lib.filter(e => e.id !== entry.id)); renderLib();
       }
     }));
     grid.appendChild(div);
@@ -1789,7 +1920,10 @@ $('fileImp').addEventListener('change', e => {
   const f = e.target.files[0]; if (!f) return;
   f.text().then(t => {
     let parsed = null;
-    try { parsed = f.name.toLowerCase().endsWith('.csv') ? (parseCSV(t) && {name: f.name.replace(/\.csv$/i, ''), nodes: parseCSV(t)}) : parseCoasterJSON(t); } catch {}
+    try {
+      if (f.name.toLowerCase().endsWith('.csv')) { const cn = parseCSV(t); parsed = cn && {name: f.name.replace(/\.csv$/i, ''), nodes: cn}; }
+      else parsed = parseCoasterJSON(t);
+    } catch {}
     if (parsed) {
       trackName = parsed.name; nodes = parsed.nodes; building = false; selected = Math.max(0, nodes.findIndex(n => n.station));
       buildTrack(); resetHistory(); frameTrack(); toast('imported "' + trackName + '".');
