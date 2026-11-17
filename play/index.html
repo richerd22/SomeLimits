@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <title>SomeLimits - a coaster sim with some limits</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="SomeLimits is a browser roller coaster builder: place points, drag them, close the loop, ride it. No accounts, no build step, one HTML file.">
+<meta name="theme-color" content="#0b0e13">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23f4f1e8'/%3E%3Cellipse cx='16' cy='16' rx='7' ry='11' fill='none' stroke='%232b5aa6' stroke-width='3'/%3E%3Crect x='12' y='1' width='4' height='3' fill='%23e8720c'/%3E%3Crect x='17' y='1' width='4' height='3' fill='%23e8720c'/%3E%3C/svg%3E">
 <style>
   html,body{margin:0;height:100%;background:#0b0e13;color:#dfe6ee;font-family:ui-monospace,Menlo,Consolas,monospace;overflow:hidden}
@@ -284,6 +286,34 @@
   </div>
 </div>
 
+<div id="cdnWarn" style="display:none;position:fixed;inset:auto 12px 12px 12px;z-index:99;background:#141c26;border:1px solid #ff7a7a;color:#dfe6ee;border-radius:4px;padding:10px 14px;font-size:12.5px;line-height:1.55">
+  <b style="color:#ff7a7a">the coaster is not loading.</b> SomeLimits pulls the Three.js library from the unpkg CDN, and it has not arrived. Check your connection, turn off anything that blocks CDN scripts, and reload. Nothing is broken on your end beyond that - the game itself is one file and it is already here.
+</div>
+<script>
+/* CDN watchdog: the module below is the whole game, and if the
+   Three.js CDN import fails it fails silently - title screen up,
+   every button dead, no explanation. This plain script is not a
+   module and needs nothing from the network, so it can say so.
+   The module sets window.__slBooted when boot() finishes; if that
+   has not happened 9 s after parse, show the warning. If boot
+   lands late, the warning hides itself again. */
+(function () {
+  var warn = document.getElementById('cdnWarn');
+  var shownAt = 0;
+  var iv = setInterval(function () {
+    if (window.__slBooted) {
+      warn.style.display = 'none';
+      clearInterval(iv);
+      return;
+    }
+    if (!shownAt && performance.now() > 9000) {
+      warn.style.display = 'block';
+      shownAt = performance.now();
+    }
+    if (shownAt && performance.now() - shownAt > 60000) clearInterval(iv);
+  }, 500);
+})();
+</script>
 <script type="importmap">
 {"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
 </script>
@@ -2332,6 +2362,7 @@ setInterval(() => {
   buildTrack();
   commit();
   frameTrack();
+  window.__slBooted = true; /* the CDN watchdog above reads this */
 })();
 const clock = new THREE.Clock();
 function loop() {
