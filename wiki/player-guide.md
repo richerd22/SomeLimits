@@ -9,18 +9,18 @@ This guide is also summarized in the app as the Field Manual. Press H.
 1. Open the app. You start on the title screen, then in the editor with a preset already loaded. It is already a complete, rideable circuit. You do not have to fix it before it works.
 2. Drag a node. Click and drag any node on the ground plane to move it. The track is a smooth loop through all the nodes, so it follows.
 3. Pick a node and use the height slider. Raise it to make a hill, lower it to make a valley.
-4. Use the banking slider on that node. Banking runs from -120 to 120 degrees. Bank into turns so the ride does not throw you sideways.
+4. Use the banking slider on that node. Banking runs from -180 to 180 degrees. Bank into turns so the ride does not throw you sideways.
 5. Let go. On drag release, auto-smooth gently tidies the moved node's neighbourhood - positions and banking. It is the built-in version of the old smoothing ritual. You do not need to do it by hand.
 6. Want a lift? Tick lift on a node, or just make a climb of 8 m or more between two nodes. That gets a chain lift automatically. Your first hill cannot stall because you missed a menu.
 7. Press RIDE IT, or press R. You start at the station.
 
-If that took more than five minutes, try a preset instead and pull it apart: Classic Circuit, Oval Cruiser, or Get Wild. All three are rideable as loaded.
+If that took more than five minutes, try a preset instead and pull it apart: Classic Circuit, Oval Cruiser, Get Wild, or Looper. All four are rideable as loaded - Looper has a real vertical loop in it, built the same way you would build one.
 
 ## The editor
 
 - The track is a closed loop of nodes. One node is the station. That is where rides start and end.
 - Double-click the track to insert a node at that point.
-- Use + node and delete node buttons if you prefer buttons. Minimum is 6 nodes - below that, a loop stops being a loop.
+- Use + node and delete node buttons if you prefer buttons. Minimum is 4 nodes - below that, a loop stops being a loop.
 - Selected-node readout, bottom of the panel: segment length to the next node, climb to the next node, and grade. Use it when a drop feels too steep or too flat. The numbers tell you before the ride does.
 - Undo and redo work the way you expect. Buttons, plus Ctrl+Z for undo, Ctrl+Shift+Z or Ctrl+Y for redo.
 
@@ -31,11 +31,12 @@ If that took more than five minutes, try a preset instead and pull it apart: Cla
 | Action | How |
 |---|---|
 | Select and move a node | Drag the node on the ground plane |
-| Insert a node | Double-click the track |
+| Bank a node | Shift-drag (or right-drag) the node sideways - it rolls as you pull |
+| Insert a node | Double-click the track, or click empty ground to drop one where you click |
 | Orbit the camera | Drag empty space |
 | Pan and zoom | Use the editor camera controls - drag and scroll as labelled in the app |
 
-Height and banking are sliders per selected node, not mouse gestures. That is deliberate. Sliders are boring and precise.
+Height is a slider per selected node. Banking is the slider or the sideways drag - both drive the same number on the same node, and they stay in sync.
 
 ### Keys
 
@@ -79,8 +80,10 @@ On small screens the panels stack. It still works, it is just taller.
 
 ### Inversions
 
-- There is no element menu. A loop or a roll is just banking plus shape.
-- Make a tight turn or a tight crest, then crank banking past 90 degrees through it, and back out the other side.
+- There is no element menu. A loop or a roll is just shape plus banking plus speed.
+- A vertical loop is a shape: run straight, then stack points over the same ground in a circle - up one side, across the top, down the other, out the bottom. Points may share a ground spot when their heights differ; the stacking is the technique. Pull the Looper preset apart to see one that works.
+- The loop spends the drop: keep the loop's top well below your highest point. The train pays for every metre of loop out of the fall before it, and a loop nearly as tall as your lift ends with the train crawling over the top at walking pace. Smaller loop or taller hill - those are the only fixes, same as the real ones.
+- A corkscrew is banking: set four points in a row to 0, 120, -120, 0 degrees. The blend wraps the short way round, so the roll keeps turning the same direction instead of unwinding.
 - Keep speed up going in. Inversions at walking pace are just falling over, slowly.
 
 ### Smoothness
@@ -143,7 +146,7 @@ Share links and JSON are the two real sharing formats. A screenshot is a picture
 No, and that is the point. Original code, original assets, a similar relaxed building feel. Not affiliated with NoLimits.
 
 **Does it have loops from a menu?**
-No. You are the menu: crank banking past 90 on a tight turn. A loop is shape plus banking plus speed, same as it ever was underneath the prefab buttons.
+No. You are the menu. A vertical loop is points stacked in a circle over the same ground; a corkscrew is banking set 0, 120, -120, 0 across four points. See Inversions, above - and the Looper preset is a working loop you can pull apart.
 
 **Where are my saves?**
 In your browser, nowhere else. localStorage, on that device. No sync, no cloud, no account. Export JSON for anything you would be sad to lose.
