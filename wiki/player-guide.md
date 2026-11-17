@@ -25,7 +25,7 @@ The other way in, and the one the game is really about. **+ new coaster** clears
 1. Click the ground to place the station. Everything leaves from there.
 2. Keep clicking to lay points out from it. Each click is the next point, and each point lands at ground level - the track runs flat until you raise something, and a drop is just what happens after a hill.
 3. Drag points to shape the run. Raise one by dragging the orange cap above it - height by hand; a climb of 8 m or more grows its own lift chain, drawn as a bright strip on the track.
-4. Click the glowing ring at the station to close the circuit. Under 4 points it refuses, politely.
+4. Click the station (or the glowing ring around it) to close the circuit. Under 4 points it refuses, politely.
 5. Press RIDE IT, or press R.
 
 Closed the loop with no hill at all? It still rides - at walking pace, for a long time. The game will tell you so, and it is right: raise a point and let the chain do the work.
