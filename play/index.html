@@ -34,6 +34,7 @@
   button.warn:hover{border-color:#ff7a7a;color:#ff7a7a}
   button:disabled{opacity:.35;cursor:default}
   button:disabled:hover{border-color:#33445a;color:#dfe6ee}
+  .hudbtn{font-size:11px;padding:2px 6px}
   input[type=text]{background:#0d1219;color:#dfe6ee;border:1px solid #33445a;border-radius:3px;padding:5px 7px;font:inherit;font-size:12px;width:100%;box-sizing:border-box}
   input[type=range]{width:100%;accent-color:#C6FF00}
   label{display:block;font-size:11px;color:#8fa3b8;margin:8px 0 2px}
@@ -81,6 +82,20 @@
     #hud{bottom:auto;top:52px;left:8px}
     #mode{top:8px;right:8px}
     .card{padding:16px}
+  }
+  /* thumbs are not cursors (round 12): on a coarse pointer every
+     control grows to a size a thumb can land on, and the page
+     stops treating double-taps as a zoom it should answer. the
+     canvas already has touch-action:none from OrbitControls;
+     this covers the DOM the canvas doesn't own. */
+  @media (pointer: coarse){
+    body,button,input,select,textarea{touch-action:manipulation}
+    button{padding:10px 12px;min-height:42px;font-size:13px}
+    .bigbtn{padding:14px 12px;min-height:48px}
+    .hudbtn{padding:9px 10px;min-height:38px;font-size:12px}
+    .libcard button{padding:8px 10px;min-height:38px}
+    input[type=text]{padding:10px 8px;font-size:14px}
+    input[type=range]{height:36px}
   }
 </style>
 </head>
@@ -163,6 +178,7 @@
     climbs of 8m+ get a lift chain automatically. <b style="color:#dfe6ee">keys:</b> R ride, E edit, C camera, F frame track,
     N node, Del delete, ctrl+Z/Y undo/redo, ctrl+S save, H manual, L library.
     <b style="color:#dfe6ee">orbit</b> left-drag empty space, <b style="color:#dfe6ee">pan</b> right-drag, <b style="color:#dfe6ee">zoom</b> wheel.
+    <b style="color:#dfe6ee">touch:</b> a tap is a click, one finger drags and orbits, two fingers pan and pinch to zoom - the whole game, no keyboard owed.
   </div>
 </div>
 
@@ -170,7 +186,7 @@
   <div class="big"><b id="hudSpeed">0</b> km/h</div>
   <div>height <b id="hudH">0</b> m &nbsp; g-force <b id="hudG">1.0</b></div>
   <div>lap <b id="hudLap">0:00</b> &nbsp; max <b id="hudMax">0</b> km/h</div>
-  <div>view: <b id="hudView">POV</b> (C) &nbsp; <button id="btnRestart" style="font-size:11px;padding:2px 6px">restart lap</button> <button id="btnExitRide" style="font-size:11px;padding:2px 6px">exit (ESC)</button> <button id="btnMute" style="font-size:11px;padding:2px 6px">sound: on</button></div>
+  <div><button id="btnView" class="hudbtn">view: <b id="hudView">POV</b> (C)</button> <button id="btnRestart" class="hudbtn">restart lap</button> <button id="btnExitRide" class="hudbtn">exit (ESC)</button> <button id="btnMute" class="hudbtn">sound: on</button></div>
 </div>
 
 <div id="ggraph" class="panel" style="display:none">
@@ -806,6 +822,13 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(10, 8, 0);
 controls.enableDamping = true;
 
+/* one question, asked once (round 12): is the primary pointer a
+   thumb? everything touch-shaped keys off this - fatter handle
+   targets, a wider tap window, hint copy that says "tap". a
+   desktop with a mouse never sees any of it. */
+const COARSE = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+const TAP = COARSE ? 'tap' : 'click';
+
 scene.add(new THREE.HemisphereLight(0x9db8cc, 0x3a3226, 0.9));
 const sun = new THREE.DirectionalLight(0xffd7a8, 2.9);
 sun.position.set(75, 105, 85);
@@ -976,6 +999,34 @@ function reseatTrees() {
 }
 
 let trackGroup = null, handleGroup = null, hitTube = null;
+/* touch gets fatter targets than the eye does (round 12): on a
+   coarse pointer every handle grows an invisible halo - same
+   userData, same raycast, colour and depth write off (the
+   hitTube trick). the visible balls stay honest; the grabbable
+   ones grow to thumb size. a mouse never meets them. */
+const hitProxyMat = new THREE.MeshBasicMaterial({colorWrite: false, depthWrite: false});
+const proxyGeoUnit = new THREE.SphereGeometry(1, 10, 8);
+function addHitProxy(parent, pos, kind, userData) {
+  if (!COARSE) return;
+  const p = new THREE.Mesh(proxyGeoUnit, hitProxyMat);
+  p.position.copy(pos);
+  /* a thumb's error is measured in pixels, but a halo lives in
+     metres - and a metre is fewer pixels the further away it
+     sits. fixed-size halos quietly shrank below thumb size on
+     the far side of the plot (round-12 verify: an 8px-off tap
+     up there missed and added a point instead of selecting).
+     so the halo scales with the point's distance from the
+     camera - roughly the same size on the glass wherever the
+     point is - floored at the close-range sizes so near work
+     behaves exactly as it did. */
+  const d = camera.position.distanceTo(pos);
+  const r = kind === 'cap' ? Math.max(2.4, d * 0.026) :
+            kind === 'grip' ? Math.max(2.3, d * 0.025) :
+                              Math.max(2.6, d * 0.028);
+  p.scale.setScalar(r);
+  Object.assign(p.userData, userData);
+  parent.add(p);
+}
 /* the train: three articulated cars, not one box. each car is
    posed off the spline at its own arc offset, so the consist
    bends through curves and over crests the way a train does -
@@ -1363,6 +1414,7 @@ function buildTrack() {
     h.position.set(n.x, n.h, n.z);
     h.userData.nodeIndex = i;
     handleGroup.add(h);
+    addHitProxy(handleGroup, h.position, 'node', {nodeIndex: i});
   });
   /* the selected point's height kit: a pole tying it to the
      ground (its height becomes visible instead of guessed), a
@@ -1389,6 +1441,7 @@ function buildTrack() {
     cap.position.set(n.x, n.h + 2.4, n.z);
     cap.userData.heightNode = selected;
     handleGroup.add(cap);
+    addHitProxy(handleGroup, cap.position, 'cap', {heightNode: selected});
     /* the bank grip: banking gets a handle too (round 10). a blue
        ball on the end of a bar along the track's rolled side,
        riding a faint ring around the point - grab it and pull it
@@ -1414,6 +1467,7 @@ function buildTrack() {
     grip.position.set(n.x + rolled.x * 2.6, n.h + rolled.y * 2.6, n.z + rolled.z * 2.6);
     grip.userData.bankNode = selected;
     handleGroup.add(grip);
+    addHitProxy(handleGroup, grip.position, 'grip', {bankNode: selected});
   }
   handleGroup.visible = (mode === 'edit');
   scene.add(handleGroup);
@@ -1551,6 +1605,7 @@ function buildLoneStation() {
     h.position.set(n.x, n.h, n.z);
     h.userData.nodeIndex = i;
     handleGroup.add(h);
+    addHitProxy(handleGroup, h.position, 'node', {nodeIndex: i});
   });
   handleGroup.visible = (mode === 'edit');
   scene.add(handleGroup);
@@ -1576,10 +1631,10 @@ function framePlot() {
 
 /* the hint line while building teaches the build, in order. */
 function buildHint() {
-  return nodes.length === 0 ? '<b>click the ground</b> to place the station - everything starts there' :
-    nodes.length === 1 ? 'station is down. <b>click the ground</b> to lay track out from it' :
-    nodes.length < 4 ? '<b>click</b> to extend &middot; <b>drag</b> points to shape &middot; drag the <b>orange cap</b> above a point to raise it' :
-    'bring it home - <b>click the station</b> to close the circuit';
+  return nodes.length === 0 ? `<b>${TAP} the ground</b> to place the station - everything starts there` :
+    nodes.length === 1 ? `station is down. <b>${TAP} the ground</b> to lay track out from it` :
+    nodes.length < 4 ? `<b>${TAP}</b> to extend &middot; <b>drag</b> points to shape &middot; drag the <b>orange cap</b> above a point to raise it` :
+    `bring it home - <b>${TAP} the station</b> to close the circuit`;
 }
 
 /* everything the building state shows that a circuit doesn't:
@@ -1615,7 +1670,7 @@ function buildClickAtGround(pt) {
        25-word cap lesson at ~2.4 s of screen time, which is a
        skim, not a read. the hint bar repeats the lesson and
        stays; these just stop rushing it. */
-    toast('station placed. now click the ground to lay track out from it - every click is the next point.', 4200);
+    toast('station placed. now ' + TAP + ' the ground to lay track out from it - every ' + TAP + ' is the next point.', 4200);
     return;
   }
   const entry = stationEntry();
@@ -1649,7 +1704,7 @@ function buildClickAtGround(pt) {
   selected = nodes.length - 1;
   buildTrack(); commit();
   if (nodes.length === 2) toast('track is growing. drag points to shape it, drag the orange cap above a point to raise it - 8m climbs grow a lift chain.', 5200);
-  else if (nodes.length === 4) toast('that is enough track to come home - click the station to close the circuit.', 4200);
+  else if (nodes.length === 4) toast('that is enough track to come home - ' + TAP + ' the station to close the circuit.', 4200);
 }
 
 /* the click that makes it a coaster: the strip becomes the loop,
@@ -1727,7 +1782,15 @@ function startRide() {
   lapShown = false;
   gHist.length = 0;
   setMode('ride');
-  toast('off you go. C changes camera, ESC bails.');
+  toast(COARSE ? 'off you go. tap view to change camera, exit bails.' : 'off you go. C changes camera, ESC bails.');
+}
+/* the camera cycle, shared by the C key and the view button -
+   the readout used to be a label with a keyboard hint taped to
+   it, which on a touchscreen is a camera you cannot change
+   (round-12 audit). now the readout IS the control. */
+function cycleView() {
+  viewMode = viewMode === 'pov' ? 'chase' : viewMode === 'chase' ? 'orbit' : 'pov';
+  hud.view.textContent = viewMode.toUpperCase();
 }
 function finishLap() {
   const st = trackStats(nodes, track);
@@ -1822,6 +1885,7 @@ function setMode(m) {
   if (m === 'edit') { ride = null; camera.up.set(0, 1, 0); if (AC && windGain) windGain.gain.setTargetAtTime(0, AC.currentTime, 0.08); }
 }
 $('btnRide').addEventListener('click', startRide);
+$('btnView').addEventListener('click', () => { if (mode === 'ride') cycleView(); });
 $('btnEdit').addEventListener('click', () => setMode('edit'));
 $('btnRestart').addEventListener('click', () => { ride = createRide(track); lapShown = false; });
 $('btnExitRide').addEventListener('click', () => setMode('edit'));
@@ -2199,6 +2263,60 @@ function nodeRollFrame(i) {
 let downAt = null;       // press spot with no node under it - a ground-click candidate
 let lastGroundAdd = 0;   // so the second half of a double-click doesn't add twice
 const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+/* one press owns the edit gesture at a time (round 12). a mouse
+   never notices - it is the only pointer it has. touch grows
+   extra fingers: a second finger is a pinch being born, not a
+   second mouse, and until now nothing in these handlers even
+   looked at pointerId - a passenger finger's moves drove the
+   first finger's drag, and a pointercancel (the browser taking
+   the gesture away) left a drag holding its node forever with
+   the camera switched off. ownership fixes both. */
+let activePtr = null;          // pointerId that owns the current gesture
+const passengerPtrs = new Set();   // extra fingers down during a gesture
+let pressAt = null;            // where the owning press landed (tap-slop maths)
+let grabSnap = null;           // the grabbed node as it was at grab time {i,x,z,h,bank}
+let controlsHeld = false;      // camera stays off until a cancelled grab's fingers all lift
+/* a cancelled grab hands the camera back only once every finger
+   is up. let go the moment the grab cancels and OrbitControls
+   resurrects the still-down finger at the last position it saw
+   - the grab point, since it was disabled for the whole drag -
+   and the camera snaps by the full drag distance (round-12
+   verify caught exactly that: after a two-finger cap affair,
+   dead-centre taps landed a drag's-worth away from their
+   points). a plain orbit pinch grabs nothing, so it never
+   holds: OrbitControls was live throughout and its fingers
+   are honestly tracked. */
+function releaseControlsHold() {
+  if (controlsHeld && activePtr === null && passengerPtrs.size === 0) {
+    controlsHeld = false;
+    if (mode === 'edit') controls.enabled = true;
+  }
+}
+/* how far a press may wander and still count as a click. a mouse
+   is honest at 6px; a thumb lands, rolls and lifts inside
+   ~15px without meaning anything by it. */
+function slopFor(type) { return type === 'touch' ? 16 : type === 'pen' ? 10 : 6; }
+/* hand a gesture back unfinished: restore the grabbed node to
+   its grab-time state (nothing was committed, so nothing should
+   change), clear every drag, give the camera back. shared by
+   the second-finger path and pointercancel. */
+function cancelGesture() {
+  const hadGrab = !!grabSnap || dragging >= 0 || banking >= 0 || heightDrag >= 0 || gripBank >= 0;
+  let restored = false;
+  if (grabSnap && nodes[grabSnap.i]) {
+    const n = nodes[grabSnap.i];
+    n.x = grabSnap.x; n.z = grabSnap.z; n.h = grabSnap.h; n.bank = grabSnap.bank;
+    restored = true;
+  }
+  dragging = -1; banking = -1; heightDrag = -1; gripBank = -1;
+  dragMoved = false; bankMoved = false; heightMoved = false; gripMoved = false;
+  downAt = null; grabSnap = null;
+  renderer.domElement.style.cursor = '';
+  if (hadGrab && mode === 'edit') { controlsHeld = true; controls.enabled = false; }
+  else controls.enabled = (mode === 'edit');
+  if (restored) buildTrack();
+  syncPanel();
+}
 function castAt(e) {
   ptr.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   ray.setFromCamera(ptr, camera);
@@ -2223,6 +2341,19 @@ function addNodeAtGround(pt) {
 }
 renderer.domElement.addEventListener('pointerdown', e => {
   if (mode !== 'edit') return;
+  if (activePtr !== null && e.pointerId !== activePtr) {
+    /* a second finger while a gesture is owned: the gesture
+       changed its mind (usually into a pinch). hand any
+       half-drag back, void the pending click, and let
+       OrbitControls have the camera - this finger itself
+       grabs nothing, selects nothing, adds nothing. */
+    passengerPtrs.add(e.pointerId);
+    cancelGesture();
+    return;
+  }
+  activePtr = e.pointerId;
+  pressAt = {x: e.clientX, y: e.clientY};
+  grabSnap = null;
   castAt(e);
   const hits = ray.intersectObjects(handleGroup.children);
   /* the pole and the ground ring carry no userData - they are
@@ -2246,6 +2377,7 @@ renderer.domElement.addEventListener('pointerdown', e => {
        is world-up and the height follows the hand directly. */
     const i = hit.object.userData.heightNode;
     selected = i; heightDrag = i; heightMoved = false;
+    grabSnap = {i, x: nodes[i].x, z: nodes[i].z, h: nodes[i].h, bank: nodes[i].bank};
     controls.enabled = false;
     renderer.domElement.setPointerCapture(e.pointerId);
     downAt = null;
@@ -2266,6 +2398,7 @@ renderer.domElement.addEventListener('pointerdown', e => {
        stand, so nothing mid-drag can skew the reading. */
     const i = hit.object.userData.bankNode;
     selected = i; gripBank = i; gripMoved = false;
+    grabSnap = {i, x: nodes[i].x, z: nodes[i].z, h: nodes[i].h, bank: nodes[i].bank};
     controls.enabled = false;
     renderer.domElement.setPointerCapture(e.pointerId);
     downAt = null;
@@ -2279,6 +2412,7 @@ renderer.domElement.addEventListener('pointerdown', e => {
   if (hit) {
     const i = hit.object.userData.nodeIndex;
     selected = i; dragMoved = false;
+    grabSnap = {i, x: nodes[i].x, z: nodes[i].z, h: nodes[i].h, bank: nodes[i].bank};
     controls.enabled = false;
     renderer.domElement.setPointerCapture(e.pointerId);
     downAt = null;
@@ -2294,10 +2428,11 @@ renderer.domElement.addEventListener('pointerdown', e => {
     }
     buildTrack();
   } else if (e.button === 0) {
-    downAt = {x: e.clientX, y: e.clientY};
+    downAt = {x: e.clientX, y: e.clientY, type: e.pointerType || 'mouse'};
   }
 });
 renderer.domElement.addEventListener('pointermove', e => {
+  if (activePtr !== null && e.pointerId !== activePtr) return;   // a passenger finger steers nothing
   if (heightDrag >= 0) {
     castAt(e);
     const out = new THREE.Vector3();
@@ -2371,6 +2506,9 @@ renderer.domElement.addEventListener('pointermove', e => {
   }
 });
 renderer.domElement.addEventListener('pointerup', e => {
+  if (passengerPtrs.has(e.pointerId)) { passengerPtrs.delete(e.pointerId); releaseControlsHold(); return; }
+  if (activePtr !== null && e.pointerId !== activePtr) return;
+  activePtr = null;
   if (heightDrag >= 0) {
     /* no smoothing pass on a height drag either - the height you
        set is the height that stays (see smoothAround). */
@@ -2404,27 +2542,36 @@ renderer.domElement.addEventListener('pointerup', e => {
     downAt = null;
     return;
   }
-  if (dragging >= 0 && !dragMoved && building && canClose() && nodes[dragging] && nodes[dragging].station) {
+  if (dragging >= 0 && building && canClose() && nodes[dragging] && nodes[dragging].station &&
+      (!dragMoved || (pressAt && Math.hypot(e.clientX - pressAt.x, e.clientY - pressAt.y) < slopFor(e.pointerType)))) {
     /* a still click on the station dot itself closes the loop.
        the glowing ring on the ground is the advertised target,
        but the hand aims at the dot (round-11 stranger run: the
        dot only selected, and the builder went hunting for what
        to click). a press that turns into a drag still moves the
-       station - only the click that goes nowhere means "home". */
+       station - only the click that goes nowhere means "home".
+       "goes nowhere" is measured in the pointer's own units:
+       a thumb tap rolls a few px inside its press (round-12
+       audit: those px set dragMoved and the tap became a
+       micro-drag of the station instead of a close), so a
+       press that ENDS inside its tap window counts as the
+       click it was - and the jitter it dragged in is handed
+       back from the grab snapshot first. */
+    if (grabSnap && grabSnap.i === dragging) { nodes[dragging].x = grabSnap.x; nodes[dragging].z = grabSnap.z; }
     dragging = -1; controls.enabled = mode === 'edit';
-    downAt = null;
+    downAt = null; grabSnap = null;
     closeLoop();
     return;
   }
   if (dragging >= 0 && dragMoved) { smoothAround(dragging); buildTrack(); commit(); }
-  dragging = -1; controls.enabled = mode === 'edit';
+  dragging = -1; grabSnap = null; controls.enabled = mode === 'edit';
   /* a press that started on empty canvas and barely moved was a
      click, not an orbit. if the click missed the track itself it
      was aiming at the ground: drop a point there. clicks ON the
      track stay double-click-insert's job, and orbit drags (which
      move) never add anything. */
   if (mode === 'edit' && downAt && e.button === 0 &&
-      Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) < 6) {
+      Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) < slopFor(downAt.type)) {
     castAt(e);
     const onTrack = hitTube && ray.intersectObject(hitTube).length > 0;
     if ((building || !onTrack) && ray.ray.direction.y < -0.04) {
@@ -2442,6 +2589,23 @@ renderer.domElement.addEventListener('pointerup', e => {
     }
   }
   downAt = null;
+  releaseControlsHold();
+});
+/* the browser can take a gesture away mid-drag - a system
+   gesture, an incoming call, a second finger on some browsers -
+   and it says so with pointercancel, not pointerup. until now
+   nothing listened: the drag kept its node, the camera stayed
+   switched off, and the next touch steered a ghost. a cancelled
+   gesture confirms nothing, so it changes nothing. */
+renderer.domElement.addEventListener('pointercancel', e => {
+  if (passengerPtrs.has(e.pointerId)) { passengerPtrs.delete(e.pointerId); releaseControlsHold(); return; }
+  if (activePtr !== null && e.pointerId !== activePtr) return;
+  activePtr = null;
+  cancelGesture();
+  /* the browser took this gesture outright - no finger is
+     coming back for it, so if nobody else is still down the
+     camera hold can let go right here. */
+  releaseControlsHold();
 });
 /* right-drag on a node is a bank drag, so the context menu never
    gets a say in edit mode (right-drag on empty space still pans). */
@@ -2637,10 +2801,7 @@ addEventListener('keydown', e => {
     if (mode === 'ride') setMode('edit');
     document.querySelectorAll('.overlay.open').forEach(o => { if (o.id !== 'titleScreen') o.classList.remove('open'); });
   }
-  if (mode === 'ride' && (e.key === 'c' || e.key === 'C')) {
-    viewMode = viewMode === 'pov' ? 'chase' : viewMode === 'chase' ? 'orbit' : 'pov';
-    hud.view.textContent = viewMode.toUpperCase();
-  }
+  if (mode === 'ride' && (e.key === 'c' || e.key === 'C')) cycleView();
   if (mode === 'edit') {
     if (e.key === 'r' || e.key === 'R') startRide();
     if (e.key === 'f' || e.key === 'F') frameTrack();
@@ -2661,6 +2822,15 @@ const HINTS = [
   '<b>drag the blue grip</b> around a point to bank it - past 90&deg; rolls the train; a loop is points stacked in a circle',
   '<b>ctrl+Z</b> walks back through your edits - it never leaves this coaster'
 ];
+/* the same lessons in the thumb's vocabulary (round 12): no
+   double-click, no keys - a tap is a click, and undo lives in
+   the panel. only the lines that named a mouse or a keyboard
+   change; the gestures they teach are identical. */
+if (COARSE) {
+  HINTS[0] = '<b>drag</b> the lime dots to shape it &middot; <b>tap empty ground</b> to drop a point &middot; <b>RIDE IT</b> when ready';
+  HINTS[1] = '<b>tap empty ground</b> to drop a point right there';
+  HINTS[5] = '<b>undo</b> in the panel walks back through your edits - it never leaves this coaster';
+}
 let hintIdx = 0;
 setInterval(() => {
   if (mode !== 'edit' || document.hidden) return;
@@ -2716,6 +2886,10 @@ setInterval(() => {
 let gestureTail = 0;
 addEventListener('pointerdown', () => { gestureActive = true; clearTimeout(gestureTail); }, true);
 addEventListener('pointerup', () => {
+  clearTimeout(gestureTail);
+  gestureTail = setTimeout(() => { gestureActive = false; }, 1200);
+}, true);
+addEventListener('pointercancel', () => {
   clearTimeout(gestureTail);
   gestureTail = setTimeout(() => { gestureActive = false; }, 1200);
 }, true);
