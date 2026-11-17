@@ -16,7 +16,7 @@ This page documents the shipped v1. Anything else is marked planned.
 </script>
 ```
 
-Pinned version: `three@0.160.0`. If the CDN is unreachable, the page does not run. That is the one external dependency and the docs do not pretend otherwise.
+Pinned version: `three@0.160.0`. If the CDN is unreachable, the module does not run - so a small non-module watchdog script sits in front of it: if boot has not finished within 9 seconds, it shows a plain warning saying the library has not arrived and what to check, instead of leaving a dead title screen. That is the one external dependency and the docs do not pretend otherwise.
 
 - Layout stacks panels on small screens via responsive CSS. No framework.
 
@@ -31,13 +31,13 @@ The coaster is the nodes. Everything else is derived.
 
 - `x`, `z` - position on the ground plane, in metres.
 - `h` - height in metres.
-- `bank` - banking in degrees, -120 to 120.
+- `bank` - banking in degrees, -180 to 180.
 - `lift` - optional boolean: chain lift starts at this node.
 - `station` - boolean: exactly one node is the station. Setting a new one clears the old one.
 
 Plus app state: selected node index, mode (edit or ride), camera mode, the undo and redo stacks, and the sampled track (below). The sampled track is a cache. Rebuild it from the nodes, never edit it as source of truth.
 
-Minimum 6 nodes, enforced on delete.
+Minimum 4 nodes for a closed circuit, enforced on delete.
 
 ## Sampling pipeline
 
