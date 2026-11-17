@@ -28,7 +28,7 @@ The name is a dry joke: there always were some limits. We are owning them.
 
 - A complete closed-circuit coaster, end to end: station, lift hill, drops, banked turns, inversions if you build them, brake run back to the station.
 - Building is just placing points and dragging things:
-  - Banking lives on the point itself (a slider, or shift-drag), with a local blend. No roll-node objects.
+  - Banking lives on the point itself (drag the blue grip around it, shift-drag, or a slider), with a local blend. No roll-node objects.
   - Any climb of 8 m or more between points gets a chain lift automatically - drawn on the track as a bright strip - so a first build cannot stall for want of a menu. There is no lift button to find.
   - Height is by hand: drag the orange cap floating above a point and its height follows, number and all. Points land at ground level, so a drop is simply what happens after a hill.
   - Auto-smooth on drag release tidies positions and banking, gently and locally - never heights. The heights you set are the heights that stay.
@@ -54,7 +54,7 @@ You need internet once, for the Three.js library from the CDN (`three@0.160.0` v
 | Action | How |
 |---|---|
 | Move a point | Drag it on the ground |
-| Bank a point | Banking slider, or shift-drag it sideways |
+| Bank a point | Drag the blue grip around it, shift-drag it sideways, or use the banking slider |
 | Add a point | Double-click the track, or click empty ground while building |
 | Ride | RIDE IT button, or `R` |
 | Cameras while riding | `C` cycles POV / chase / orbit |
