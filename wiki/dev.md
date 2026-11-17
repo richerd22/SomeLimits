@@ -4,18 +4,18 @@ Working on SomeLimits itself.
 
 ## Repo layout
 
-Repo: `richerd22/SomeLimits` (private).
-
 ```
-play/          the shipped app - play/index.html is v1, the whole game
+index.html     site root - sends visitors to the game (for static hosting)
+play/          the shipped app - play/index.html is the whole game
 prototype/     the v0 prototype the shipped app grew from - reference, not the product
 wiki/          these docs
 research/      NL1 vs NL2 research notes - see research/SUMMARY.md first
 logo/          the hand-drawn SVG logo (and exports of it)
-README.md      project pitch, scope lock, north star
+README.md      what the project is, and how to play
+LICENSE        MIT
 ```
 
-Root `README.md` at the workspace is the founding doc - scope, design rules, and the no-AI-imagery rule were set there on day one. Read it before arguing with the design rules below. They are locked on purpose.
+The root `README.md` is the front door - what SomeLimits is, the design rules, and the no-AI-imagery rule. Read it before arguing with the design rules below. They are deliberate.
 
 ## Running locally
 
@@ -69,22 +69,23 @@ If you add a harness, keep it in a scratch or tools folder, dependency-free, and
 Marked planned here so nobody documents or promises them as shipped:
 
 - Refinements to straight-section handling.
-- Anything listed under out-of-scope in the research summary: parks, terrain, multiple coasters, scripting, binary NoLimits formats.
+- Anything listed under out-of-scope in the research summary: parks, terrain editing, multiple coasters, scripting, binary NoLimits formats.
 
 ## Versioning
 
-- v1 is the current shipped app in `play/`.
+- The current shipped app lives in `play/`.
 - `prototype/` is v0 and stays frozen as the reference it grew from.
-- Save format has its own version field (`version: 1` in the v1 object). Bump it if the node schema changes, and keep import accepting the older shapes - v1 import already accepts the v0 raw array, and that courtesy extends forward.
+- Save format has its own version field (`version: 1` in the object). Bump it if the node schema changes, and keep import accepting the older shapes - import already accepts the v0 raw array, and that courtesy extends forward.
 
 ## Contributing and forking
 
-- This is a single-owner project. Contributions are at the owner's discretion; there is no public issue-driven roadmap.
-- Forking: the code is readable on purpose. If you fork, rename your fork. Do not ship a fork as SomeLimits.
+See [../CONTRIBUTING.md](../CONTRIBUTING.md) for the ground rules.
+
+- Forking: the code is MIT licensed. If you fork, rename your fork. Do not ship a fork as SomeLimits.
 - Keep the north star in the fork if you keep anything: place points, drag things, ride it within minutes.
 
-## License posture
+## License
 
-- The code belongs to Richard / Third Polar Arch. No open-source license has been granted in these docs, and the private repo is the current state of that - do not assume permissions the repo itself does not state.
+- The code is MIT licensed - see [../LICENSE](../LICENSE).
 - The SomeLimits name and the hand-drawn logo are project marks of the project.
 - SomeLimits is not affiliated with NoLimits or Gravimetric. No NoLimits assets, code, or formats are used, beyond the documented CSV spline bridge (position plus up vectors) described in [Code](code.md).
