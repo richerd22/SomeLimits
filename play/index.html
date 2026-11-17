@@ -7,6 +7,22 @@
 <meta name="description" content="SomeLimits is a browser roller coaster builder: place points, drag them, close the loop, ride it. No accounts, no build step, one HTML file.">
 <meta name="theme-color" content="#0b0e13">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23f4f1e8'/%3E%3Cellipse cx='16' cy='16' rx='7' ry='11' fill='none' stroke='%232b5aa6' stroke-width='3'/%3E%3Crect x='12' y='1' width='4' height='3' fill='%23e8720c'/%3E%3Crect x='17' y='1' width='4' height='3' fill='%23e8720c'/%3E%3C/svg%3E">
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+<!-- cold-load head start (round 10): the game is one file, but the
+     Three.js library is not - it comes from unpkg. warm the
+     connection and fetch both module files in parallel with the
+     page parse instead of after it. measured live: boot at ~3.1 s
+     through a sandbox proxy; this keeps real-world boots well
+     inside the 9 s watchdog window on slow links too.
+     ORDER MATTERS: the importmap above must stay ahead of these
+     preloads - a modulepreload starts module loading, and an
+     import map registered after that is rejected by the browser
+     (the game then never boots; this exact bug bit in testing). -->
+<link rel="preconnect" href="https://unpkg.com" crossorigin>
+<link rel="modulepreload" href="https://unpkg.com/three@0.160.0/build/three.module.js">
+<link rel="modulepreload" href="https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js">
 <style>
   html,body{margin:0;height:100%;background:#0b0e13;color:#dfe6ee;font-family:ui-monospace,Menlo,Consolas,monospace;overflow:hidden}
   #app{position:fixed;inset:0}
@@ -141,7 +157,7 @@
   <div class="sub">
     <b style="color:#dfe6ee">drag</b> a lime node to move it. <b style="color:#dfe6ee">double-click</b> the track to insert a node there,
     or <b style="color:#dfe6ee">click empty ground</b> to drop a node where you click (while building from blank, ground clicks
-    lay the track out from the station instead, one point at a time, each at ground level). <b style="color:#dfe6ee">shift-drag</b> a node sideways to bank it.
+    lay the track out from the station instead, one point at a time, each at ground level). <b style="color:#dfe6ee">drag the blue grip</b> around the selected node to bank it - it rides a ring around the point, the track rolls with it.
     <b style="color:#dfe6ee">drag the orange cap</b> above the selected node to set its height by hand - the number rides above it.
     releasing a drag runs a gentle smoothing pass over positions and banking - heights stay exactly where you put them.
     climbs of 8m+ get a lift chain automatically. <b style="color:#dfe6ee">keys:</b> R ride, E edit, C camera, F frame track,
@@ -257,7 +273,7 @@
       <li><b>drag</b> any lime node to move it. <b>drag the orange cap</b> floating above the selected node to raise or lower it - a pole ties it to the ground, the number floats beside it, and the height stays where you leave it. the height and banking sliders drive the same numbers, for precision.</li>
       <li>make a hill taller than the rest - any climb of 8m or more grows a lift chain by itself, drawn as a bright strip on the track. nobody presses a lift button; there effectively isn't one.</li>
       <li><b>double-click</b> the track to add a node exactly there. <b>click empty ground</b> to drop a node where you click instead. banking past +/-90 degrees rolls the train over - rolls are banking, loops are shapes (next section). you are the loop menu.</li>
-      <li><b>shift-drag</b> (or right-drag) a node sideways to bank it - the track twists as you pull. the slider drives the same number; both stay in sync.</li>
+      <li><b>drag the blue grip</b> around the selected node to bank it - the grip rides a ring around the point on the end of a bar, sitting wherever the current bank has rolled it; pull it around and the track rolls with your hand, degrees floating by the point. <b>shift-drag</b> (or right-drag) a node sideways does the same thing the old way, and the slider drives the same number; all three stay in sync.</li>
       <li>when you let go of a drag, a gentle smoothing pass runs over the neighbourhood. that's deliberate - it's the fix for kinked connections.</li>
       <li>press <b>RIDE IT</b> (or R). the train leaves the station, gravity does the rest, brakes bring it home.</li>
     </ul>
@@ -317,9 +333,6 @@
     if (shownAt && performance.now() - shownAt > 60000) clearInterval(iv);
   }, 500);
 })();
-</script>
-<script type="importmap">
-{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
 </script>
 <script type="module">
 import * as THREE from 'three';
@@ -1074,13 +1087,19 @@ function buildTrack() {
      invisible - the only sign was denser supports - so a lift
      read as a thing you switch on with a checkbox, not a thing
      the track grows on a climb. now the climb shows its chain,
-     in the editor and on the ride. */
+     in the editor and on the ride.
+     round 10: the plain strip still read as a painted line from
+     across the plot, so it is wider and brighter now, sits a
+     touch prouder of the track bed, and gets dark cross-links
+     every ~1.1 m - the rhythm is what reads as "chain" from a
+     distance, not the shine. still just steel colours; a lift
+     is machinery, not a warning sign. */
   {
     const verts = [], idx = [];
     for (let i = 0; i <= SAMPLES; i++) {
       const sm = samples[i];
-      const c = sm.pos.clone().addScaledVector(sm.up, 0.02);
-      const l = c.clone().addScaledVector(sm.side, -0.17), r = c.clone().addScaledVector(sm.side, 0.17);
+      const c = sm.pos.clone().addScaledVector(sm.up, 0.035);
+      const l = c.clone().addScaledVector(sm.side, -0.21), r = c.clone().addScaledVector(sm.side, 0.21);
       verts.push(l.x, l.y, l.z, r.x, r.y, r.z);
       if (i < SAMPLES && samples[i].lift && samples[i + 1].lift) {
         const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2);
@@ -1090,7 +1109,28 @@ function buildTrack() {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
       g.setIndex(idx); g.computeVertexNormals();
-      trackGroup.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({color: 0xd7dee6, roughness: 0.35, metalness: 0.85, side: THREE.DoubleSide})));
+      trackGroup.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({color: 0xe9eff5, roughness: 0.3, metalness: 0.85, side: THREE.DoubleSide})));
+      /* cross-links: one dark bar across the strip every ~1.1 m
+         of lift arc, laid on the strip like chain dogs. */
+      const barGeo = new THREE.BoxGeometry(0.56, 0.04, 0.15);
+      const bars = new THREE.InstancedMesh(barGeo,
+        new THREE.MeshStandardMaterial({color: 0x22262a, roughness: 0.55, metalness: 0.6}), 512);
+      const bm = new THREE.Matrix4(), bl = new THREE.Matrix4(), bq = new THREE.Quaternion(), bs = new THREE.Vector3(1, 1, 1);
+      let nb2 = 0, sinceBar = 1e9, prevS = null;
+      for (let i = 0; i <= SAMPLES && nb2 < 512; i++) {
+        const sm = samples[i];
+        if (!sm.lift) { sinceBar = 1e9; prevS = sm.s; continue; }
+        if (prevS !== null) sinceBar += Math.abs(sm.s - prevS);
+        prevS = sm.s;
+        if (sinceBar >= 1.1) {
+          sinceBar = 0;
+          bq.setFromRotationMatrix(bl.lookAt(new THREE.Vector3(), sm.tan, sm.up));
+          bm.compose(sm.pos.clone().addScaledVector(sm.up, 0.055), bq, bs);
+          bars.setMatrixAt(nb2++, bm);
+        }
+      }
+      bars.count = nb2;
+      if (nb2) trackGroup.add(bars);
     }
   }
   const tieGeo = new THREE.BoxGeometry(1.8, 0.09, 0.42);
@@ -1349,6 +1389,31 @@ function buildTrack() {
     cap.position.set(n.x, n.h + 2.4, n.z);
     cap.userData.heightNode = selected;
     handleGroup.add(cap);
+    /* the bank grip: banking gets a handle too (round 10). a blue
+       ball on the end of a bar along the track's rolled side,
+       riding a faint ring around the point - grab it and pull it
+       around the ring and the track rolls with it, degrees
+       floating by the point. it sits wherever the current bank
+       has rolled it, so picking it up never jumps. shift-drag
+       and the slider stay as backups, like the height slider. */
+    const fr = nodeRollFrame(selected);
+    const rad = THREE.MathUtils.degToRad(n.bank);
+    const rolled = fr.side.clone().multiplyScalar(Math.cos(rad)).addScaledVector(fr.up, -Math.sin(rad));
+    const ringB = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.035, 8, 44),
+      new THREE.MeshBasicMaterial({color: 0x2b5aa6, transparent: true, opacity: 0.38, depthWrite: false}));
+    ringB.position.set(n.x, n.h, n.z);
+    ringB.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), fr.tan);
+    handleGroup.add(ringB);
+    const barGeo = new THREE.CylinderGeometry(0.05, 0.05, 2.6, 6); barGeo.translate(0, 1.3, 0);
+    const bar = new THREE.Mesh(barGeo, new THREE.MeshBasicMaterial({color: 0x2b5aa6, transparent: true, opacity: 0.7}));
+    bar.position.set(n.x, n.h, n.z);
+    bar.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), rolled);
+    handleGroup.add(bar);
+    const grip = new THREE.Mesh(new THREE.SphereGeometry(0.62, 14, 10),
+      new THREE.MeshStandardMaterial({color: 0x2b5aa6, emissive: 0x0d2144, roughness: 0.4}));
+    grip.position.set(n.x + rolled.x * 2.6, n.h + rolled.y * 2.6, n.z + rolled.z * 2.6);
+    grip.userData.bankNode = selected;
+    handleGroup.add(grip);
   }
   handleGroup.visible = (mode === 'edit');
   scene.add(handleGroup);
@@ -1356,7 +1421,7 @@ function buildTrack() {
      rebuild is the one heavy pass here, and the plateau under the
      spline barely moves while a node is in your hand. it settles on
      release, like everything else. */
-  if (dragging < 0 && banking < 0 && heightDrag < 0) updateTerrain();
+  if (dragging < 0 && banking < 0 && heightDrag < 0 && gripBank < 0) updateTerrain();
   syncPanel(); syncBuildUI();
 }
 
@@ -1489,7 +1554,7 @@ function buildLoneStation() {
   });
   handleGroup.visible = (mode === 'edit');
   scene.add(handleGroup);
-  if (dragging < 0 && banking < 0 && heightDrag < 0) updateTerrain();
+  if (dragging < 0 && banking < 0 && heightDrag < 0 && gripBank < 0) updateTerrain();
   syncPanel();
   /* syncPanel bails on an empty document - clear the sheet by hand */
   els.name.value = trackName; refreshContinue();
@@ -2105,6 +2170,27 @@ let dragging = -1, dragMoved = false;
 let heightDrag = -1, heightMoved = false;  // vertical cap-drag state
 const vertPlane = new THREE.Plane();       // the upright plane a cap drag runs on
 let banking = -1, bankStartX = 0, bankStartVal = 0, bankMoved = false;  // sideways bank-drag state
+let gripBank = -1, gripMoved = false;      // roll-grip drag state (round 10)
+const rollPlane = new THREE.Plane();       // the plane a grip drag rolls in
+const gripUp = new THREE.Vector3(), gripSide = new THREE.Vector3();  // roll basis captured at grab time
+/* the roll frame of a node: the tangent from its neighbours, the
+   world-up orthogonalised against it, and the side the two make.
+   banking rolls the track around the tangent, so a handle placed
+   in this frame can ride the roll itself. building strips do not
+   wrap - their end frames clamp to the end neighbour. */
+function nodeRollFrame(i) {
+  const N = nodes.length;
+  const a = nodes[building ? Math.max(0, i - 1) : (i - 1 + N) % N];
+  const b = nodes[building ? Math.min(N - 1, i + 1) : (i + 1) % N];
+  const tan = new THREE.Vector3(b.x - a.x, b.h - a.h, b.z - a.z);
+  if (tan.lengthSq() < 1e-6) tan.set(1, 0, 0);
+  tan.normalize();
+  const up = new THREE.Vector3(0, 1, 0).addScaledVector(tan, -tan.y);
+  if (up.lengthSq() < 1e-6) up.set(0, 0, 1);
+  up.normalize();
+  const side = new THREE.Vector3().crossVectors(up, tan).normalize();
+  return {tan, up, side};
+}
 let downAt = null;       // press spot with no node under it - a ground-click candidate
 let lastGroundAdd = 0;   // so the second half of a double-click doesn't add twice
 const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -2138,7 +2224,17 @@ renderer.domElement.addEventListener('pointerdown', e => {
      scenery on the selected point, not handles. skip past them
      to the first hit that is actually grabbable, or a click on
      the pole would select node "undefined" and fall over. */
-  const hit = hits.find(h => h.object.userData.nodeIndex !== undefined || h.object.userData.heightNode !== undefined);
+  let hit = hits.find(h => h.object.userData.nodeIndex !== undefined || h.object.userData.heightNode !== undefined || h.object.userData.bankNode !== undefined);
+  /* cap vs grip: rolled to +/-90 the grip parks within 0.2 m of
+     the cap (ring radius 2.6, cap floats at +2.4) and the bigger
+     cap sphere swallows every ray - the grip becomes ungrabbable
+     exactly when it sits at the top. so when both are on the ray
+     and the grip is about as close as the cap, the grip wins:
+     it is the smaller, more specific target, and the height it
+     shadows for those few degrees is still on the slider. */
+  const capHit = hits.find(h => h.object.userData.heightNode !== undefined);
+  const gripHit = hits.find(h => h.object.userData.bankNode !== undefined);
+  if (capHit && gripHit && gripHit.distance <= capHit.distance + 1.5) hit = gripHit;
   if (hit && hit.object.userData.heightNode !== undefined) {
     /* the orange cap: a vertical drag. the drag plane stands
        upright through the point, facing the camera, so screen-up
@@ -2154,6 +2250,24 @@ renderer.domElement.addEventListener('pointerdown', e => {
     nrm.normalize();
     vertPlane.setFromNormalAndCoplanarPoint(nrm, new THREE.Vector3(nodes[i].x, nodes[i].h, nodes[i].z));
     renderer.domElement.style.cursor = 'ns-resize';
+    syncPanel();
+    return;
+  }
+  if (hit && hit.object.userData.bankNode !== undefined) {
+    /* the blue grip: a roll drag. the drag plane is the node's
+       roll plane (normal = the track tangent there), and the
+       pointer's angle around the node in that plane IS the bank.
+       the basis is captured now, from the neighbours as they
+       stand, so nothing mid-drag can skew the reading. */
+    const i = hit.object.userData.bankNode;
+    selected = i; gripBank = i; gripMoved = false;
+    controls.enabled = false;
+    renderer.domElement.setPointerCapture(e.pointerId);
+    downAt = null;
+    const fr = nodeRollFrame(i);
+    gripUp.copy(fr.up); gripSide.copy(fr.side);
+    rollPlane.setFromNormalAndCoplanarPoint(fr.tan, new THREE.Vector3(nodes[i].x, nodes[i].h, nodes[i].z));
+    renderer.domElement.style.cursor = 'grabbing';
     syncPanel();
     return;
   }
@@ -2192,6 +2306,25 @@ renderer.domElement.addEventListener('pointermove', e => {
     }
     return;
   }
+  if (gripBank >= 0) {
+    castAt(e);
+    const out = new THREE.Vector3();
+    if (ray.ray.intersectPlane(rollPlane, out)) {
+      const n = nodes[gripBank];
+      const vx = out.x - n.x, vy = out.y - n.h, vz = out.z - n.z;
+      /* the grip rides at angle -bank in the (side, up) plane, so
+         the bank is the negated pointer angle in that same plane */
+      const phi = Math.atan2(vx * gripUp.x + vy * gripUp.y + vz * gripUp.z,
+                             vx * gripSide.x + vy * gripSide.y + vz * gripSide.z);
+      const nb = THREE.MathUtils.clamp(Math.round(-THREE.MathUtils.radToDeg(phi)), -180, 180);
+      if (nb !== n.bank) {
+        n.bank = nb; gripMoved = true;
+        els.b.value = nb; els.bVal.textContent = nb + ' deg';
+        buildTrack();
+      }
+    }
+    return;
+  }
   if (building && mode === 'edit' && dragging < 0 && banking < 0) {
     /* track the cursor's ground point so the snap ring can light
        up when a closing click is on the table */
@@ -2221,6 +2354,18 @@ renderer.domElement.addEventListener('pointerup', e => {
        set is the height that stays (see smoothAround). */
     if (heightMoved) commit();
     heightDrag = -1; heightMoved = false;
+    renderer.domElement.style.cursor = '';
+    controls.enabled = mode === 'edit';
+    downAt = null;
+    syncPanel();
+    return;
+  }
+  if (gripBank >= 0) {
+    /* no smoothing pass on a roll either: the roll you set is the
+       roll you keep - bankAt()'s local blend is the smoothing,
+       same as the shift-drag. */
+    if (gripMoved) commit();
+    gripBank = -1; gripMoved = false;
     renderer.domElement.style.cursor = '';
     controls.enabled = mode === 'edit';
     downAt = null;
@@ -2479,7 +2624,7 @@ const HINTS = [
   '<b>click empty ground</b> to drop a point right there',
   '<b>drag the orange cap</b> above a point to set its height by hand - the slider is just the backup',
   'make a climb of <b>8m or more</b> between two nodes - the lift chain builds itself',
-  '<b>shift-drag</b> a dot sideways to bank it - past 90&deg; rolls the train; a loop is points stacked in a circle',
+  '<b>drag the blue grip</b> around a point to bank it - past 90&deg; rolls the train; a loop is points stacked in a circle',
   '<b>ctrl+Z</b> walks back through your edits - it never leaves this coaster'
 ];
 let hintIdx = 0;
@@ -2555,16 +2700,28 @@ function loop() {
     snapRing.scale.setScalar(near ? 1.05 : 1 + 0.03 * Math.sin(t * 4));
   }
   /* the height label rides above the selected point's cap: the
-     number lives on the point, where the height itself lives. */
+     number lives on the point, where the height itself lives.
+     while a roll is in the hand (grip or shift-drag) the same
+     label shows the bank instead, in the grip's blue - the
+     number you are changing is the number you see. */
   const hl = $('hLabel');
   if (mode === 'edit' && track && nodes[selected] && !document.querySelector('.overlay.open')) {
-    const n = nodes[selected];
-    _hv.set(n.x, n.h + 4.4, n.z).project(camera);
-    if (_hv.z < 1) {
-      hl.style.display = 'block';
-      hl.style.left = ((_hv.x * 0.5 + 0.5) * innerWidth) + 'px';
-      hl.style.top = ((-_hv.y * 0.5 + 0.5) * innerHeight) + 'px';
-      hl.textContent = n.h.toFixed(1) + ' m';
+    const bi = gripBank >= 0 ? gripBank : banking;
+    const n = bi >= 0 ? nodes[bi] : nodes[selected];
+    if (n) {
+      _hv.set(n.x, n.h + (bi >= 0 ? 2.0 : 4.4), n.z).project(camera);
+      if (_hv.z < 1) {
+        hl.style.display = 'block';
+        hl.style.left = ((_hv.x * 0.5 + 0.5) * innerWidth) + 'px';
+        hl.style.top = ((-_hv.y * 0.5 + 0.5) * innerHeight) + 'px';
+        if (bi >= 0) {
+          hl.style.borderColor = '#2b5aa6'; hl.style.color = '#bcd6ff';
+          hl.textContent = 'bank ' + n.bank + ' deg';
+        } else {
+          hl.style.borderColor = '#e8720c'; hl.style.color = '#ffd9ae';
+          hl.textContent = n.h.toFixed(1) + ' m';
+        }
+      } else hl.style.display = 'none';
     } else hl.style.display = 'none';
   } else hl.style.display = 'none';
   if (mode === 'ride' && ride) poseRide(dt);
