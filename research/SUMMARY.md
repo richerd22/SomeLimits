@@ -1,7 +1,8 @@
-# SomeLimits - research summary (Nov 11, 2026)
+# SomeLimits - research summary
 
-Full report: ~/workspace/research_notes/nolimits-rebuild-research-20261111-0837/report.md
-(50 KB, five mission questions + build recommendation, all sourced.)
+The short version of the NL1 vs NL2 research behind the design:
+five questions (editor feel, smoothing maths, file formats,
+ecosystem state, prior art) plus a build recommendation.
 
 ## NL1 vs NL2 - the feel, in one breath
 - NL1 (2001): separate Editor/Simulator/Terraformer apps, one coaster per
@@ -34,7 +35,7 @@ Full report: ~/workspace/research_notes/nolimits-rebuild-research-20261111-0837/
 ## Track math (what v0 already does, what v0.2 adds)
 - Already in the prototype: centripetal Catmull-Rom (closed), arc-length
   resampling, banking interpolated as a continuous scalar field.
-- Research says swap my frame math to parallel-transport /
+- Research says swap the frame math to parallel-transport /
   rotation-minimizing frames (Frenet frames flip 180 degrees at inflections
   and are undefined on straights - Three.js TubeGeometry uses them, which is
   why the prototype builds rails from custom frames already).
@@ -57,16 +58,14 @@ Full report: ~/workspace/research_notes/nolimits-rebuild-research-20261111-0837/
   force-vector design: specify the Gs, it shapes the track - a later
   "pro mode" idea), COASTER LAB (free browser proof the shape works).
 
-## Ecosystem state (Nov 11, 2026)
+## Ecosystem state (checked Nov 2026)
 - Official site: "down for maintenance," points only to Steam. NL2 $39.99
-  on Steam, still patched (2.6.8.x, Dec 2025 / Jan 2026), Overwhelmingly
-  Positive. NL1: not sold anymore; owners "can still request a new download
-  link" per the resources page - which matters because:
-- CORRECTION to what I said on the call: I told Richard the portal was a
-  total dead end with no lost-key path. The download portal is indeed a
-  login gate, but the resources page says NL1 customers can still REQUEST a
-  new download link. Worth one email before writing the key off entirely -
-  his call; SomeLimits proceeds either way.
+  on Steam, still patched (2.6.8.x), Overwhelmingly Positive.
+- NL1: not sold anymore. The archived official download portal is a
+  User-ID + Key login gate with no public downloads - but the resources
+  page says NL1 customers can still request a new download link, so it
+  is not quite a total dead end for existing owners. Either way, there
+  is no way for a new player to get NL1 through official channels.
 
 ## Build recommendation (adopted)
 Browser + Three.js static app (what's already running). v1 = the current
@@ -74,10 +73,11 @@ prototype + strict/straight toggle, local-blend roll, fairing pass,
 parallel-transport frames, live G combs/HUD (partly in), NL2 CSV in/out.
 Out of v1: parks, scripting, terrain, flat rides, binary formats, FVD mode.
 
-## Framing note (Richard, Nov 11)
-The north-star data point: Richard owns NL2 and never figured out how to
-build a coaster in it, while NL1 was easy for him. So the research reads
-this way: NL2's power is real and respected - the failure is the on-ramp.
-SomeLimits is not "NL2 but better"; it is the door NL2 never built for
-casual builders. Acceptance test: a returning NL1 builder lays track
-within minutes, zero tutorial, zero mode taxonomy.
+## Framing note
+The north-star data point: plenty of people own NL2 and never figured
+out how to build a coaster in it, while NL1 was easy for them. So the
+research reads this way: NL2's power is real and respected - the
+failure is the on-ramp. SomeLimits is not "NL2 but better"; it is the
+door NL2 never built for casual builders. Acceptance test: a returning
+NL1 builder lays track within minutes, zero tutorial, zero mode
+taxonomy.
