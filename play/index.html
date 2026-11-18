@@ -1806,11 +1806,14 @@ function buildLoneStation() {
   scene.add(handleGroup);
   if (dragging < 0 && banking < 0 && heightDrag < 0 && gripBank < 0) updateTerrain();
   syncPanel();
-  /* syncPanel bails on an empty document - clear the sheet by hand */
-  els.name.value = trackName; refreshContinue();
-  els.idx.textContent = nodes.length ? '#1 of 1' : '-';
-  els.seg.textContent = nodes.length ? 'the station. everything leaves from here.' : 'empty plot - no station yet.';
-  for (const id of ['dsLen', 'dsH', 'dsDrop', 'dsAng', 'dsV', 'dsN']) $(id).textContent = '-';
+  /* A lone station has no track length, drop, angle or speed yet.
+     Its own height and node count ARE known; never carry previous
+     coaster stats into an unfinished draft. */
+  els.seg.textContent = nodes.length ? 'the station. everything leaves from here.' :
+    'empty plot - click the ground to place your station.';
+  for (const id of ['dsLen', 'dsDrop', 'dsAng', 'dsV']) $(id).textContent = '-';
+  $('dsH').textContent = nodes.length ? nodes[0].h.toFixed(1) + ' m' : '-';
+  $('dsN').textContent = String(nodes.length);
   syncBuildUI();
 }
 
@@ -2277,9 +2280,22 @@ function autosave() {
 
 function syncPanel() {
   const n = nodes[selected];
-  if (!n) return;
   els.name.value = trackName;
   refreshContinue();
+  /* An empty draft is a real document, but it has no node to edit.
+     Don't leave a previous coaster's height/bank/checkboxes active. */
+  els.h.disabled = els.b.disabled = els.lift.disabled = !n;
+  els.station.disabled = !n || building;
+  $('btnDel').disabled = !n;
+  if (!n) {
+    els.idx.textContent = '-';
+    els.hVal.textContent = '-';
+    els.bVal.textContent = '-';
+    els.seg.textContent = 'empty plot - click the ground to place your station.';
+    els.lift.checked = false;
+    els.station.checked = false;
+    return;
+  }
   els.idx.textContent = '#' + (selected + 1) + ' of ' + nodes.length;
   els.h.value = n.h; els.b.value = n.bank;
   els.hVal.textContent = n.h.toFixed(1) + ' m';
@@ -2318,9 +2334,23 @@ els.h.addEventListener('change', () => { buildTrack(); commit(); });
 els.b.addEventListener('input', () => { if (!nodes[selected]) return; nodes[selected].bank = parseInt(els.b.value); queueTrackPreview(); });
 els.b.addEventListener('change', () => { buildTrack(); commit(); });
 els.lift.addEventListener('change', () => { if (!nodes[selected]) return; nodes[selected].lift = els.lift.checked; buildTrack(); commit(); });
+/* Exactly one station belongs to a finished coaster. The station
+   checkbox chooses WHERE it goes, not whether the coaster has one.
+   Refusing to uncheck the only station prevents a silent zero-station
+   document (the ride otherwise falls back to node 0 invisibly). */
+function assignStation(list, idx, checked) {
+  if (!checked || !list[idx]) return false;
+  const changed = list.some((n, i) => !!n.station !== (i === idx));
+  if (changed) list.forEach((n, i) => { n.station = i === idx; });
+  return changed;
+}
 els.station.addEventListener('change', () => {
-  nodes.forEach(n => n.station = false);
-  nodes[selected].station = els.station.checked; buildTrack(); commit();
+  if (!els.station.checked) {
+    els.station.checked = true;
+    toast('every coaster needs a station. select another point to move it.');
+    return;
+  }
+  if (assignStation(nodes, selected, true)) { buildTrack(); commit(); }
 });
 els.name.addEventListener('change', () => { trackName = els.name.value.trim() || 'untitled coaster'; refreshContinue(); commit(); });
 
