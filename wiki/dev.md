@@ -71,7 +71,7 @@ The station-framing regression extracts the actual camera target and fallback fu
 
 The draft rescue regression covers branded open JSON round-trips with 0/1/2/3/5 points, normal completed-format compatibility, and storage quota warning/recovery with the actual autosave helper. See [Draft rescue](draft-rescue.md).
 
-The point-drag test extracts the actual editor helper and verifies exact x/z placement, unchanged neighbouring nodes and banking, bounds, invalid inputs and station identity. See [Exact point drags](direct-point-drag.md).
+The point-drag test extracts the actual editor helper and verifies exact x/z placement, unchanged neighbouring nodes and banking, bounds, invalid inputs and station identity. The complete [Chromium WebGL smoke](browser-smoke.md) additionally touches a banked nonstation node on an actual five-point coaster for both plan and vertical drags, asserts the real cursor intent and exact Undo/Redo, and checks all other nodes remain untouched. See [Exact point drags](direct-point-drag.md) and [Complete coaster direct lime drag](completed-lime-node-touch.md).
 
 The library test checks the source-backed iOS pixel-ratio cap, lazy previews and 40-card LRU without a browser or network. See [Mobile performance](mobile-performance.md).
 
