@@ -49,6 +49,14 @@ node tests/physics-regression.mjs
 
 The new library test extracts the actual `gamePixelRatio`, `libraryBlueprint`, observer helpers and cache from `play/index.html`. It tests a fake observer's visibility callback, no work for off-screen cards, a second appearance reusing the cached preview, detaching an old observer on library rerender, a 40-entry LRU, invalidation, immediate fallback without the API, and the DPR 3 -> DPR 2 cap. CI runs it on PRs and main pushes.
 
+## Automated browser integration follow-up
+
+A later test-only release adds [Browser smoke](browser-smoke.md) using headless Chromium. Beyond the helper regression here, it boots the real 3D game and verifies actual canvas backing dimensions at a simulated DPR 3, plus a visible code-generated library thumbnail and an emulated station placement. This is still not a real iOS Safari test.
+
+## Mobile viewport overflow discovered by browser integration
+
+The Chromium integration pass caught a separate CSS issue: the desktop `#hint` used `white-space:nowrap` and absolute centred positioning. On a 390px mobile viewport a long hint could expand the effective viewport to **509px**, resizing the WebGL canvas and making touch positioning worse. The narrow-screen CSS now wraps the hint within 8px sides and constrains toast width. The [real browser smoke](browser-smoke.md) verifies the viewport and the 2x canvas backing size using an emulated mobile device. This test passed in [run 44252156638](https://github.com/richerd22/SomeLimits/actions/runs/44252156638).
+
 ## Manual acceptance checklist
 
 - [ ] Open a large library on desktop and iOS Safari: visible cards fill in, with no layout jumps; scroll to reveal more thumbnails.
