@@ -13,6 +13,9 @@ SomeLimits is a single self-contained HTML file on purpose. Contributions keep i
 
 ## Before you send a change
 
+Run the no-dependency editor test with `node tests/editor-runtime-regression.mjs`. When touching ride physics, temporarily install Three.js and run `node tests/physics-regression.mjs` (see `wiki/dev.md`). GitHub Actions runs both on pull requests; they are not a game build step. See `wiki/editor-runtime.md` before changing drag scheduling, geometry ownership or library persistence.
+
+
 - Serve it locally (`python3 -m http.server 8000`, open `/play/`) and ride every preset start to finish.
 - Round-trip: export JSON and re-import, export CSV and re-import, open a share link in a fresh window.
 - Check that an old save file still loads - import keeps accepting previous save shapes.

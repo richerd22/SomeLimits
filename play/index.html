@@ -1036,6 +1036,25 @@ let trackGroup = null, handleGroup = null, hitTube = null;
    ones grow to thumb size. a mouse never meets them. */
 const hitProxyMat = new THREE.MeshBasicMaterial({colorWrite: false, depthWrite: false});
 const proxyGeoUnit = new THREE.SphereGeometry(1, 10, 8);
+/* A drag rebuilt the entire track many times a second and previously
+   disposed only geometries from the old track. Materials (and all
+   selected-node handle geometry) accumulated on the GPU indefinitely.
+   Dispose only resources OWNED by these temporary scene groups. The
+   shared touch halo mesh/material deliberately outlive every rebuild. */
+function disposeEditGroup(group) {
+  if (!group) return;
+  scene.remove(group);
+  const geos = new Set(), mats = new Set();
+  group.traverse(obj => {
+    if (obj.geometry && obj.geometry !== proxyGeoUnit) geos.add(obj.geometry);
+    if (obj.material) {
+      const list = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (const mat of list) if (mat && mat !== hitProxyMat) mats.add(mat);
+    }
+  });
+  for (const geo of geos) geo.dispose();
+  for (const mat of mats) mat.dispose();
+}
 function addHitProxy(parent, pos, kind, userData) {
   if (!COARSE) return;
   const p = new THREE.Mesh(proxyGeoUnit, hitProxyMat);
@@ -1089,8 +1108,24 @@ scene.add(trainGroup);
    the mute window covers wholesale loads (presets, library,
    undo) where a lift arriving is not news. */
 let prevLiftSeen = null, liftToastMutedUntil = 0, gestureActive = false;
-
+/* Pointer events can arrive many times within one display frame. They
+   update point data immediately, but only the latest shape needs a
+   geometry rebuild. A committed edit calls buildTrack() directly, which
+   cancels any queued preview before recording the final document. */
+let previewFrame = 0;
+function queueTrackPreview() {
+  if (previewFrame) return;
+  previewFrame = requestAnimationFrame(() => {
+    previewFrame = 0;
+    buildTrack();
+  });
+}
+function cancelTrackPreview() {
+  if (previewFrame) cancelAnimationFrame(previewFrame);
+  previewFrame = 0;
+}
 function buildTrack() {
+  cancelTrackPreview();
   if (building && nodes.length < 2) { buildLoneStation(); return; }
   track = building ? computeOpenTrack(nodes) : computeTrack(nodes);
   const hasLift = track.samples.some(s => s.lift);
@@ -1099,8 +1134,8 @@ function buildTrack() {
     toast('a lift chain just grew on that climb - no button involved. the chain does the work.', 3600);
   }
   prevLiftSeen = hasLift;
-  if (trackGroup) { scene.remove(trackGroup); trackGroup.traverse(o => o.geometry && o.geometry.dispose()); }
-  if (handleGroup) { scene.remove(handleGroup); }
+  disposeEditGroup(trackGroup);
+  disposeEditGroup(handleGroup);
   trackGroup = new THREE.Group(); handleGroup = new THREE.Group();
   const samples = track.samples;
 
@@ -1614,10 +1649,11 @@ function computeOpenTrack(nodes) {
 /* fewer than 2 points: no spline exists yet. an empty plot, or a
    lone station standing on it. handles + platform, nothing else. */
 function buildLoneStation() {
+  cancelTrackPreview();
   track = null; hitTube = null;
   prevLiftSeen = false;
-  if (trackGroup) { scene.remove(trackGroup); trackGroup.traverse(o => o.geometry && o.geometry.dispose()); }
-  if (handleGroup) { scene.remove(handleGroup); }
+  disposeEditGroup(trackGroup);
+  disposeEditGroup(handleGroup);
   trackGroup = new THREE.Group(); handleGroup = new THREE.Group();
   if (nodes.length === 1) {
     const n = nodes[0];
@@ -2113,10 +2149,10 @@ function syncPanel() {
   }
 }
 
-els.h.addEventListener('input', () => { if (!nodes[selected]) return; nodes[selected].h = parseFloat(els.h.value); buildTrack(); });
-els.h.addEventListener('change', commit);
-els.b.addEventListener('input', () => { if (!nodes[selected]) return; nodes[selected].bank = parseInt(els.b.value); buildTrack(); });
-els.b.addEventListener('change', commit);
+els.h.addEventListener('input', () => { if (!nodes[selected]) return; nodes[selected].h = parseFloat(els.h.value); queueTrackPreview(); });
+els.h.addEventListener('change', () => { buildTrack(); commit(); });
+els.b.addEventListener('input', () => { if (!nodes[selected]) return; nodes[selected].bank = parseInt(els.b.value); queueTrackPreview(); });
+els.b.addEventListener('change', () => { buildTrack(); commit(); });
 els.lift.addEventListener('change', () => { if (!nodes[selected]) return; nodes[selected].lift = els.lift.checked; buildTrack(); commit(); });
 els.station.addEventListener('change', () => {
   nodes.forEach(n => n.station = false);
@@ -2548,7 +2584,7 @@ renderer.domElement.addEventListener('pointermove', e => {
       if (nh !== nodes[heightDrag].h) {
         nodes[heightDrag].h = nh; heightMoved = true;
         els.h.value = nh; els.hVal.textContent = nh.toFixed(1) + ' m';
-        buildTrack();
+        queueTrackPreview();
       }
     }
     return;
@@ -2567,7 +2603,7 @@ renderer.domElement.addEventListener('pointermove', e => {
       if (nb !== n.bank) {
         n.bank = nb; gripMoved = true;
         els.b.value = nb; els.bVal.textContent = nb + ' deg';
-        buildTrack();
+        queueTrackPreview();
       }
     }
     return;
@@ -2599,7 +2635,7 @@ renderer.domElement.addEventListener('pointermove', e => {
   }
   if (banking >= 0) {
     const nb = THREE.MathUtils.clamp(Math.round(bankStartVal + (e.clientX - bankStartX) * 0.45), -180, 180);
-    if (nb !== nodes[banking].bank) { nodes[banking].bank = nb; bankMoved = true; buildTrack(); }
+    if (nb !== nodes[banking].bank) { nodes[banking].bank = nb; bankMoved = true; queueTrackPreview(); }
     return;
   }
   if (dragging < 0) return;
@@ -2616,14 +2652,14 @@ renderer.domElement.addEventListener('pointermove', e => {
   if (dragIntent === 'height') {
     if (ray.ray.intersectPlane(vertPlane, out)) {
       const nh = THREE.MathUtils.clamp(Math.round((grabSnap.h + out.y - dragPressHeight) * 10) / 10, 1, 80);
-      if (nh !== nodes[dragging].h) { nodes[dragging].h = nh; dragMoved = true; buildTrack(); }
+      if (nh !== nodes[dragging].h) { nodes[dragging].h = nh; dragMoved = true; queueTrackPreview(); }
     }
   } else if (dragPressGround && ray.ray.intersectPlane(dragPlane, out)) {
     const nx = THREE.MathUtils.clamp(grabSnap.x + out.x - dragPressGround.x, -150, 150);
     const nz = THREE.MathUtils.clamp(grabSnap.z + out.z - dragPressGround.z, -150, 150);
     if (nx !== nodes[dragging].x || nz !== nodes[dragging].z) {
       nodes[dragging].x = nx; nodes[dragging].z = nz;
-      dragMoved = true; buildTrack();
+      dragMoved = true; queueTrackPreview();
     }
   }
 });
@@ -2634,8 +2670,9 @@ renderer.domElement.addEventListener('pointerup', e => {
   if (heightDrag >= 0) {
     /* no smoothing pass on a height drag either - the height you
        set is the height that stays (see smoothAround). */
-    if (heightMoved) commit();
+    const changed = heightMoved;
     heightDrag = -1; heightMoved = false;
+    if (changed) { buildTrack(); commit(); }
     renderer.domElement.style.cursor = '';
     controls.enabled = mode === 'edit';
     downAt = null;
@@ -2646,8 +2683,9 @@ renderer.domElement.addEventListener('pointerup', e => {
     /* no smoothing pass on a roll either: the roll you set is the
        roll you keep - bankAt()'s local blend is the smoothing,
        same as the shift-drag. */
-    if (gripMoved) commit();
+    const changed = gripMoved;
     gripBank = -1; gripMoved = false;
+    if (changed) { buildTrack(); commit(); }
     renderer.domElement.style.cursor = '';
     controls.enabled = mode === 'edit';
     downAt = null;
@@ -2657,8 +2695,9 @@ renderer.domElement.addEventListener('pointerup', e => {
   if (banking >= 0) {
     /* no smoothing pass on a bank drag: the roll you set is the
        roll you keep - bankAt()'s local blend is the smoothing. */
-    if (bankMoved) commit();
+    const changed = bankMoved;
     banking = -1; bankMoved = false;
+    if (changed) { buildTrack(); commit(); }
     renderer.domElement.style.cursor = '';
     controls.enabled = mode === 'edit';
     downAt = null;
@@ -2685,13 +2724,18 @@ renderer.domElement.addEventListener('pointerup', e => {
     closeLoop();
     return;
   }
-  if (dragging >= 0 && dragMoved) {
-    if (dragIntent !== 'height') smoothAround(dragging);
-    buildTrack(); commit();
-  }
+  /* Complete the gesture before building: the terrain and trees
+     settle only when dragging is -1. The old order rebuilt while
+     the drag flag was still set, so the expensive settle was skipped. */
+  const editedNode = dragging, changedNode = dragMoved;
+  const editedHeight = dragIntent === 'height';
   dragging = -1; dragIntent = null; dragPressGround = null; grabSnap = null;
   renderer.domElement.style.cursor = '';
   controls.enabled = mode === 'edit';
+  if (editedNode >= 0 && changedNode) {
+    if (!editedHeight) smoothAround(editedNode);
+    buildTrack(); commit();
+  }
   /* a press that started on empty canvas and barely moved was a
      click, not an orbit. if the click missed the track itself it
      was aiming at the ground: drop a point there. clicks ON the
@@ -2758,23 +2802,49 @@ renderer.domElement.addEventListener('dblclick', e => {
 
 /* ---------------- library ---------------- */
 const LIB_KEY = 'somelimits-library-v1';
+/* Blueprint PNGs are output, not coaster data. Rendering from the
+   saved nodes avoids storing hundreds of kilobytes of base64 for
+   every coaster. Cache only while the page is open. */
+const libraryBlueprints = new Map();
+function libraryBlueprint(entry) {
+  const signature = JSON.stringify(entry.nodes);
+  const cached = libraryBlueprints.get(entry.id);
+  if (cached && cached.signature === signature) return cached.src;
+  try {
+    const src = blueprint(entry.nodes);
+    libraryBlueprints.set(entry.id, {signature, src});
+    return src;
+  } catch { return ''; }
+}
 let libArmId = null, libArmUntil = 0;   // two-click guard state for "open"
 let libDelId = null, libDelUntil = 0;   // ...and for "delete"
 function loadLib() { try { return JSON.parse(localStorage.getItem(LIB_KEY)) || []; } catch { return []; } }
-function storeLib(lib) { try { localStorage.setItem(LIB_KEY, JSON.stringify(lib)); } catch { toast('library storage is full or blocked. export json instead.'); } }
+function storeLib(lib) {
+  try {
+    /* Preserve old library entries, but remove legacy data-URI
+       thumbnails on the next save/rename/duplicate/delete. Node
+       geometry is the recoverable source of truth. */
+    const compact = lib.map(({thumb, ...entry}) => entry);
+    localStorage.setItem(LIB_KEY, JSON.stringify(compact));
+    return true;
+  } catch {
+    toast('library storage is full or blocked. export json instead.');
+    return false;
+  }
+}
 function saveToLibrary() {
   if (building) { toast('the library shelves finished circuits - close the loop first.'); return; }
   const lib = loadLib();
   const st = trackStats(nodes, track);
   const entry = {
     id: Date.now().toString(36), name: trackName, updatedAt: new Date().toISOString(),
-    nodes: structuredClone(nodes), thumb: blueprint(nodes),
+    nodes: structuredClone(nodes),
     stats: {len: Math.round(st.lengthM), maxH: Math.round(st.maxHeightM * 10) / 10, count: st.nodeCount}
   };
   const existing = lib.findIndex(e => e.name === trackName);
   if (existing >= 0) { entry.id = lib[existing].id; lib[existing] = entry; }
   else lib.unshift(entry);
-  storeLib(lib);
+  if (!storeLib(lib)) return;
   toast('"' + trackName + '" saved to the library.');
   els.saveMsg.textContent = 'saved to library just now.';
 }
@@ -2790,7 +2860,7 @@ function renderLib() {
     div.innerHTML = '<img alt="track blueprint"><div class="nm"></div><div class="meta"></div>' +
       '<div class="row"><button data-act="open">open</button><button data-act="rename">rename</button>' +
       '<button data-act="dup">duplicate</button><button data-act="del" class="warn">delete</button></div>';
-    div.querySelector('img').src = entry.thumb || '';
+    div.querySelector('img').src = libraryBlueprint(entry);
     div.querySelector('.nm').textContent = entry.name;
     div.querySelector('.meta').textContent = entry.stats.count + ' nodes - ' + entry.stats.len + ' m - tallest ' + entry.stats.maxH + ' m - saved ' + when;
     div.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
