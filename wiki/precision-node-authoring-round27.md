@@ -10,6 +10,9 @@ A track can stack nodes in TOP view (vertical loops, spikes, crossovers), so cho
 - Keyboard arrows nudge only in TOP/SIDE/FRONT: TOP left/right X and up/down -Z/+Z; SIDE left/right X and up/down +height/-height; FRONT left/right +Z/-Z and up/down height. Each step is **1m**, Shift+arrow **5m**, Alt/Option+arrow **0.1m**. Limits: plan [-150,150] and height [1,80]. 3D leaves arrows alone to avoid perspective-dependent guessing.
 - Arrow/selection keys do not act inside text/numeric inputs or while a modal overlay is open. A successful nudge invokes existing `buildTrack();commit();` and is undoable. A blocked nudge at the plot/height boundary changes nothing.
 
+## Undo selection repair
+The actual browser acceptance revealed a subtle issue: Undo of a newly added DROP reduces node count and clamps selection to the preceding point; the subsequent Redo re-adds the DROP but **does not return selection to that control point**. Arrow nudges could therefore edit the wrong node even though everything looked restored. The in-memory Undo snapshot now also captures `selected`, and `applyState()` restores it on Undo/Redo. The persistent autosave/export/share format does **not** include this UI-only field.
+
 ## Architecture
 No input mode or new coaster type. The function `nudgeAxes(view,key,step)` is side-effect free: it maps a 2D screen direction to **one** source axis and signed delta. `nudgeSelectedNode` clamps, rounds and commits. Other fields (station, lift, banking, neighbors) are never re-authored. DOM coordinate entry and node cycling are editor-only operations. No changes to the pure CORE, ride integrator, sampling, rail/support geometry, export or autosave format.
 
