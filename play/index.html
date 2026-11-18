@@ -533,14 +533,11 @@ function computeTrack(nodes) {
   const pts = nodes.map(n => new THREE.Vector3(n.x, n.h, n.z));
   const curve = new THREE.CatmullRomCurve3(pts, true, 'centripetal', 0.5);
   const pos = curve.getSpacedPoints(SAMPLES); // SAMPLES+1 pts, last == first
-  /* Height guardrail and source-node lift/bank attribution need the
-     SAME arc-length -> spline parameter for every sampled position.
-     Three.js getUtoTmapping binary-searches its arc table. Cache
-     those exact results once rather than doing the same 901 lookups
-     again when building bank and lift metadata. No approximation,
-     different interpolation or sample count. */
+  /* Height guardrail and bank/lift attribution use the SAME true
+     arc parameter per sample. Store the exact Three.js lookup during
+     the existing guard loop; the metadata pass reuses its result.
+     No extra loop, source-segment approximation or geometry change. */
   const curveT = new Float64Array(SAMPLES + 1);
-  for (let i = 0; i <= SAMPLES; i++) curveT[i] = curve.getUtoTmapping(i / SAMPLES);
   /* height guardrail: the spline may bulge past its own segment's
      heights, but only a little. past ~1.5m of escape the bulge
      stops reading as "smooth" and starts reading as the track
@@ -553,7 +550,8 @@ function computeTrack(nodes) {
      from the curve's own parameter via getUtoTmapping, never the
      node fraction - the fraction lies on uneven layouts. */
   for (let i = 0; i <= SAMPLES; i++) {
-    const t = curveT[i];
+    const t = curve.getUtoTmapping(i / SAMPLES);
+    curveT[i] = t;
     const seg = Math.min(Math.floor(t * N), N - 1);
     const lo = Math.min(nodes[seg].h, nodes[(seg + 1) % N].h) - 1.5;
     const hi = Math.max(nodes[seg].h, nodes[(seg + 1) % N].h) + 1.5;
@@ -1921,14 +1919,14 @@ function computeOpenTrack(nodes) {
   const pts = nodes.map(n => new THREE.Vector3(n.x, n.h, n.z));
   const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5);
   const pos = curve.getSpacedPoints(SAMPLES);
-  /* Keep the identical source-node mapping for both open-track
-     height protection and lift/bank segment ownership. */
+  /* Capture true curve mapping while checking height, then reuse it
+     for lift/bank attribution; no extra loop or fake node fractions. */
   const curveT = new Float64Array(SAMPLES + 1);
-  for (let i = 0; i <= SAMPLES; i++) curveT[i] = curve.getUtoTmapping(i / SAMPLES);
   /* the same height guardrail as the closed track: a sample may
      escape its own segment's heights by 1.5m, no more. */
   for (let i = 0; i <= SAMPLES; i++) {
-    const t = curveT[i];
+    const t = curve.getUtoTmapping(i / SAMPLES);
+    curveT[i] = t;
     const seg = Math.min(Math.floor(t * (N - 1)), N - 2);
     const lo = Math.min(nodes[seg].h, nodes[seg + 1].h) - 1.5;
     const hi = Math.max(nodes[seg].h, nodes[seg + 1].h) + 1.5;
