@@ -32,7 +32,7 @@ The name is a dry joke: there always were some limits. We are owning them.
   - Any climb of 8 m or more between points gets a chain lift automatically - drawn on the track as a bright strip - so a first build cannot stall for want of a menu. There is no lift button to find.
   - Height is by hand: drag a lime point up/down, drag the orange cap above it for precision, or use the height slider. Points land at ground level, so a drop is simply what happens after a hill.
   - Each dragged point stays where you leave it. Neighbouring control points and banking are never silently rewritten on release; the spline handles smooth track transitions between your points.
-- Ride mode with POV, chase, and orbit cameras, a live G-force HUD, and an honest lap summary. Station tires dispatch the train and keep truly flat circuits moving; chain lifts run at 7 m/s.
+- Ride mode with POV, chase, and orbit cameras, a live G-force HUD, and a lap summary that explains when the simulator had to assist a slow section. Station tires dispatch the train and keep truly flat circuits moving; chain lifts run at 7 m/s.
 - Presets that are rideable as loaded, including a vertical loop you can pull apart to see how it is built.
 - A library in your browser (localStorage), plus JSON export/import even for unfinished drafts, share links that encode complete coasters in the URL, a NoLimits 2-style CSV spline bridge both ways, and PNG screenshots. Blueprints are drawn only when their cards come into view, not stored as base64 ballast.
 
@@ -92,6 +92,7 @@ Start at [wiki/README.md](wiki/README.md):
 - [Exact point drags](wiki/direct-point-drag.md) - remove hidden neighbour shifts and banking edits after releasing a dragged point
 - [Draft backup and autosave safety](wiki/draft-rescue.md) - localStorage quota warnings and rescue JSON for unfinished builds
 - [Framing a lone station](wiki/station-framing.md) - why Frame Track must focus the only control point in an open draft
+- [Honest lap feedback](wiki/ride-insight.md) - report when the simplified physics used a minimum-speed assist and reset G traces between rides
 
 ## Quality checks
 

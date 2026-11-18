@@ -305,6 +305,7 @@
       <div>airtime (under 0.5 g)<b id="lapAir">-</b></div>
       <div>track length<b id="lapLen">-</b></div>
     </div>
+    <p id="lapInsight" class="sub" role="status" style="margin:10px 0;line-height:1.55"></p>
     <div class="row">
       <button id="btnLapAgain" class="primary">ride again</button>
       <button id="btnLapEdit">back to edit</button>
@@ -661,6 +662,11 @@ function createRide(track) {
     s: track.stationS, v: DISPATCH_SPEED, traveled: 0, time: 0,
     running: true, finished: false,
     maxV: 0, maxG: 1, minG: 1, airtime: 0, gSmooth: 1, gVert: 1, gLat: 0,
+    /* Live instrumentation only; never affects acceleration or braking.
+       A 1.2m/s minimum-speed assist exists in this simple simulator.
+       Tell the builder when it intervenes instead of concealing it. */
+    assistSeconds: 0, firstAssistM: null,
+    slowestCruiseV: Infinity, slowestCruiseM: null,
     prevVel: new THREE.Vector3(), hasPrev: false
   };
 }
@@ -684,8 +690,22 @@ function stepRide(track, ride, dt) {
       if (ride.v > vT) ride.v = Math.max(vT, ride.v - 4.5 * h);
       if (ride.v < 0.9 && dLeft > 1.5) ride.v = 0.9; // station-approach creep
     }
-    if (ride.v < 1.2 && !here.brake) ride.v = 1.2;   // no stalling mid-course in v1
+    if (ride.v < 1.2 && !here.brake) {
+      /* Do NOT change the floor or its physics. Only record when
+         it rescued an unpowered mid-course section; flat tires and
+         active uphill chains are intentional propulsion. */
+      if (!track.poweredFlat && !(here.lift && dhds > 0.01) && ride.traveled > 8) {
+        ride.assistSeconds += h;
+        if (ride.firstAssistM === null) ride.firstAssistM = ride.traveled;
+      }
+      ride.v = 1.2;  // longstanding minimum-speed guard
+    }
     if (ride.v < 0) ride.v = 0;
+    if (ride.traveled > 8 && !here.brake && !track.poweredFlat &&
+        !(here.lift && dhds > 0.01) && ride.v < ride.slowestCruiseV) {
+      ride.slowestCruiseV = ride.v;
+      ride.slowestCruiseM = ride.traveled;
+    }
     ride.s += ride.v * h;
     ride.traveled += ride.v * h;
     ride.time += h;
@@ -714,6 +734,29 @@ function stepRide(track, ride, dt) {
   }
   ride.prevVel.copy(vel); ride.hasPrev = true;
   ride.maxV = Math.max(ride.maxV, ride.v);
+}
+
+/* Expose what the physics actually did on the lap, not an estimate
+   derived from the highest drop. This reports a *simulation assist*
+   without claiming a real coaster would be safe or physically stall.
+   The UI has no separate diagnostics mode or tuning knobs. */
+function lapInsight(ride) {
+  if (ride.assistSeconds >= 0.25) {
+    return 'the simulator gave this train a minimum-speed assist for ' +
+      ride.assistSeconds.toFixed(1) + ' s, starting about ' +
+      Math.round(ride.firstAssistM) + ' m into the lap. check the next hill: lower it, or give its climb an 8 m+ rise between nodes for an automatic chain.';
+  }
+  if (ride.assistSeconds > 0) {
+    return 'a brief minimum-speed assist occurred about ' +
+      Math.round(ride.firstAssistM) +
+      ' m into the lap (under 0.3 s). if the next hill feels slow, try lowering it.';
+  }
+  if (ride.slowestCruiseV < 3) {
+    return 'slow section: ' + Math.round(ride.slowestCruiseV * 3.6) +
+      ' km/h about ' + Math.round(ride.slowestCruiseM) +
+      ' m from the station. the ride completed without a minimum-speed rescue, but this section may need a smaller climb.';
+  }
+  return 'completed without a minimum-speed rescue. these are simplified game physics, not a real-world safety check.';
 }
 
 /* ---------------- formats: json / csv / share link ---------------- */
@@ -1933,13 +1976,18 @@ function fmtTime(sec) {
   return m + ':' + s.toFixed(1).padStart(4, '0');
 }
 
+/* Every new/restarted lap deserves fresh train stats AND a fresh
+   graph; restarting from the HUD used to keep the previous trace. */
+function resetLapState() {
+  ride = createRide(track);
+  lapShown = false;
+  gHist.length = 0;
+}
 function startRide() {
   if (building) { toast('no circuit, no ride - bring the track home to the station first.'); return; }
   buildTrack();
   ensureAudio();   // born here, inside a user gesture, per browser rules
-  ride = createRide(track);
-  lapShown = false;
-  gHist.length = 0;
+  resetLapState();
   setMode('ride');
   toast(COARSE ? 'off you go. tap view to change camera, exit bails.' : 'off you go. C changes camera, ESC bails.');
 }
@@ -1960,6 +2008,7 @@ function finishLap() {
   $('lapMinG').textContent = ride.minG.toFixed(1) + ' g';
   $('lapAir').textContent = ride.airtime.toFixed(1) + ' s';
   $('lapLen').textContent = Math.round(st.lengthM) + ' m';
+  $('lapInsight').textContent = lapInsight(ride);
   $('lapScreen').classList.add('open');
 }
 function poseRide(dt) {
@@ -2046,9 +2095,9 @@ function setMode(m) {
 $('btnRide').addEventListener('click', startRide);
 $('btnView').addEventListener('click', () => { if (mode === 'ride') cycleView(); });
 $('btnEdit').addEventListener('click', () => setMode('edit'));
-$('btnRestart').addEventListener('click', () => { ride = createRide(track); lapShown = false; });
+$('btnRestart').addEventListener('click', resetLapState);
 $('btnExitRide').addEventListener('click', () => setMode('edit'));
-$('btnLapAgain').addEventListener('click', () => { $('lapScreen').classList.remove('open'); ride = createRide(track); lapShown = false; setMode('ride'); });
+$('btnLapAgain').addEventListener('click', () => { $('lapScreen').classList.remove('open'); resetLapState(); setMode('ride'); });
 $('btnLapEdit').addEventListener('click', () => { $('lapScreen').classList.remove('open'); setMode('edit'); });
 
 /* the portrait fold (round 13): in portrait the docked panel

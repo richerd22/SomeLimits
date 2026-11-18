@@ -103,6 +103,7 @@ The simulator is energy-based, integrated per frame.
 - **Lift constraint.** On uphill lift samples, if the train is slower than 7.0 m/s, chain speed holds it at 7.0 m/s. Lift samples are assigned by true curve parameter, not uniform node index.
 - **Brake run.** In the final approach to the station, braking decelerates the train so it arrives back at the station at a stop. Reaching the station stopped ends the lap and triggers the summary.
 - **Start.** A ride starts at the station sample at a 6.5 m/s tire dispatch. Flat-only circuits (under 2 m height difference) maintain 6.5 m/s away from the brake zone, since gravity cannot propel a level loop. Hills remain gravity driven after the lift.
+- **Lap insight.** The physics retains its original 1.2m/s mid-course minimum-speed guard. Passive telemetry records exactly when that guard intervenes outside brakes, active chains and flat-track tires, plus the slowest unpowered cruising stretch. `lapInsight(ride)` renders a short note beneath Lap Complete, explaining the intervention as a game assist rather than claiming real-world stall/safety. `resetLapState()` clears prior G samples on Start/Restart/Ride Again. See [Ride insight](ride-insight.md).
 - **Reference.** The classic preset now runs about **27.5s / 88 km/h** at 1/60s physics steps (previously **47.8s / 86 km/h**). This is a deliberate physics change documented in [the playtest report](../playtest-2026-11-18.md).
 
 ### G-force
