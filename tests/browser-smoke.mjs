@@ -420,6 +420,9 @@ try {
     return label.style.display==='block'&&label.textContent.endsWith(' m')&&
       parseFloat(label.textContent)>h+2;
   },beforeCap.nodes[0].h,{timeout:11000});
+  const whileCap=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.deepEqual(whileCap.nodes,beforeCap.nodes,
+    'orange cap must not autosave an uncommitted touch movement');
   await send('touchEnd',[]);
   await mp.waitForFunction(h=>{
     const doc=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
@@ -444,26 +447,20 @@ try {
   const gripPix=await loneHandlePixels();
   await send('touchStart',[finger(81,gripPix.grip.x,gripPix.grip.y)]);
   await send('touchMove',[finger(81,gripPix.rollDown.x,gripPix.rollDown.y)]);
+  /* During an active drag the bank is updated in memory and in
+     the on-screen slider, but autosave must NOT change until
+     pointerup commits. Comparing the live text to localStorage
+     here is a category error—and would make this test impossible. */
   await mp.waitForFunction(b=>{
-    const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
-    return Math.abs(st.nodes[0].bank-b)>30;
+    const label=document.getElementById('hLabel');
+    const liveBank=parseInt(document.getElementById('bVal').textContent,10);
+    return label.style.display==='block'&&Number.isFinite(liveBank)&&
+      Math.abs(liveBank-b)>30 &&
+      label.textContent==='bank '+liveBank+' deg';
   },beforeGrip.nodes[0].bank,{timeout:11000});
-  const midGrip=await mp.evaluate(()=>{
-    const label=document.getElementById('hLabel');
-    return {label:label.textContent,inlineDisplay:label.style.display,
-      computedDisplay:getComputedStyle(label).display,
-      bank:Number(document.getElementById('rngB').value),
-      bankValue:document.getElementById('bVal').textContent,
-      saved:JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes[0]};
-  });
-  console.log('LIVE GRIP READOUT DIAGNOSTICS '+JSON.stringify(midGrip));
-  await mp.waitForFunction(b=>{
-    const label=document.getElementById('hLabel');
-    const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
-    return label.style.display==='block'&&label.textContent.startsWith('bank ')&&
-      Math.abs(st.nodes[0].bank-b)>30 &&
-      label.textContent==='bank '+st.nodes[0].bank+' deg';
-  },beforeGrip.nodes[0].bank,{timeout:8000});
+  const whileGrip=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.deepEqual(whileGrip.nodes,beforeGrip.nodes,
+    'blue grip must not autosave an uncommitted touch movement');
   await send('touchEnd',[]);
   await mp.waitForFunction(b=>{
     const doc=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
