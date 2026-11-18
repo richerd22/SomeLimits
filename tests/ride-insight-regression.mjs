@@ -54,12 +54,14 @@ for(let i=0;i<25;i++){
   slow.v=0.1; // deliberately slow state to exercise longstanding guard
   stepRide(track,slow,1/60);
 }
-assert.ok(slow.assistSeconds>=0.25,
-  'record accumulated assist duration at unpowered section; got '+slow.assistSeconds);
+assert.ok(slow.assistSeconds>0,
+  'record the actual short intervention at unpowered section; got '+slow.assistSeconds);
 assert.equal(slow.firstAssistM,55,'record first assist location in travel metres');
 assert.ok(Number.isFinite(slow.slowestCruiseV));
 assert.ok(slow.slowestCruiseV<=1.2+1e-9,'slowest unpowered section recorded');
-const warned=lapInsight(slow);
+assert.match(lapInsight(slow),/brief minimum-speed assist occurred/,
+  'a real short assist cannot be reported as no rescue');
+const warned=lapInsight({...slow,assistSeconds:0.5});
 assert.match(warned,/minimum-speed assist for/);
 assert.match(warned,/55 m into the lap/);
 assert.match(warned,/8 m\+ rise/);
