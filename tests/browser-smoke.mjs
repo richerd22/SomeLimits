@@ -335,6 +335,40 @@ try {
     return st?.nodes?.length===1&&st.nodes[0].h>h+3;
   },station.h,{timeout:12000});
   console.log('PASS multi-touch and capture loss: uncommitted drags roll back; next touch remains usable');
+
+  /* This is the original playtest's companion: actual SIDEWAYS
+     finger movement should change the plan x/z but not the point's
+     height or banking. Unit tests only established the mutation
+     helper; this exercises picking, axis intent and camera projection.
+     The station is the sole node, so Frame Track centers it. */
+  await mp.evaluate(()=>document.getElementById('btnFrame').click());
+  const beforeSide=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  const beforeNode=beforeSide.nodes[0];
+  await send('touchStart',[finger(61,center.x,center.y)]);
+  await send('touchMove',[finger(61,center.x+95,center.y+1)]);
+  await send('touchEnd',[]);
+  await mp.waitForFunction(before=>{
+    const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return st?.nodes?.length===1 &&
+      Math.hypot(st.nodes[0].x-before.x,st.nodes[0].z-before.z)>3;
+  },beforeNode,{timeout:12000});
+  const afterSide=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.equal(afterSide.nodes[0].h,beforeNode.h,'sideways drag must not change height');
+  assert.equal(afterSide.nodes[0].bank,beforeNode.bank,'sideways drag must not change banking');
+  assert.equal(afterSide.nodes[0].station,true,'sideways drag must retain station role');
+  await mp.evaluate(()=>document.getElementById('btnUndo').click());
+  await mp.waitForFunction(before=>{
+    const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return st?.nodes?.length===1 && st.nodes[0].x===before.x &&
+      st.nodes[0].z===before.z;
+  },beforeNode,{timeout:8000});
+  await mp.evaluate(()=>document.getElementById('btnRedo').click());
+  await mp.waitForFunction(after=>{
+    const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return st?.nodes?.length===1 && st.nodes[0].x===after.x &&
+      st.nodes[0].z===after.z;
+  },afterSide.nodes[0],{timeout:8000});
+  console.log('PASS sideways touch drag: x/z move, unchanged height/bank, undo/redo exactly restore coordinates');
   assert.deepEqual(mobileErrors,[],'mobile errors after touch drag and interruption');
 
   await mobile.close();

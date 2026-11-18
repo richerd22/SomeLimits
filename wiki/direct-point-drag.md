@@ -33,7 +33,7 @@ A new dependency-free, source-extracted regression runs with:
 node tests/direct-point-drag-regression.mjs
 ```
 
-The test reads `play/index.html` (not a copied implementation), parses the game module and extracts the actual `setNodePlanPosition` helper. It uses eight deliberately uneven points with a 47.5m hill and nontrivial bank values, including a station, and checks:
+The source-only test reads `play/index.html` (not a copied implementation), parses the game module and extracts the actual `setNodePlanPosition` helper. A separate full [Chromium browser integration](browser-smoke.md) now performs a real sideways touch gesture on the centered station and verifies that only x/z change, height and banking do not, and the exact previous and new coordinates round-trip through Undo and Redo. It uses eight deliberately uneven points with a 47.5m hill and nontrivial bank values, including a station, and checks:
 
 - Dragged x/z equal the exact requested coordinates.
 - Dragged height, bank and station state are unchanged.
