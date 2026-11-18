@@ -215,6 +215,8 @@ try {
   const blank=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
   assert.equal(blank.building,true);
   assert.equal(blank.nodes.length,0,'new must begin with an empty plot');
+  await mp.waitForFunction(()=>document.getElementById('hLabel').style.display==='none',
+    null,{timeout:8000}); // no point = no floating number
   // The plot center is clear of the folded mobile panel.
   await mp.touchscreen.tap(195,380);
   await mp.waitForFunction(()=>{
@@ -222,7 +224,15 @@ try {
     return doc?.nodes?.length===1 && doc.nodes[0].station===true;
   },null,{timeout:8000});
   assert.deepEqual(mobileErrors,[],'mobile page errors after station tap');
-  console.log('PASS mobile WebGL: 3x -> 2x raster, blank plot, station placed by touch');
+  /* A first station has no spline, but its height label must already
+     be visible. The old render-loop guard required track !== null. */
+  await mp.waitForFunction(()=>{
+    const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    const label=document.getElementById('hLabel');
+    return st?.building&&st.nodes?.length===1&&label.style.display==='block'&&
+      label.textContent===st.nodes[0].h.toFixed(1)+' m';
+  },null,{timeout:10000});
+  console.log('PASS mobile WebGL: 3x -> 2x raster, blank plot, station and first-point height label');
 
   /* Real Chromium touch events, not element.tap() or fake JS edits:
      the station has no cap/grip, so aiming a finger at its projected
@@ -405,6 +415,11 @@ try {
   assert.equal(beforeCap.nodes.length,1);
   await send('touchStart',[finger(71,capPix.cap.x,capPix.cap.y)]);
   await send('touchMove',[finger(71,capPix.cap.x,capPix.cap.y-76)]);
+  await mp.waitForFunction(h=>{
+    const label=document.getElementById('hLabel');
+    return label.style.display==='block'&&label.textContent.endsWith(' m')&&
+      parseFloat(label.textContent)>h+2;
+  },beforeCap.nodes[0].h,{timeout:11000});
   await send('touchEnd',[]);
   await mp.waitForFunction(h=>{
     const doc=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
@@ -429,6 +444,13 @@ try {
   const gripPix=await loneHandlePixels();
   await send('touchStart',[finger(81,gripPix.grip.x,gripPix.grip.y)]);
   await send('touchMove',[finger(81,gripPix.rollDown.x,gripPix.rollDown.y)]);
+  await mp.waitForFunction(b=>{
+    const label=document.getElementById('hLabel');
+    const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return label.style.display==='block'&&label.textContent.startsWith('bank ')&&
+      Math.abs(st.nodes[0].bank-b)>30 &&
+      label.textContent==='bank '+st.nodes[0].bank+' deg';
+  },beforeGrip.nodes[0].bank,{timeout:11000});
   await send('touchEnd',[]);
   await mp.waitForFunction(b=>{
     const doc=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
@@ -445,6 +467,11 @@ try {
   await mp.waitForFunction(b=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes[0].bank===b,
     afterGrip.nodes[0].bank,{timeout:8000});
   console.log('PASS blue grip: first station bank touch drag, unchanged position/height, exact undo/redo');
+  await mp.waitForFunction(h=>{
+    const label=document.getElementById('hLabel');
+    return label.style.display==='block'&&label.textContent===h.toFixed(1)+' m';
+  },afterGrip.nodes[0].h,{timeout:8000});
+  console.log('PASS first-point floating readout: height visible without spline; live cap height and grip bank; reset after release');
   assert.deepEqual(mobileErrors,[],'mobile errors after precision handle and touch tests');
 
   await mobile.close();
