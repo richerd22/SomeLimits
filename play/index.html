@@ -1143,6 +1143,16 @@ const gridGroup = new THREE.Group();
   gridGroup.visible = false;
 }
 scene.add(gridGroup);
+/* Drafting overlays: persistent axis grids for SIDE and FRONT views.
+   Keep a single reusable GridHelper so switching views allocates no
+   track meshes or materials. No grid in ride/perspective scenes. */
+const elevationGrid = new THREE.GridHelper(260, 52, 0x7d9ab7, 0x486077);
+elevationGrid.material.transparent = true;
+elevationGrid.material.opacity = 0.36;
+elevationGrid.material.depthWrite = false;
+elevationGrid.material.fog = false;
+elevationGrid.visible = false;
+scene.add(elevationGrid);
 /* the snap ring: a glowing circle on the station's entry side.
    when it is showing, a ground click inside it closes the loop. */
 const snapRing = new THREE.Mesh(
@@ -1940,6 +1950,16 @@ function buildTrack() {
    wheel/pinch to zoom, no accidental orbit. No new geometry/track math. */
 function frameEditorBounds(min, max) {
   const center = min.clone().add(max).multiplyScalar(0.5);
+  /* Center drawing paper under actual node geometry, including a saved
+     coaster far away from the origin. The grid is only a view aid. */
+  if (editorView === 'top') gridGroup.position.set(center.x, 0, center.z);
+  if (editorView === 'side') {
+    elevationGrid.rotation.set(Math.PI / 2, 0, 0);
+    elevationGrid.position.set(center.x, center.y, center.z - 130);
+  } else if (editorView === 'front') {
+    elevationGrid.rotation.set(0, 0, -Math.PI / 2);
+    elevationGrid.position.set(center.x - 130, center.y, center.z);
+  }
   const aspect = innerWidth / innerHeight;
   const spanHorizontal = editorView === 'top' || editorView === 'side'
     ? max.x - min.x : max.z - min.z;
@@ -1999,6 +2019,7 @@ function setEditorView(view) {
   if (mode !== 'edit' || !['top', 'side', 'front', '3d'].includes(view)) return;
   if (activePtr !== null) abortInterruptedInput();
   editorView = view;
+  if (view === '3d') gridGroup.position.set(0, 0, 0);
   camera = view === '3d' ? perspectiveCamera : orthoCamera;
   controls.object = camera;
   controls.enableRotate = view === '3d';
@@ -2018,6 +2039,7 @@ function setEditorView(view) {
     '3d': '3D: drag empty space to orbit, right-drag to pan, scroll to zoom.'
   };
   $('dockGuide').textContent = guide[view];
+  if (building) $('hint').innerHTML = buildHint();
 }
 
 /* ---------------- building from blank ----------------
@@ -2175,19 +2197,38 @@ function framePlot() {
 
 /* the hint line while building teaches the build, in order. */
 function buildHint() {
-  return nodes.length === 0 ? `<b>${TAP} the ground</b> to place the station - everything starts there` :
-    nodes.length === 1 ? `station is down. <b>${TAP} the ground</b> to lay track out from it` :
-    nodes.length < 4 ? `<b>${TAP}</b> to extend &middot; <b>TOP</b> for turns &middot; <b>SIDE</b> for height &middot; <b>DROP</b> to descend` :
-    `bring it home - <b>${TAP} the station</b> to close the circuit`;
+  if (editorView === 'side' || editorView === 'front')
+    return '<b>drag nodes</b> to shape hills and drops here &middot; <b>TOP</b> to place more track';
+  if (!nodes.length) return `<b>${TAP}</b> the drawing to place your station - everything starts there`;
+  if (nodes.length === 1) return `<b>${TAP}</b> to extend &middot; <b>SIDE</b> to shape the lift`;
+  if (editorView === 'top')
+    return `<b>${TAP}</b> for turns at the current height &middot; <b>SIDE</b> for hills &middot; <b>DROP</b> to descend`;
+  return nodes.length < 4 ?
+    `<b>${TAP}</b> the ground to extend &middot; <b>drag up</b> to raise a node` :
+    `bring it home - <b>${TAP}</b> the station to close the circuit`;
 }
 
+/* Working on a 2D drawing should not require looking through pine trees
+   or terrain. Hide scenery only while editing in a drafting view,
+   without disposing any meshes or changing the coaster's geometry. */
+function updateDraftingVisibility() {
+  const drafting = mode === 'edit' && editorView !== '3d';
+  const showWorld = !drafting;
+  terrain.visible = showWorld;
+  for (const tree of treeParts) {
+    tree.trunk.visible = showWorld;
+    for (const item of tree.parts) item.mesh.visible = showWorld;
+  }
+  gridGroup.visible = (mode === 'edit') && (building || editorView === 'top');
+  elevationGrid.visible = drafting && (editorView === 'side' || editorView === 'front');
+}
 /* everything the building state shows that a circuit doesn't:
    the grid, the snap ring, a locked RIDE IT, the build hint, and
    a station checkbox that stays out of it (the station is the
    first point down; it is structural until the loop closes). */
 let buildUIKey = '';
 function syncBuildUI() {
-  gridGroup.visible = building;
+  updateDraftingVisibility();
   const entry = building ? stationEntry() : null;
   snapRing.visible = !!(entry && canClose());
   if (snapRing.visible) snapRing.position.set(entry.x, 0.12, entry.z);
@@ -2197,7 +2238,7 @@ function syncBuildUI() {
   $('buildTools').style.display = mode === 'edit' && building ? 'block' : 'none';
   for (const id of ['btnContinue', 'btnTurnLeft', 'btnTurnRight', 'btnMakeDrop'])
     $(id).disabled = !building || nodes.length === 0;
-  const key = (building ? 'b' : '-') + nodes.length;
+  const key = (building ? 'b' : '-') + nodes.length + ':' + editorView;
   if (key === buildUIKey) return;
   const wasBuilding = buildUIKey.charAt(0) === 'b';
   buildUIKey = key;
@@ -2251,7 +2292,9 @@ function buildClickAtGround(pt) {
   nodes.push({x: Math.round(pt.x * 10) / 10, z: Math.round(pt.z * 10) / 10, h: pointHeight, bank: prev.bank});
   selected = nodes.length - 1;
   buildTrack(); commit();
-  if (nodes.length === 2) toast('track is growing. drag points to shape it, drag the orange cap above a point to raise it - 8m climbs grow a lift chain.', 5200);
+  if (nodes.length === 2) toast(editorView === 'top' ?
+    'track is growing. switch to SIDE and drag nodes upward to shape the lift. TOP lays out the route at your current height.' :
+    'track is growing. drag points to shape it, drag the orange cap above a point to raise it - 8m climbs grow a lift chain.', 5200);
   else if (nodes.length === 4) toast('that is enough track to come home - ' + TAP + ' the station to close the circuit.', 4200);
 }
 
@@ -2436,6 +2479,7 @@ function setMode(m) {
   trainGroup.visible = m === 'ride';
   if (m === 'edit') { ride = null; camera.up.set(0, 1, 0); if (AC && windGain) windGain.gain.setTargetAtTime(0, AC.currentTime, 0.08); }
   $('buildTools').style.display = m === 'edit' && building ? 'block' : 'none';
+  updateDraftingVisibility();
 }
 $('btnRide').addEventListener('click', startRide);
 $('btnView').addEventListener('click', () => { if (mode === 'ride') cycleView(); });
