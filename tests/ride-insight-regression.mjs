@@ -12,8 +12,8 @@ const script=html.match(/<script type="module">([\s\S]*?)<\/script>/)?.[1];
 const core=html.match(/\/\* === CORE START === \*\/([\s\S]*?)\/\* === CORE END === \*\//)?.[1];
 assert.ok(script&&core,'game module and core present');
 new Function(script.replace(/^import[^\n]*\n/gm,'')); // browser game syntax
-const {PRESETS,computeTrack,createRide,stepRide,lapInsight}=new Function(
- 'THREE',core+'\nreturn {PRESETS,computeTrack,createRide,stepRide,lapInsight};')(THREE);
+const {PRESETS,computeTrack,createRide,stepRide,sampleAt,lapInsight}=new Function(
+ 'THREE',core+'\nreturn {PRESETS,computeTrack,createRide,stepRide,sampleAt,lapInsight};')(THREE);
 
 const track=computeTrack(PRESETS.classic);
 const fresh=createRide(track);
@@ -36,7 +36,17 @@ assert.equal(flatRide.assistSeconds,0,'powered flat coaster must not report an a
 
 // A slowed train on a sampled UNPOWERED section gets the same 1.2m/s
 // guard as before. The diagnostics must record the actual intervention.
-const probe=track.samples.find(s=>s.s>45&&s.s<track.totalLen-40&&!s.lift&&!s.brake);
+/* Choose the usable section through sampleAt(), the SAME lookup used
+   by stepRide(). Raw sample.s indices and fractional s lookups need
+   not agree exactly after a height-clamped spline. */
+const probe=track.samples.find(sm=>{
+  if(sm.s<45||sm.s>track.totalLen-45)return false;
+  for(let d=0;d<=3;d+=0.5){
+    const here=sampleAt(track,sm.s+d);
+    if(here.lift||here.brake)return false;
+  }
+  return true;
+});
 assert.ok(probe,'need unpowered test section outside brake and chain');
 const slow=createRide(track);
 slow.s=probe.s; slow.traveled=55;slow.v=0.1;
@@ -44,7 +54,8 @@ for(let i=0;i<25;i++){
   slow.v=0.1; // deliberately slow state to exercise longstanding guard
   stepRide(track,slow,1/60);
 }
-assert.ok(slow.assistSeconds>=0.25,'record accumulated assist duration');
+assert.ok(slow.assistSeconds>=0.25,
+  'record accumulated assist duration at unpowered section; got '+slow.assistSeconds);
 assert.equal(slow.firstAssistM,55,'record first assist location in travel metres');
 assert.ok(Number.isFinite(slow.slowestCruiseV));
 assert.ok(slow.slowestCruiseV<=1.2+1e-9,'slowest unpowered section recorded');
