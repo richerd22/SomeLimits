@@ -629,6 +629,67 @@ try {
     banked.nodes[1].bank,{timeout:8000});
   assert.deepEqual(multiErrors,[],'real multi-node canvas editing raised browser errors');
   console.log('PASS multi-node bank: nonstation grip adjusts only point 2 bank, neighbors stable, undo/redo exact');
+
+  /* The bank and height grips both work on an elevated nonstation
+     node. Now verify touching the ACTUAL LIME NODE on the same
+     completed, banked circuit. Large touch halos can overlap:
+     center-aiming a lime point must start a point drag, not steal
+     its orange cap or blue grip. This test catches that failure. */
+  await q.evaluate(()=>document.getElementById('btnFrame').click());
+  const groundBefore=await q.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  const groundP=await projectedMultiPoint(1);
+  await gesture('touchStart',[touch(121,groundP.node.x,groundP.node.y)]);
+  const nodeCursor=await q.evaluate(()=>document.querySelector('#app canvas').style.cursor);
+  console.log('MULTI NODE DIRECT PICK '+JSON.stringify({nodeCursor,groundP}));
+  assert.equal(nodeCursor,'move','touching the centre of the lime point must grab the NODE, not cap/grip');
+  await gesture('touchMove',[touch(121,groundP.node.x+86,groundP.node.y+1)]);
+  await gesture('touchEnd',[]);
+  await q.waitForFunction(before=>{
+    const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return Math.hypot(st.nodes[1].x-before.x,st.nodes[1].z-before.z)>4;
+  },groundBefore.nodes[1],{timeout:18000});
+  const groundAfter=await q.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.deepEqual(groundAfter.nodes.filter((_,i)=>i!==1),groundBefore.nodes.filter((_,i)=>i!==1),
+    'nonstation sideways lime drag moved neighbors');
+  assert.equal(groundAfter.nodes[1].h,groundBefore.nodes[1].h,'sideways lime drag moved height');
+  assert.equal(groundAfter.nodes[1].bank,groundBefore.nodes[1].bank,'sideways lime drag changed its banking');
+  await q.evaluate(()=>document.getElementById('btnUndo').click());
+  await q.waitForFunction(before=>{
+    const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return st.nodes[1].x===before.x&&st.nodes[1].z===before.z;
+  },groundBefore.nodes[1],{timeout:9000});
+  await q.evaluate(()=>document.getElementById('btnRedo').click());
+  await q.waitForFunction(after=>{
+    const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return st.nodes[1].x===after.x&&st.nodes[1].z===after.z;
+  },groundAfter.nodes[1],{timeout:9000});
+  console.log('PASS multi-node direct sideways lime drag: only point 2 x/z, height/bank unchanged, undo/redo exact');
+
+  await q.evaluate(()=>document.getElementById('btnFrame').click());
+  const directUpBefore=await q.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  const upP=await projectedMultiPoint(1);
+  await gesture('touchStart',[touch(131,upP.node.x,upP.node.y)]);
+  const upCursor=await q.evaluate(()=>document.querySelector('#app canvas').style.cursor);
+  assert.equal(upCursor,'move','vertical point movement should start from lime NODE, not orange cap');
+  await gesture('touchMove',[touch(131,upP.node.x+1,upP.node.y-90)]);
+  await gesture('touchEnd',[]);
+  await q.waitForFunction(h=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes[1].h>h+3,
+    directUpBefore.nodes[1].h,{timeout:18000});
+  const directUpAfter=await q.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.deepEqual(directUpAfter.nodes.filter((_,i)=>i!==1),directUpBefore.nodes.filter((_,i)=>i!==1),
+    'nonstation vertical lime drag moved neighbors');
+  for(const key of ['x','z','bank','station','lift']){
+    assert.equal(directUpAfter.nodes[1][key],directUpBefore.nodes[1][key],
+      'vertical lime drag changed '+key);
+  }
+  await q.evaluate(()=>document.getElementById('btnUndo').click());
+  await q.waitForFunction(h=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes[1].h===h,
+    directUpBefore.nodes[1].h,{timeout:9000});
+  await q.evaluate(()=>document.getElementById('btnRedo').click());
+  await q.waitForFunction(h=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes[1].h===h,
+    directUpAfter.nodes[1].h,{timeout:9000});
+  console.log('PASS multi-node direct upward lime drag: only point 2 height, ground/bank unchanged, undo/redo exact');
+  assert.deepEqual(multiErrors,[],'multi-node lime point gestures raised browser errors');
   await multi.close();
 
   console.log('PASS browser smoke: actual Three.js module + editor DOM in headless Chromium');
