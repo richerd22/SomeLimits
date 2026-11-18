@@ -83,6 +83,7 @@ node tests/physics-regression.mjs
 node tests/support-clearance-regression.mjs
 node tests/ride-insight-regression.mjs
 node tests/terrain-distance-regression.mjs
+node tests/curve-parameter-cache-regression.mjs
 node tests/node-handle-material-regression.mjs
 node tests/touch-grip-camera-regression.mjs
 node tests/touch-halo-camera-regression.mjs
@@ -91,6 +92,8 @@ node tests/touch-halo-camera-regression.mjs
 The touch-halo regression runs the exact production `addHitProxy()`, shared radius and zoom-refresh code with pinned Three.js. It checks old radius constants, all three kinds, stable Mesh count/identity and position, zoom near/far, unchanged-camera and active-edit/desktop/ride guards. See [Mobile touch halo zoom continuity](mobile-touch-halo-camera.md).
 
 The camera-grip test uses the production `editGripRadius()` and `refreshTouchBankGizmo()` with pinned Three.js camera/vectors to check zoom out/in, viewport changes, stable mesh/proxy identity and no ride/desktop/drag side effects. See [Camera-continuous bank grip](mobile-bank-grip-camera-zoom.md).
+
+The arc mapping cache test compares the exact closed/open production source to a reconstructed previous version, locks all 901 sample positions/frames/lift/banking and reports 901 fewer true Three.js arc lookups per rebuild. It runs on presets and 80/90-point paths, without changing physics. See [Arc parameter reuse](arc-parameter-cache.md).
 
 The node-handle material test extracts the production `buildNodeHandles()` and `disposeEditGroup()` helpers, proving that 80 nodes retain individual meshes and touch targets while sharing only two appearance materials (with one-time GPU disposal). See [Node-handle material pooling](node-handle-material-pooling.md).
 

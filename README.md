@@ -89,6 +89,7 @@ Start at [wiki/README.md](wiki/README.md):
 - [Editor performance + save lifecycle](wiki/editor-runtime.md) - GPU cleanup, coalesced dragging, terrain release and compact library persistence
 - [Large-coaster terrain performance](wiki/terrain-proximity-bvh.md) - exact indexed nearest-segment search, 97% fewer terrain point-to-segment projections on an 80-node loop, real browser import/edit test
 - [Shared node-handle materials](wiki/node-handle-material-pooling.md) - 80 independently pickable control points use two visual materials, not 80 material allocations every rebuild
+- [Exact arc-parameter cache](wiki/arc-parameter-cache.md) - closed/open track sampling reuses true Three.js arc mapping for height, bank and lift, eliminating 901 redundant lookups without changing geometry
 - [Support clearance performance](wiki/support-clearance.md) - indexed support checks with brute-force equivalence proof
 - [Mobile and library rendering](wiki/mobile-performance.md) - phone pixel ratio cap and lazy, bounded blueprint previews
 - [Browser smoke tests](wiki/browser-smoke.md) - verified full WebGL startup, desktop edit/save, simulated mobile station placement, and the mobile hint-overflow fix

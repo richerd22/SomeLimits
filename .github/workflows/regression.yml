@@ -38,6 +38,8 @@ jobs:
         run: node tests/node-handle-material-regression.mjs
       - name: Physics and share regression tests
         run: node tests/physics-regression.mjs
+      - name: Sample arc parameter caching and exact previous-geometry parity
+        run: node tests/curve-parameter-cache-regression.mjs
       - name: Honest ride insights and clean lap restarts
         run: node tests/ride-insight-regression.mjs
       - name: Bank grip follows mobile camera zoom without track rebuild
