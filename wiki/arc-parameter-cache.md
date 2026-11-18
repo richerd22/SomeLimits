@@ -17,16 +17,19 @@ This was true for both completed **closed** coasters and incomplete **open** tra
 
 ## Implementation
 
-Immediately after `getSpacedPoints(SAMPLES)`, both `computeTrack()` and `computeOpenTrack()` create a local `Float64Array(SAMPLES + 1)` named `curveT`. The value at each index is computed by the **real Three.js mapping function**:
+Immediately after `getSpacedPoints(SAMPLES)`, both `computeTrack()` and `computeOpenTrack()` allocate a local `Float64Array(SAMPLES + 1)` named `curveT`. **No extra traversal is added:** the existing height-guardrail loop calls the real Three.js mapping method and stores the result at the same time.
 
 ```js
 const curveT = new Float64Array(SAMPLES + 1);
-for (let i = 0; i <= SAMPLES; i++) {
-  curveT[i] = curve.getUtoTmapping(i / SAMPLES);
-}
+// Inside the existing height guardrail loop:
+const t = curve.getUtoTmapping(i / SAMPLES);
+curveT[i] = t;
+// Clamp height using t, exactly as before.
+// Later, when assigning bank and lift to the source node:
+const f = curveT[i] * N; // use N - 1 for an open curve
 ```
 
-The height guardrail now reads `const t = curveT[i]`, while source-segment ownership reads `const f = curveT[i] * N` (or `* (N - 1)` for an open track).
+This deliberately avoids a separate precomputation loop: a first implementation already removed redundant mapping calls but had inconclusive timing because of the extra pass. The final version reuses work from the height-guardrail loop. The source-node metadata loop then reads the same exact `curveT[i]` result.
 
 **Nothing else changes:** no sample count, mapping approximation, control-point reordering, interpolation method, roll easing, lift flags, station address, braking, track length, ride speed, physics or generated geometry. The table is a local, temporary 901-double cache (~7.2 KiB) rebuilt with the spline when its control points change. It is never serialized or shared between rides.
 
