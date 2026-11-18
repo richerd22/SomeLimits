@@ -217,7 +217,7 @@
   <canvas id="ggraphCv" width="248" height="104"></canvas>
 </div>
 <div id="mode" class="panel">mode: <b id="modeTxt">EDIT</b></div>
-<div id="hint" class="panel"><b>drag</b> the lime dots to shape it &middot; <b>double-click</b> the track to add a point &middot; <b>RIDE IT</b> when ready</div>
+<div id="hint" class="panel"><b>drag up</b> on a lime point to raise it &middot; <b>drag sideways</b> to move it &middot; <b>RIDE IT</b> when ready</div>
 <div id="toast"></div>
 <div id="hLabel"></div>
 
@@ -576,7 +576,7 @@ function computeTrack(nodes) {
   /* Flat-only circuits have no gravity source. Station tires power
      these instead of sending them round at walking speed. */
   const heights = nodes.map(n => n.h);
-  const poweredFlat = Math.max(...heights) - Math.min(...heights) < 2 && !samples.some(sm => sm.lift);
+  const poweredFlat = Math.max(...heights) - Math.min(...heights) < 2;
   return {samples, totalLen, stationS, curve, poweredFlat};
 }
 
@@ -2665,7 +2665,7 @@ renderer.domElement.addEventListener('pointerup', e => {
     return;
   }
   if (dragging >= 0 && building && canClose() && nodes[dragging] && nodes[dragging].station &&
-      (!dragMoved || (pressAt && Math.hypot(e.clientX - pressAt.x, e.clientY - pressAt.y) < slopFor(e.pointerType)))) {
+      (!dragMoved || (dragIntent !== 'height' && pressAt && Math.hypot(e.clientX - pressAt.x, e.clientY - pressAt.y) < slopFor(e.pointerType)))) {
     /* a still click on the station dot itself closes the loop.
        the glowing ring on the ground is the advertised target,
        but the hand aims at the dot (round-11 stranger run: the
