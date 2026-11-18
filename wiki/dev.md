@@ -82,7 +82,10 @@ npm install --no-save --no-package-lock three@0.160.0
 node tests/physics-regression.mjs
 node tests/support-clearance-regression.mjs
 node tests/ride-insight-regression.mjs
+node tests/touch-grip-camera-regression.mjs
 ```
+
+The camera-grip test uses the production `editGripRadius()` and `refreshTouchBankGizmo()` with pinned Three.js camera/vectors to check zoom out/in, viewport changes, stable mesh/proxy identity and no ride/desktop/drag side effects. See [Camera-continuous bank grip](mobile-bank-grip-camera-zoom.md).
 
 **Explicit reference values:** the physics regression now pins the lap time and top speed of Classic (27.45s / 88km/h), Oval (22.22s / 77km/h), Wild (31.44s / 92km/h), and Looper (38.08s / 75km/h), plus the original 47.5m playtest lift/crest and flat tire-powered loop. A physics edit must justify old -> new fingerprints in a playtest report before updating assertions. See [Branch and physics audit](branch-hygiene-physics-audit.md).
 
