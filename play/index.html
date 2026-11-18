@@ -128,6 +128,27 @@
     input[type=text]{padding:10px 8px;font-size:14px}
     input[type=range]{height:36px}
   }
+
+  /* Classic blueprint/elevation editing lives outside the scroll-heavy inspector.
+     The view and continuation controls remain reachable with the phone panel folded. */
+  #editorDock{position:absolute;right:12px;top:54px;z-index:7;width:236px;
+    background:rgba(12,15,19,.94);border:1px solid #354456;border-radius:6px;
+    padding:9px 10px;box-sizing:border-box;font-variant-numeric:tabular-nums}
+  #editorDock .docktitle{font-size:10px;color:#90a4b8;letter-spacing:.09em;margin:2px 0 5px}
+  #editorDock .dockrow{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+  #editorDock button{min-width:0;margin:0;padding:8px 3px;font-size:11px;white-space:nowrap}
+  #editorDock button[aria-pressed=true]{background:#C6FF00;color:#101408;border-color:#C6FF00;font-weight:700}
+  #editorDock #buildTools{margin-top:10px;padding-top:8px;border-top:1px solid #2b3644}
+  #editorDock #dockGuide{font-size:10.5px;color:#adc0d0;line-height:1.4;margin-top:7px}
+  #editorDock #btnFocusPoint{display:block;width:100%;margin-top:6px}
+  @media(max-width:760px){
+    #editorDock{top:128px;right:8px;width:204px;padding:7px}
+    #editorDock button{font-size:10px;padding:8px 2px}
+    /* The full desktop dock covered the 390px phone's central build canvas
+       down to ~380px. The core view/build actions stay thumb-sized, while
+       prose/focus move back to the expandable inspector/Frame Track. */
+    #editorDock #btnFocusPoint,#editorDock #dockGuide{display:none}
+  }
 </style>
 </head>
 <body>
@@ -211,6 +232,8 @@
     N node, Del delete, ctrl+Z/Y undo/redo, ctrl+S save, H manual, L library.
     <b style="color:#dfe6ee">orbit</b> left-drag empty space, <b style="color:#dfe6ee">pan</b> right-drag, <b style="color:#dfe6ee">zoom</b> wheel.
     <b style="color:#dfe6ee">touch:</b> a tap is a click, one finger drags and orbits, two fingers pan and pinch to zoom - the whole game, no keyboard owed.
+    view buttons: <b>TOP</b> for turns, <b>SIDE/FRONT</b> for hills, <b>3D</b> to inspect. while building, <b>+ LEVEL</b> continues at the crest, and <b>DROP</b> deliberately descends.
+    <b>keys:</b> 1 top, 2 side, 3 front, 4 3D, G focus node.
     on a portrait phone this panel starts folded to a strip so the whole plot stays tappable - <b style="color:#dfe6ee">panel +</b> opens it, panel - folds it back.
   </div>
 </div>
@@ -227,6 +250,26 @@
   <canvas id="ggraphCv" width="248" height="104"></canvas>
 </div>
 <div id="mode" class="panel">mode: <b id="modeTxt">EDIT</b></div>
+<div id="editorDock" aria-label="Coaster editor views and build actions">
+  <div class="docktitle">EDITOR VIEW</div>
+  <div class="dockrow" role="group" aria-label="Choose drawing view">
+    <button type="button" data-editor-view="top" aria-pressed="false" title="Blueprint plan: drag nodes in X/Z">TOP</button>
+    <button type="button" data-editor-view="side" aria-pressed="false" title="Side elevation: drag nodes along X and height">SIDE</button>
+    <button type="button" data-editor-view="front" aria-pressed="false" title="Front elevation: drag nodes along Z and height">FRONT</button>
+    <button type="button" data-editor-view="3d" aria-pressed="true" title="Free-orbit 3D inspection">3D</button>
+  </div>
+  <button type="button" id="btnFocusPoint" title="Zoom toward the selected point">focus selected node</button>
+  <div id="buildTools" style="display:none">
+    <div class="docktitle">BUILD FROM THE END</div>
+    <div class="dockrow">
+      <button type="button" id="btnContinue" title="Add 14 m of level track at the current height">+ LEVEL</button>
+      <button type="button" id="btnTurnLeft" title="Continue with a 45 degree left turn at the same height">↶ LEFT</button>
+      <button type="button" id="btnTurnRight" title="Continue with a 45 degree right turn at the same height">↷ RIGHT</button>
+      <button type="button" id="btnMakeDrop" title="Continue downward by up to 20 metres">↓ DROP</button>
+    </div>
+  </div>
+  <div id="dockGuide">3D: drag empty space to orbit, right-drag to pan, scroll to zoom.</div>
+</div>
 <div id="hint" class="panel"><b>drag up</b> on a lime point to raise it &middot; <b>drag sideways</b> to move it &middot; <b>RIDE IT</b> when ready</div>
 <div id="toast"></div>
 <div id="hLabel"></div>
@@ -940,12 +983,19 @@ const cloudGroup = new THREE.Group();
 }
 scene.add(cloudGroup);
 
-const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 1000);
-camera.position.set(60, 55, 85);
-
+const perspectiveCamera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 1000);
+perspectiveCamera.position.set(60, 55, 85);
+const orthoCamera = new THREE.OrthographicCamera(-80, 80, 80, -80, 0.1, 1000);
+let camera = perspectiveCamera;
+let editorView = '3d'; // separate drawing projection, never part of save/physics
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(10, 8, 0);
 controls.enableDamping = true;
+controls.zoomToCursor = true;
+controls.minDistance = 3;
+controls.maxDistance = 800;
+controls.minZoom = 0.2;
+controls.maxZoom = 20;
 
 /* one question, asked once (round 12): is the primary pointer a
    thumb? everything touch-shaped keys off this - fatter handle
@@ -1222,6 +1272,10 @@ function disposeEditGroup(group) {
    track rebuild or resized after a camera-only move. The original
    cap/grip/node factors and minimum sizes stay unchanged. */
 function touchHaloRadius(kind, distance) {
+  if (camera.isOrthographicCamera) {
+    const unitsPerPixel = (camera.top - camera.bottom) / (camera.zoom * innerHeight);
+    return Math.max(kind === 'cap' ? 2.4 : kind === 'grip' ? 2.3 : 2.6, unitsPerPixel * 19);
+  }
   return kind === 'cap' ? Math.max(2.4, distance * 0.026) :
          kind === 'grip' ? Math.max(2.3, distance * 0.025) :
                            Math.max(2.6, distance * 0.028);
@@ -1349,6 +1403,9 @@ function editGripRadius(n) {
 }
 
 function buildSelectedEditHandles() {
+  /* Elevation and blueprint points are edited directly. A perspective roll
+     ring and orange height cap obscure the dot in an orthographic drawing. */
+  if (camera.isOrthographicCamera) return;
   /* the selected point's height kit: a pole tying it to the
      ground (its height becomes visible instead of guessed), a
      ring on its footprint, and an orange cap floating above it.
@@ -1421,8 +1478,22 @@ function buildSelectedEditHandles() {
    with the new camera. Do not allocate or dispose geometry per frame,
    and do not interfere while an actual point edit owns the input. */
 function refreshTouchBankGizmo() {
-  if (!COARSE || mode !== 'edit' || dragging >= 0 || heightDrag >= 0 ||
+  if (mode !== 'edit' || dragging >= 0 || heightDrag >= 0 ||
       banking >= 0 || gripBank >= 0) return;
+  if (camera.isOrthographicCamera) {
+    /* Wheel/pinch zoom changes pixels per metre without rebuilding track.
+       Resize the original points and their original touch targets in place. */
+    const unitsPerPixel = (camera.top - camera.bottom) / (camera.zoom * innerHeight);
+    for (const mesh of handleGroup.children) {
+      if (mesh.userData.nodeIndex === undefined || (COARSE && mesh.geometry === proxyGeoUnit)) continue;
+      mesh.scale.setScalar(Math.max(1, unitsPerPixel * 9 / 1.05));
+    }
+    if (COARSE) for (const hit of handleGroup.userData.touchProxies || []) {
+      hit.mesh.scale.setScalar(touchHaloRadius(hit.kind, 0));
+    }
+    return;
+  }
+  if (!COARSE) return;
   const g = handleGroup.userData.touchBankGizmo;
   if (!g || !nodes[g.nodeIndex] || selected !== g.nodeIndex) return;
   if (g.lastHeight === innerHeight && g.lastCamera.distanceToSquared(camera.position) < 0.0001) return;
@@ -1476,6 +1547,10 @@ function buildNodeHandles() {
     }
     const h = new THREE.Mesh(hGeo, mat);
     h.position.set(n.x, n.h, n.z);
+    if (typeof camera !== 'undefined' && camera.isOrthographicCamera) {
+      const unitsPerPixel = (camera.top - camera.bottom) / (camera.zoom * innerHeight);
+      h.scale.setScalar(Math.max(1, unitsPerPixel * 9 / 1.05));
+    }
     h.userData.nodeIndex = i;
     handleGroup.add(h);
     addHitProxy(handleGroup, h.position, 'node', {nodeIndex: i});
@@ -1861,12 +1936,40 @@ function buildTrack() {
    the camera used to sit at one fixed spot no matter what the
    track looked like, so half the loop could hide behind the
    panel or drift out of frame. */
+/* Ortho drawing views: fixed axes, pan with the left mouse button,
+   wheel/pinch to zoom, no accidental orbit. No new geometry/track math. */
+function frameEditorBounds(min, max) {
+  const center = min.clone().add(max).multiplyScalar(0.5);
+  const aspect = innerWidth / innerHeight;
+  const spanHorizontal = editorView === 'top' || editorView === 'side'
+    ? max.x - min.x : max.z - min.z;
+  const spanVertical = editorView === 'top' ? max.z - min.z : max.y - min.y;
+  const halfHeight = Math.max(18, spanVertical * 0.66, spanHorizontal / aspect * 0.66);
+  orthoCamera.left = -halfHeight * aspect;
+  orthoCamera.right = halfHeight * aspect;
+  orthoCamera.top = halfHeight;
+  orthoCamera.bottom = -halfHeight;
+  orthoCamera.zoom = 1;
+  orthoCamera.updateProjectionMatrix();
+  if (editorView === 'top') {
+    orthoCamera.up.set(0, 0, -1);
+    orthoCamera.position.set(center.x, center.y + 190, center.z);
+  } else if (editorView === 'side') {
+    orthoCamera.up.set(0, 1, 0);
+    orthoCamera.position.set(center.x, center.y, center.z + 190);
+  } else {
+    orthoCamera.up.set(0, 1, 0);
+    orthoCamera.position.set(center.x + 190, center.y, center.z);
+  }
+  controls.target.copy(center);
+  orthoCamera.lookAt(center);
+  controls.update();
+}
 function frameTrack() {
-  /* With no spline yet, Frame Track should still do something:
-     frame the station, or the empty plot if nothing was placed. */
   if (!track) { framePlot(); return; }
   const min = new THREE.Vector3(1e9, 1e9, 1e9), max = new THREE.Vector3(-1e9, -1e9, -1e9);
   for (const sm of track.samples) { min.min(sm.pos); max.max(sm.pos); }
+  if (editorView !== '3d') { frameEditorBounds(min, max); return; }
   const center = min.clone().add(max).multiplyScalar(0.5);
   const radius = Math.max(20, min.distanceTo(max) / 2);
   const dist = radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) * 1.05;
@@ -1875,6 +1978,46 @@ function frameTrack() {
   controls.target.copy(center);
   camera.up.set(0, 1, 0);
   controls.update();
+}
+function focusSelectedNode() {
+  const n = nodes[selected];
+  if (!n) { frameTrack(); return; }
+  const target = new THREE.Vector3(n.x, n.h, n.z);
+  const delta = camera.position.clone().sub(controls.target);
+  controls.target.copy(target);
+  if (editorView === '3d') {
+    const distance = delta.length();
+    camera.position.copy(target).addScaledVector(delta.normalize(), Math.min(55, Math.max(15, distance)));
+  } else {
+    camera.position.copy(target).add(delta);
+    camera.zoom = Math.max(camera.zoom, Math.min(8, (camera.top - camera.bottom) / 48));
+    camera.updateProjectionMatrix();
+  }
+  controls.update();
+}
+function setEditorView(view) {
+  if (mode !== 'edit' || !['top', 'side', 'front', '3d'].includes(view)) return;
+  if (activePtr !== null) abortInterruptedInput();
+  editorView = view;
+  camera = view === '3d' ? perspectiveCamera : orthoCamera;
+  controls.object = camera;
+  controls.enableRotate = view === '3d';
+  controls.mouseButtons.LEFT = view === '3d' ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN;
+  controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+  controls.touches.ONE = view === '3d' ? THREE.TOUCH.ROTATE : THREE.TOUCH.PAN;
+  controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
+  controls.update();
+  frameTrack();
+  buildTrack(); // new view's edit handles only; leaves node coordinates and physics intact
+  for (const b of document.querySelectorAll('[data-editor-view]'))
+    b.setAttribute('aria-pressed', String(b.dataset.editorView === view));
+  const guide = {
+    top: 'TOP: drag dots to plan turns. Empty-space drag pans; wheel/pinch zooms.',
+    side: 'SIDE: drag dots for distance + height. Use TOP to change direction.',
+    front: 'FRONT: drag dots sideways + vertically. Use TOP to extend.',
+    '3d': '3D: drag empty space to orbit, right-drag to pan, scroll to zoom.'
+  };
+  $('dockGuide').textContent = guide[view];
 }
 
 /* ---------------- building from blank ----------------
@@ -2018,6 +2161,12 @@ function plotFrameTarget(list) {
 }
 function framePlot() {
   const target = plotFrameTarget(nodes);
+  if (typeof editorView !== 'undefined' && editorView !== '3d') {
+    const min = new THREE.Vector3(target.x - 58, 0, target.z - 58);
+    const max = new THREE.Vector3(target.x + 58, Math.max(50, target.y + 15), target.z + 58);
+    frameEditorBounds(min, max);
+    return;
+  }
   camera.position.set(target.x + 52, target.y + 44, target.z + 74);
   controls.target.set(target.x, target.y, target.z);
   camera.up.set(0, 1, 0);
@@ -2028,7 +2177,7 @@ function framePlot() {
 function buildHint() {
   return nodes.length === 0 ? `<b>${TAP} the ground</b> to place the station - everything starts there` :
     nodes.length === 1 ? `station is down. <b>${TAP} the ground</b> to lay track out from it` :
-    nodes.length < 4 ? `<b>${TAP}</b> to extend &middot; <b>drag sideways</b> to move &middot; <b>drag up</b> to raise a point` :
+    nodes.length < 4 ? `<b>${TAP}</b> to extend &middot; <b>TOP</b> for turns &middot; <b>SIDE</b> for height &middot; <b>DROP</b> to descend` :
     `bring it home - <b>${TAP} the station</b> to close the circuit`;
 }
 
@@ -2045,6 +2194,9 @@ function syncBuildUI() {
   $('btnRide').disabled = building;
   $('btnRide').textContent = building ? 'RIDE IT - close the loop first' : 'RIDE IT';
   els.station.disabled = building;
+  $('buildTools').style.display = mode === 'edit' && building ? 'block' : 'none';
+  for (const id of ['btnContinue', 'btnTurnLeft', 'btnTurnRight', 'btnMakeDrop'])
+    $(id).disabled = !building || nodes.length === 0;
   const key = (building ? 'b' : '-') + nodes.length;
   if (key === buildUIKey) return;
   const wasBuilding = buildUIKey.charAt(0) === 'b';
@@ -2075,6 +2227,11 @@ function buildClickAtGround(pt) {
     return;
   }
   const prev = nodes[nodes.length - 1];
+  /* TOP is a plan drawing, not a ground-height command. Placing a dot
+     horizontally from a 40m crest preserves its elevation. Switch to
+     SIDE or press DROP to shape the descent; perspective ground clicks
+     retain the original quick ground-level placement. */
+  const pointHeight = editorView === 'top' ? prev.h : 3;
   for (const n of nodes) {
     /* "too close" is a 3D question. a loop stacks points over
        the same ground on purpose - same spot, different height
@@ -2083,19 +2240,15 @@ function buildClickAtGround(pt) {
        height this click would inherit. (the old rule measured
        ground distance only, at 3m - it refused exactly the
        stacked points a loop is made of.) */
-    if (Math.hypot(pt.x - n.x, pt.z - n.z) < 1 && Math.abs(prev.h - n.h) < 2) {
+    if (Math.hypot(pt.x - n.x, pt.z - n.z) < 1 && Math.abs(pointHeight - n.h) < 2) {
       toast('that is already a point - stack it higher or lower, or nudge it sideways.');
       return;
     }
   }
-  /* the new point lands at ground height - the click was on the
-     ground, so that is where the point goes. it used to inherit
-     the previous point's height, which made a drop unbuildable
-     by clicking: every point after a crest arrived AT crest
-     height, a plateau only a panel slider could break. now the
-     drop is the default outcome of clicking onward, and height
-     is something you add by hand, with the cap. */
-  nodes.push({x: Math.round(pt.x * 10) / 10, z: Math.round(pt.z * 10) / 10, h: 3, bank: prev.bank});
+  /* TOP retains the current elevation so a crest can become a turn.
+     3D keeps its familiar ground-click placement at 3m. Both offer
+     explicit DROP and SIDE editing; this never changes existing nodes. */
+  nodes.push({x: Math.round(pt.x * 10) / 10, z: Math.round(pt.z * 10) / 10, h: pointHeight, bank: prev.bank});
   selected = nodes.length - 1;
   buildTrack(); commit();
   if (nodes.length === 2) toast('track is growing. drag points to shape it, drag the orange cap above a point to raise it - 8m climbs grow a lift chain.', 5200);
@@ -2174,6 +2327,7 @@ function resetLapState() {
 }
 function startRide() {
   if (building) { toast('no circuit, no ride - bring the track home to the station first.'); return; }
+  if (editorView !== '3d') setEditorView('3d'); // POV/chase always use perspective
   buildTrack();
   ensureAudio();   // born here, inside a user gesture, per browser rules
   resetLapState();
@@ -2276,10 +2430,12 @@ function setMode(m) {
   $('hud').style.display = m === 'ride' ? 'block' : 'none';
   $('ggraph').style.display = m === 'ride' ? 'block' : 'none';
   $('hint').style.display = m === 'edit' ? 'block' : 'none';
+  $('editorDock').style.display = m === 'edit' ? 'block' : 'none';
   if (handleGroup) handleGroup.visible = m === 'edit';
   controls.enabled = m === 'edit';
   trainGroup.visible = m === 'ride';
   if (m === 'edit') { ride = null; camera.up.set(0, 1, 0); if (AC && windGain) windGain.gain.setTargetAtTime(0, AC.currentTime, 0.08); }
+  $('buildTools').style.display = m === 'edit' && building ? 'block' : 'none';
 }
 $('btnRide').addEventListener('click', startRide);
 $('btnView').addEventListener('click', () => { if (mode === 'ride') cycleView(); });
@@ -2542,6 +2698,36 @@ els.station.addEventListener('change', () => {
 });
 els.name.addEventListener('change', () => { trackName = els.name.value.trim() || 'untitled coaster'; refreshContinue(); commit(); });
 
+/* Extension is relative to the end, not the dirt below it.
+   A lift crest needs a level continuation first; choose DROP intentionally. */
+function openExtension(a, b, kind) {
+  const dx = b ? a.x - b.x : 0, dz = b ? a.z - b.z : -14;
+  const length = Math.hypot(dx, dz) || 1;
+  const turn = kind === 'left' ? -Math.PI / 4 : kind === 'right' ? Math.PI / 4 : 0;
+  const ux = dx / length, uz = dz / length;
+  const vx = ux * Math.cos(turn) - uz * Math.sin(turn);
+  const vz = ux * Math.sin(turn) + uz * Math.cos(turn);
+  const step = kind === 'drop' ? 20 : 14;
+  return {x: THREE.MathUtils.clamp(a.x + vx * step, -150, 150),
+    z: THREE.MathUtils.clamp(a.z + vz * step, -150, 150),
+    h: kind === 'drop' ? Math.max(3, a.h - 20) : a.h, bank: a.bank};
+}
+function extendOpenTrack(kind = 'level') {
+  if (!building) { addNode(); return; }
+  if (!nodes.length) { toast('place a station first - tap the TOP blueprint.'); return; }
+  const a = nodes[nodes.length - 1], b = nodes[nodes.length - 2];
+  const next = openExtension(a, b, kind);
+  if (Math.hypot(next.x - a.x, next.z - a.z) < 0.4) {
+    toast('plot edge reached - turn toward open space or move the last node.'); return;
+  }
+  nodes.push(next);
+  selected = nodes.length - 1;
+  buildTrack(); commit();
+}
+for (const [id, kind] of [['btnContinue','level'],['btnTurnLeft','left'],
+  ['btnTurnRight','right'],['btnMakeDrop','drop']]) {
+  $(id).addEventListener('click', () => extendOpenTrack(kind));
+}
 function addNode() {
   if (building) {
     if (!nodes.length) { toast('place the station first - click the ground.'); return; }
@@ -2549,9 +2735,7 @@ function addNode() {
       /* the button extends the line: one more point out past the
          end, along the last stretch's direction */
       const a = nodes[nodes.length - 1], b = nodes[nodes.length - 2];
-      const dx = b ? a.x - b.x : 0, dz = b ? a.z - b.z : -14;
-      const l = Math.hypot(dx, dz) || 1, s = 14 / l;
-      nodes.push({x: THREE.MathUtils.clamp(a.x + dx * s, -150, 150), z: THREE.MathUtils.clamp(a.z + dz * s, -150, 150), h: 3, bank: a.bank});
+      nodes.push(openExtension(a, b, 'level'));
       selected = nodes.length - 1;
     } else {
       const a = nodes[selected], b = nodes[selected + 1];
@@ -2591,6 +2775,10 @@ $('btnDel').addEventListener('click', deleteNode);
 $('btnUndo').addEventListener('click', undo);
 $('btnRedo').addEventListener('click', redo);
 $('btnFrame').addEventListener('click', frameTrack);
+document.querySelectorAll('[data-editor-view]').forEach(b =>
+  b.addEventListener('click', () => setEditorView(b.dataset.editorView)));
+$('btnFocusPoint').addEventListener('click', focusSelectedNode);
+
 
 /* The point is the contract. Dragging one lime point must NEVER move
    the other points, adjust their bank, or pull the grabbed point away
@@ -2680,6 +2868,7 @@ function newDocument() {
   trackName = 'new coaster';
   selected = 0;
   setMode('edit');
+  setEditorView('top'); // new coaster opens as a blueprint, not a free-orbit puzzle
   buildTrack(); resetHistory(); framePlot();
   $('titleScreen').classList.remove('open');
   toast('blank plot - the grid, the dirt, nothing else. click the ground to place your station.', 3600);
@@ -2690,6 +2879,8 @@ $('btnNew').addEventListener('click', newDocument);
 const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
 let dragging = -1, dragMoved = false;
 let dragIntent = null, dragPressGround = null, dragPressHeight = 0;
+const elevationPlane = new THREE.Plane();
+let elevationPress = null;
 let capPressHeight = 0; // world-space grab offsets avoid first-move jumps
 let heightDrag = -1, heightMoved = false;  // vertical cap-drag state
 const vertPlane = new THREE.Plane();       // the upright plane a cap drag runs on
@@ -2764,7 +2955,7 @@ function cancelGesture() {
     restored = true;
   }
   dragging = -1; banking = -1; heightDrag = -1; gripBank = -1;
-  dragIntent = null; dragPressGround = null;
+  dragIntent = null; dragPressGround = null; elevationPress = null;
   dragMoved = false; bankMoved = false; heightMoved = false; gripMoved = false;
   downAt = null; grabSnap = null; pressAt = null;
   renderer.domElement.style.cursor = '';
@@ -2921,7 +3112,14 @@ renderer.domElement.addEventListener('pointerdown', e => {
       renderer.domElement.style.cursor = 'ew-resize';
     } else {
       dragging = i;
-      dragIntent = null;
+      dragIntent = editorView === 'top' ? 'ground' : null;
+      elevationPress = null;
+      if (editorView === 'side' || editorView === 'front') {
+        const normal = editorView === 'side' ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
+        elevationPlane.setFromNormalAndCoplanarPoint(normal, new THREE.Vector3(nodes[i].x, nodes[i].h, nodes[i].z));
+        const hitPoint = new THREE.Vector3();
+        elevationPress = ray.ray.intersectPlane(elevationPlane, hitPoint) ? hitPoint.clone() : null;
+      }
       dragPlane.constant = -nodes[i].h;
       const ground = new THREE.Vector3();
       dragPressGround = ray.ray.intersectPlane(dragPlane, ground) ? ground.clone() : null;
@@ -3003,6 +3201,26 @@ renderer.domElement.addEventListener('pointermove', e => {
     return;
   }
   if (dragging < 0) return;
+  if ((editorView === 'side' || editorView === 'front') && elevationPress && grabSnap) {
+    /* Fixed elevation: move exactly in the drawing plane, leaving its
+       perpendicular coordinate unchanged. No ambiguous gesture axis. */
+    if (!dragMoved && Math.hypot(e.clientX - pressAt.x, e.clientY - pressAt.y) <
+        slopFor(e.pointerType)) return;
+    castAt(e);
+    const hitPoint = new THREE.Vector3();
+    if (ray.ray.intersectPlane(elevationPlane, hitPoint)) {
+      const dx = hitPoint.x - elevationPress.x, dy = hitPoint.y - elevationPress.y;
+      const dz = hitPoint.z - elevationPress.z;
+      const movedPlan = editorView === 'side'
+        ? setNodePlanPosition(nodes, dragging, grabSnap.x + dx, grabSnap.z)
+        : setNodePlanPosition(nodes, dragging, grabSnap.x, grabSnap.z + dz);
+      const nh = THREE.MathUtils.clamp(Math.round((grabSnap.h + dy) * 10) / 10, 1, 80);
+      const movedHeight = nodes[dragging].h !== nh;
+      if (movedHeight) nodes[dragging].h = nh;
+      if (movedPlan || movedHeight) { dragMoved = true; queueTrackPreview(); }
+    }
+    return;
+  }
   /* A clear screen-up drag raises the point. Sideways drags shape the
      ground plan. The axis is chosen once after a small dead zone. */
   if (!dragIntent) {
@@ -3090,7 +3308,7 @@ renderer.domElement.addEventListener('pointerup', e => {
      settle only when dragging is -1. The old order rebuilt while
      the drag flag was still set, so the expensive settle was skipped. */
   const editedNode = dragging, changedNode = dragMoved;
-  dragging = -1; dragIntent = null; dragPressGround = null; grabSnap = null;
+  dragging = -1; dragIntent = null; dragPressGround = null; elevationPress = null; grabSnap = null;
   renderer.domElement.style.cursor = '';
   controls.enabled = mode === 'edit';
   if (editedNode >= 0 && changedNode) {
@@ -3444,6 +3662,11 @@ addEventListener('keydown', e => {
     if (e.key === 'r' || e.key === 'R') startRide();
     if (e.key === 'f' || e.key === 'F') frameTrack();
     if (e.key === 'n' || e.key === 'N') addNode();
+    if (e.key === '1') setEditorView('top');
+    if (e.key === '2') setEditorView('side');
+    if (e.key === '3') setEditorView('front');
+    if (e.key === '4') setEditorView('3d');
+    if (e.key === 'g' || e.key === 'G') focusSelectedNode();
     if (e.key === 'Delete' || e.key === 'Backspace') deleteNode();
     if (e.key === 'l' || e.key === 'L') { renderLib(); $('libraryScreen').classList.add('open'); }
     if (e.key === 'h' || e.key === 'H') $('manualScreen').classList.add('open');
@@ -3578,8 +3801,14 @@ function loop() {
 }
 loop();
 addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
+  perspectiveCamera.aspect = innerWidth / innerHeight;
+  perspectiveCamera.updateProjectionMatrix();
+  if (editorView !== '3d') {
+    const halfHeight = (orthoCamera.top - orthoCamera.bottom) / 2;
+    orthoCamera.left = -halfHeight * innerWidth / innerHeight;
+    orthoCamera.right = halfHeight * innerWidth / innerHeight;
+    orthoCamera.updateProjectionMatrix();
+  }
   const ratio = gamePixelRatio(window.devicePixelRatio);
   if (ratio !== renderer.getPixelRatio()) renderer.setPixelRatio(ratio);
   renderer.setSize(innerWidth, innerHeight);

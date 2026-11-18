@@ -24,6 +24,10 @@ The name is a dry joke: there always were some limits. We are owning them.
 
 **The acceptance test:** a returning NL1 builder lays a full closed-circuit coaster within minutes, with zero tutorial and zero mode taxonomy.
 
+## Classic blueprint / elevation editor (Round 25)
+
+**TOP** for laying out turns, **SIDE** and **FRONT** for shaping climbs and drops, **3D** for inspecting the whole coaster. The views use genuine orthographic drawing cameras, not awkward perspective shortcuts. Blank coasters start in TOP; 1/2/3/4 switch views, G focuses a node, and Frame Track fits the whole layout. In TOP, clicking to add a new point on an open track retains the current height—so the next bend after a lift crest is **not** a sudden accidental drop. The open-track **+ LEVEL / LEFT / RIGHT / DROP** buttons make each choice explicit; side/front nodes drag in fixed elevation planes. Ride mode still uses the original perspective physics camera. See [complete editor design and limitations](wiki/blueprint-elevation-editor.md).
+
 ## What you get
 
 - A complete closed-circuit coaster, end to end: station, lift hill, drops, banked turns, inversions if you build them, brake run back to the station.
