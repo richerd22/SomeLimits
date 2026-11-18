@@ -56,3 +56,4 @@ v1, shipped. Anything beyond the shipped list in these pages is marked planned.
 - [Orthographic drafting-paper clarity and physical SIDE/FRONT touch regression](drafting-views-round26.md) (Round 26)
 - [Precision editor: overlapping node navigation, coordinates and view-correct keyboard nudging](precision-node-authoring-round27.md) (Round 27)
 - [Draw new track directly in SIDE/FRONT with a ghost preview and view-stable zoom](elevation-drawing-round28.md) (Round 28)
+- [Optional 1m/5m drawing snap, TOP ghost preview and measured next segment](drafting-snap-round29.md) (Round 29)

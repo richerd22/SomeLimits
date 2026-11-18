@@ -533,6 +533,8 @@ try {
     const stored=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
     for(const [kind,expected] of [['cap','ns-resize'],['grip','grabbing']]){
       const pt=centers[kind],id=220+angle+ (kind==='grip'?1:0);
+      const topElement=await mp.evaluate(point=>document.elementFromPoint(point.x,point.y)?.tagName,pt);
+      assert.equal(topElement,'CANVAS','mobile dock must not cover '+kind+' at bank '+angle+' (screen '+pt.x+','+pt.y+')');
       await send('touchStart',[finger(id,pt.x,pt.y)]);
       const actual=await mp.evaluate(()=>document.querySelector('#app canvas').style.cursor);
       console.log('EXTREME HANDLE TOUCH '+JSON.stringify({angle,kind,actual,expected}));
@@ -759,6 +761,67 @@ try {
   assert.deepEqual((await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
     drawnFront.nodes,'Redo returns exact FRONT-drawn geometry');
   console.log('PASS elevation DRAW WebGL: SIDE tap creates lift, FRONT tap shapes next segment, camera zoom survives view switching, FIT resets, exact Undo/Redo');
+  /* Round 29: opt-in 5m grid snapping across the three blueprint views.
+     Real touch tests use the game's actual click-to-place path, not a
+     fake call into the quantizer. The default OFF case has already
+     been checked in every previous 3D/2D gesture. */
+  await mp.locator('#btnGridSnap').tap();
+  assert.equal(await mp.locator('#btnGridSnap').textContent(),'snap: 1m');
+  await mp.locator('#btnGridSnap').tap();
+  assert.equal(await mp.locator('#btnGridSnap').textContent(),'snap: 5m');
+  await mp.locator('[data-editor-view="top"]').tap();
+  await mp.evaluate(()=>{
+    document.getElementById('btnNew').click();
+    document.getElementById('btnNew').click();
+  });
+  await mp.waitForFunction(()=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.nodes?.length===0&&d?.building===true;
+  });
+  await mp.touchscreen.tap(195,380);
+  await mp.waitForFunction(()=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.nodes?.length===1&&d.nodes[0].station===true;
+  });
+  const snappedStation=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes[0]);
+  assert.equal(Math.abs(snappedStation.x%5),0,'TOP station X snapped to 5m grid');
+  assert.equal(Math.abs(snappedStation.z%5),0,'TOP station Z snapped to 5m grid');
+  const snapSidePixel=await projectedLoneElevation('side');
+  await mp.touchscreen.tap(snapSidePixel.x+70,snapSidePixel.y-54);
+  await mp.waitForFunction(()=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.nodes?.length===2;
+  },null,{timeout:14000});
+  const snappedSide=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.equal(Math.abs(snappedSide.nodes[1].x%5),0,'SIDE new point X snaps to 5m');
+  assert.equal(Math.abs(snappedSide.nodes[1].h%5),0,'SIDE new point height snaps to 5m');
+  assert.equal(snappedSide.nodes[1].z,snappedStation.z,'SIDE hidden Z stays exact');
+  await mp.locator('[data-editor-view="top"]').tap();
+  /* Move a real mouse over otherwise empty drafting paper. The
+     ghost preview shows distance + height change without persisting
+     a point or forcing an expensive track rebuild. */
+  await mp.mouse.move(110,510);
+  await mp.waitForFunction(()=>{
+    const label=document.getElementById('draftMeasure').textContent;
+    return label.includes('m · ')&&label.includes('m H');
+  },null,{timeout:7000});
+  assert.deepEqual((await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
+    snappedSide.nodes,'moving ghost preview never edits the coaster');
+  await mp.touchscreen.tap(110,510);
+  await mp.waitForFunction(()=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.nodes?.length===3;
+  },null,{timeout:14000});
+  const snappedTop=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.equal(Math.abs(snappedTop.nodes[2].x%5),0,'TOP new turn X snaps to 5m');
+  assert.equal(Math.abs(snappedTop.nodes[2].z%5),0,'TOP new turn Z snaps to 5m');
+  assert.equal(snappedTop.nodes[2].h,snappedSide.nodes[1].h,
+    'TOP still inherits exact lift crest height');
+  await mp.locator('#btnGridSnap').tap();
+  assert.equal(await mp.locator('#btnGridSnap').textContent(),'snap: off');
+  assert.deepEqual((await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
+    snappedTop.nodes,'toggling snap does not retroactively change any source point');
+  console.log('PASS real 5m SNAP WebGL: TOP station, SIDE uphill new node, TOP turn and ghost readout; snap OFF leaves geometry unchanged');
   assert.deepEqual(mobileErrors,[],'real blueprint continuation and camera views produced no WebGL errors');
   console.log('PASS blueprint WebGL: TOP new, 42.5m crest, LEVEL, LEFT, DROP, Undo/Redo, SIDE/FRONT/3D views');
   await mobile.close();
