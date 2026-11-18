@@ -2616,7 +2616,11 @@ const els = {idx: $('nodeIdx'), h: $('rngH'), b: $('rngB'), hVal: $('hVal'), bVa
              z: $('inpNodeZ'), coords: $('nodeCoords'), prev: $('btnPrevNode'), next: $('btnNextNode')};
 
 let history = [], hIndex = -1;
-function snapshot() { return {name: trackName, nodes: structuredClone(nodes), building}; }
+/* Keep selected index in in-memory Undo history only. The autosave,
+   share link, NL2 CSV and JSON export document schemas stay untouched.
+   Otherwise undoing then redoing a DROP leaves the selection on the
+   penultimate point and the next arrow edits the wrong control node. */
+function snapshot() { return {name: trackName, nodes: structuredClone(nodes), building, selected}; }
 function commit() {
   history = history.slice(0, hIndex + 1);
   history.push(snapshot());
@@ -2628,7 +2632,8 @@ function commit() {
 function applyState(st) {
   trackName = st.name; nodes = structuredClone(st.nodes);
   building = !!st.building;
-  selected = nodes.length ? Math.min(selected, nodes.length - 1) : 0;
+  selected = nodes.length ?
+    THREE.MathUtils.clamp(Number.isInteger(st.selected) ? st.selected : selected, 0, nodes.length - 1) : 0;
   liftToastMutedUntil = performance.now() + 2500; // a restored lift is not a newborn lift
   buildTrack(); syncPanel(); autosave();
 }
