@@ -20,14 +20,18 @@ That is a particularly poor first impression for a point-driven editor. The very
 
 The blank plot still has **zero handles**; the first station has one lime dot **plus the orange/blue kit**; later open/closed coasters keep their established behavior.
 
+### Follow-up: the floating number must also work before a spline
+
+The handle geometry fix exposed a separate render-loop guard: the height/bank label was only drawn when `track` existed. A one-station draft has `track === null` by design, so its newly available cap and grip worked but **the nearby live number stayed invisible**. The follow-up removes only that `track` condition. The real prerequisite is `mode === 'edit'`, an existing selected node, and no open overlay. An empty plot still shows no label; the first station immediately shows its height, moves its height readout live with the orange cap, switches to live blue banking degrees during a grip drag, and returns to height on release. The underlying height and bank controls/physics never changed.
+
 ## Automated browser verification
 
 The headless Chromium test loads the unchanged game in a simulated 390×844 touchscreen with deviceScaleFactor 3 and actual software WebGL. After placing one station, it:
 
 - Uses the actual **Frame Track** button to center that node at a known camera offset.
 - Calculates the projected on-screen positions of its real orange cap and bank grip with the same pinned Three.js `PerspectiveCamera` mathematics (62° FOV and the familiar +52/+44/+74 framing offset). No mock editor API is injected into the production HTML.
-- Sends **real browser touch events** to the orange cap's projected pixel, drags vertically, and confirms the actual autosaved node height increases while x/z/bank stay exact. Undo and Redo must reproduce the original and new heights.
-- Starts a second touch on the blue grip and moves it around the bank roll ring toward +90°. The actual saved banking must change while height and x/z remain untouched. Undo and Redo must return exactly to the original and new banking numbers.
+- Sends **real browser touch events** to the orange cap's projected pixel, drags vertically, and confirms the actual autosaved node height increases while x/z/bank stay exact. Undo and Redo must reproduce the original and new heights. A follow-up test additionally checks that the floating height readout is visible **during** the drag, not just after it.
+- Starts a second touch on the blue grip and moves it around the bank roll ring toward +90°. The actual saved banking must change while height and x/z remain untouched. Undo and Redo must return exactly to the original and new banking numbers. A follow-up checks the floating label reads the **exact current bank degrees** during the grip drag, then returns to height on release.
 - Keeps the existing point vertical/sideways drag, two-finger interruption, blur/capture loss and draft export/import smoke tests.
 
 This is integration coverage, not just a source-extracted math test; if either precision handle disappears on the lone node, the corresponding real touch test will fail.
