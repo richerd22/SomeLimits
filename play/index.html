@@ -2585,7 +2585,7 @@ function cancelGesture() {
   dragging = -1; banking = -1; heightDrag = -1; gripBank = -1;
   dragIntent = null; dragPressGround = null;
   dragMoved = false; bankMoved = false; heightMoved = false; gripMoved = false;
-  downAt = null; grabSnap = null;
+  downAt = null; grabSnap = null; pressAt = null;
   renderer.domElement.style.cursor = '';
   if (hadGrab && mode === 'edit') { controlsHeld = true; controls.enabled = false; }
   else controls.enabled = (mode === 'edit');
@@ -2959,6 +2959,34 @@ renderer.domElement.addEventListener('pointercancel', e => {
      camera hold can let go right here. */
   releaseControlsHold();
 });
+/* Pointer capture can disappear WITHOUT a pointercancel: browser
+   chrome steals focus, the tab is backgrounded, or the OS interrupts
+   capture. A stuck activePtr then interprets the next real press as a
+   "second finger", and an unfinished grabbed node can be stranded.
+   Roll back just like pointercancel; never commit a half-gesture.
+   Normal pointerup clears activePtr BEFORE the browser fires the
+   implicit lostpointercapture, so ordinary completed drags are safe. */
+renderer.domElement.addEventListener('lostpointercapture', e => {
+  if (activePtr !== e.pointerId) return;
+  activePtr = null;
+  cancelGesture();
+  releaseControlsHold();
+});
+/* If the entire window loses focus, even captured pointer events
+   may never deliver an up/cancel. A backgrounded tab's half-drag
+   must not persist or leave the camera disabled on return. */
+function abortInterruptedInput() {
+  if (activePtr === null && passengerPtrs.size === 0) return;
+  activePtr = null;
+  passengerPtrs.clear();
+  cancelGesture();
+  releaseControlsHold();
+}
+addEventListener('blur', abortInterruptedInput);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) abortInterruptedInput();
+});
+
 /* right-drag on a node is a bank drag, so the context menu never
    gets a say in edit mode (right-drag on empty space still pans). */
 renderer.domElement.addEventListener('contextmenu', e => { if (mode === 'edit') e.preventDefault(); });

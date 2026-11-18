@@ -224,6 +224,119 @@ try {
   assert.deepEqual(mobileErrors,[],'mobile page errors after station tap');
   console.log('PASS mobile WebGL: 3x -> 2x raster, blank plot, station placed by touch');
 
+  /* Real Chromium touch events, not element.tap() or fake JS edits:
+     the station has no cap/grip, so aiming a finger at its projected
+     centre tests the same lime-node gesture users have. Frame Track
+     puts the one point at the exact centre of the viewport. */
+  await mp.evaluate(()=>document.getElementById('btnFrame').click());
+  const original=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  const station=original.nodes[0];
+  const center={x:195,y:422};
+  const cdp=await mobile.newCDPSession(mp);
+  const finger=(id,x,y)=>({id,x,y});
+  const send=(type,touchPoints)=>cdp.send('Input.dispatchTouchEvent',{type,touchPoints});
+  await send('touchStart',[finger(10,center.x,center.y)]);
+  await send('touchMove',[finger(10,center.x,center.y-105)]);
+  await send('touchEnd',[]);
+  await mp.waitForFunction((before)=>{
+    const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return st?.nodes?.length===1 && st.nodes[0].h > before.h+3;
+  },station,{timeout:12000});
+  const raised=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.equal(raised.nodes[0].x,station.x,'vertical drag moved ground x');
+  assert.equal(raised.nodes[0].z,station.z,'vertical drag moved ground z');
+  assert.equal(raised.nodes[0].bank,station.bank,'vertical drag altered bank');
+  assert.equal(raised.nodes[0].station,true,'vertical drag lost station role');
+  await mp.evaluate(()=>document.getElementById('btnUndo').click());
+  await mp.waitForFunction((before)=>{
+    const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return st?.nodes?.length===1 && st.nodes[0].h===before.h;
+  },station,{timeout:8000});
+  await mp.evaluate(()=>document.getElementById('btnRedo').click());
+  await mp.waitForFunction((h)=>{
+    const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return st?.nodes?.length===1 && st.nodes[0].h===h;
+  },raised.nodes[0].h,{timeout:8000});
+  console.log('PASS true touch drag: raise one station point, unchanged x/z/bank, undo and redo');
+
+  /* Simulate an interrupted touch: move the grabbed point, then
+     lose window focus before finger-up. Uncommitted point movement
+     must roll back, and a subsequent pointer must work normally. */
+  await mp.evaluate(()=>document.getElementById('btnUndo').click());
+  await mp.evaluate(()=>document.getElementById('btnFrame').click());
+  await send('touchStart',[finger(21,center.x,center.y)]);
+  await send('touchMove',[finger(21,center.x,center.y-80)]);
+  await mp.waitForFunction((h)=>document.getElementById('hVal').textContent !== h.toFixed(1)+' m',
+    station.h,{timeout:9000});
+  await mp.evaluate(()=>window.dispatchEvent(new Event('blur')));
+  await send('touchEnd',[]);
+  await mp.waitForFunction((h)=>document.getElementById('hVal').textContent === h.toFixed(1)+' m',
+    station.h,{timeout:9000});
+  const aborted=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.deepEqual(aborted.nodes,original.nodes,'blur cannot commit a half drag');
+  console.log('PASS interrupted touch: blur restores node and does not change persisted document');
+
+  /* A second simultaneous touch is not an instruction to move the
+     grabbed point with the passenger finger. It must undo the first
+     uncommitted edit, hold OrbitControls while the grab is unresolved,
+     and release all ownership when both fingers lift. */
+  await mp.evaluate(()=>document.getElementById('btnFrame').click());
+  await send('touchStart',[finger(31,center.x,center.y)]);
+  await send('touchMove',[finger(31,center.x,center.y-85)]);
+  await mp.waitForFunction(h=>document.getElementById('hVal').textContent !== h.toFixed(1)+' m',
+    station.h,{timeout:9000});
+  await send('touchStart',[finger(31,center.x,center.y-85),finger(32,center.x+50,center.y-25)]);
+  await mp.waitForFunction(h=>document.getElementById('hVal').textContent === h.toFixed(1)+' m',
+    station.h,{timeout:9000});
+  await send('touchMove',[finger(31,center.x,center.y-120),finger(32,center.x+65,center.y-15)]);
+  await send('touchEnd',[]);
+  const afterPinch=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.deepEqual(afterPinch.nodes,original.nodes,'two-finger cancellation must not persist a half edit');
+
+  /* Capture loss is distinct from pointercancel: some browsers
+     drop it when focus changes or a gesture is handed to browser
+     chrome. Revoke canvas capture while the finger remains down. */
+  await mp.evaluate(()=>{
+    const canvas=document.querySelector('#app canvas');
+    canvas.addEventListener('pointerdown',e=>{window.__slTestActiveId=e.pointerId;},{capture:true});
+    document.getElementById('btnFrame').click();
+  });
+  await send('touchStart',[finger(41,center.x,center.y)]);
+  await send('touchMove',[finger(41,center.x,center.y-80)]);
+  await mp.waitForFunction(h=>document.getElementById('hVal').textContent !== h.toFixed(1)+' m',
+    station.h,{timeout:9000});
+  const hadCapture=await mp.evaluate(()=>{
+    const canvas=document.querySelector('#app canvas'),id=window.__slTestActiveId;
+    if(id==null)return false;
+    const held=canvas.hasPointerCapture(id);
+    if(held)canvas.releasePointerCapture(id);
+    return held;
+  });
+  assert.equal(hadCapture,true,'node drag must own pointer capture');
+  /* Pointer Events processes a pending release at the NEXT pointer
+     event; releasePointerCapture() does not guarantee synchronous
+     lostpointercapture dispatch. Move while the finger is still
+     down to trigger real browser capture-release ordering. */
+  await send('touchMove',[finger(41,center.x,center.y-81)]);
+  await mp.waitForFunction(h=>document.getElementById('hVal').textContent === h.toFixed(1)+' m',
+    station.h,{timeout:9000});
+  await send('touchEnd',[]);
+  const afterLost=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.deepEqual(afterLost.nodes,original.nodes,'lostpointercapture must roll back uncommitted drag');
+
+  /* The next touch must still work. This also detects a stuck
+     activePtr or controlsHeld after either cancellation path. */
+  await mp.evaluate(()=>document.getElementById('btnFrame').click());
+  await send('touchStart',[finger(51,center.x,center.y)]);
+  await send('touchMove',[finger(51,center.x,center.y-75)]);
+  await send('touchEnd',[]);
+  await mp.waitForFunction(h=>{
+    const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return st?.nodes?.length===1&&st.nodes[0].h>h+3;
+  },station.h,{timeout:12000});
+  console.log('PASS multi-touch and capture loss: uncommitted drags roll back; next touch remains usable');
+  assert.deepEqual(mobileErrors,[],'mobile errors after touch drag and interruption');
+
   await mobile.close();
   console.log('PASS browser smoke: actual Three.js module + editor DOM in headless Chromium');
 } finally {

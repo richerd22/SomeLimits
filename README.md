@@ -94,6 +94,7 @@ Start at [wiki/README.md](wiki/README.md):
 - [Framing a lone station](wiki/station-framing.md) - why Frame Track must focus the only control point in an open draft
 - [Honest lap feedback](wiki/ride-insight.md) - report when the simplified physics used a minimum-speed assist and reset G traces between rides
 - [Empty draft controls and stations](wiki/empty-node-station.md) - clear non-existent node controls; always retain one station on a finished coaster
+- [Touch gestures and interruption recovery](wiki/interruptions-and-touch-regression.md) - roll back unfinished drags after capture loss or browser focus loss; real Chromium touch drag/undo integration
 
 ## Quality checks
 

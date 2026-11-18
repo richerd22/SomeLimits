@@ -43,6 +43,10 @@ The next performance pass added `supportSpatialIndex()` for centre-post clearanc
 
 A library-cache follow-up evicts a deleted coaster's derived blueprint immediately after a successful library write, instead of retaining it until refresh. The existing editor regression tests enforce this.
 
+## Interruption recovery and actual browser drag tests
+
+A follow-up added explicit `lostpointercapture`, window `blur` and page-hidden cancellation. These events can occur without the ordinary pointerup/pointercancel pair, and otherwise leave a stale pointer owner, disabled camera and an uncommitted point in limbo. The same existing `cancelGesture()` restores the grabbed snapshot; normal release remains authoritative and immune to its subsequent implicit lostpointercapture. The integration test now drives the actual mobile Chromium pointer lifecycle on the one-point station: touch-raise, unchanged plan/bank, undo/redo, then a half-drag interrupted by blur. See [Touch interruptions](interruptions-and-touch-regression.md) for rationale, exact checks, remaining physical iOS tests and rollback semantics.
+
 ## Known limits / next work
 
 This round does not replace the GPU benchmark with measured FPS on real iOS Safari. Coalescing prevents redundant work within a frame, but individual rebuilds remain heavy (support clearances and terrain projection still cost CPU). Real-device profiling is the next step, and further optimization must preserve the support keep-out checks, especially vertical loops and crossovers.
