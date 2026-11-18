@@ -449,7 +449,12 @@ function sanitizeNodes(arr) {
     lift: !!n.lift, station: !!n.station
   }));
   if (out.length < 4) return null;
-  if (!out.some(n => n.station)) out[0].station = true;
+  /* Save/share/import all use this sanitizer. Preserve the first
+     designated station, or node 0 when none exists, and discard
+     duplicate flags. A completed document cannot have zero or
+     multiple stations, even if older JSON supplied them. */
+  const stationIndex = Math.max(0, out.findIndex(n => n.station));
+  out.forEach((n, i) => { n.station = i === stationIndex; });
   return out;
 }
 
