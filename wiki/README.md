@@ -24,6 +24,7 @@ North star, in one line: a returning NL1 builder lays a full closed-circuit coas
 - [First station precision handles](first-station-precision-handles.md) - shared cap/grip renderer for the first station and completed tracks; touch-gesture proof.
 - [Screen-readable mobile bank grip](touch-grip-pixel-target.md) - camera-relative blue gizmo at zoom, five-point real-touch regression, unchanged desktop geometry.
 - [Bank grip remains readable after zoom](mobile-bank-grip-camera-zoom.md) - transform existing touch gizmo meshes with OrbitControls, no track re-sampling or GPU churn.
+- [All touch halos follow camera zoom](mobile-touch-halo-camera.md) - original cap/node/grip radius policy, reusing the same proxy meshes, no track rebuild.
 - [Extreme-bank touch ownership](extreme-bank-touch-arbitration.md) - touch-test cap, blue grip and lime node separately at -90/-80/+90 degrees, grounded pixel gaps.
 - [Lift/drag playtest repair](../playtest-2026-11-18.md) - physics before/after for all four presets and the custom playtest.
 - [Branch/physics audit](branch-hygiene-physics-audit.md) - why squash-merged PR heads look divergent, safe cleanup and exact regression fingerprints.

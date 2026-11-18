@@ -17,6 +17,7 @@ function source(begin,end) {
   return script.slice(a,b);
 }
 const sizing=source('function editGripRadius(n) {','function buildSelectedEditHandles()');
+const haloSizing=source('function touchHaloRadius(kind, distance) {','function addHitProxy(');
 const resizing=source('function refreshTouchBankGizmo() {','function buildTrack()');
 assert.ok(resizing.includes('g.proxy.position.copy(g.grip.position)'));
 assert.ok(resizing.includes('g.bar.scale.y = scale'));
@@ -46,7 +47,7 @@ const handleGroup={userData:{touchBankGizmo:metadata}};
 function create(coarse=true,mode='edit',editing=-1,viewportHeight=844) {
  return new Function('THREE','camera','COARSE','innerHeight','handleGroup','nodes',
     'selected','mode','dragging','heightDrag','banking','gripBank',
-    sizing+'\n'+resizing+'\nreturn {refreshTouchBankGizmo,editGripRadius};'
+    sizing+'\n'+haloSizing+'\n'+resizing+'\nreturn {refreshTouchBankGizmo,editGripRadius};'
  )(THREE,view,coarse,viewportHeight,handleGroup,nodes,0,
    mode,editing,-1,-1,-1);
 }
