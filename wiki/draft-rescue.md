@@ -34,6 +34,10 @@ Worse, the JSON export button refused to export unfinished tracks. So the people
 - A draft can contain zero points. For 1+ points, the first is the station. Banking, lift flags, heights and point order are preserved with the existing numeric limits.
 - Completed coaster JSON exports retain the previous schema and filename, and completed JSON imports still require four or more points. CSV and URL share formats are unchanged.
 
+### Related editor-state follow-up
+
+A subsequent [empty node and station repair](empty-node-station.md) makes a zero-node draft disable its node-specific controls and clear stale labels, and a one-station draft report its actual height and node count without inventing a circuit. A finished coaster's station checkbox now changes ownership, not whether the coaster has any station.
+
 ### One source of draft sanitization
 
 `sanitizeDraftNodes()` is shared by branded draft imports/exports and boot-time recovery of an unfinished coaster from autosave. It admits fewer than four points but keeps the same coordinate, height, bank, lift and station rules that were previously duplicated in boot logic. The strict `sanitizeNodes()` still validates finished circuits.
