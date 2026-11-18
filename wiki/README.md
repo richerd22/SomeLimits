@@ -23,6 +23,7 @@ North star, in one line: a returning NL1 builder lays a full closed-circuit coas
 - [Touch interruptions and actual gesture testing](interruptions-and-touch-regression.md) - recover from focus/capture loss and test the real 3D point drag through Chromium.
 - [First station precision handles](first-station-precision-handles.md) - shared cap/grip renderer for the first station and completed tracks; touch-gesture proof.
 - [Screen-readable mobile bank grip](touch-grip-pixel-target.md) - camera-relative blue gizmo at zoom, five-point real-touch regression, unchanged desktop geometry.
+- [Extreme-bank touch ownership](extreme-bank-touch-arbitration.md) - touch-test cap, blue grip and lime node separately at -90/-80/+90 degrees, grounded pixel gaps.
 - [Lift/drag playtest repair](../playtest-2026-11-18.md) - physics before/after for all four presets and the custom playtest.
 - [Branch/physics audit](branch-hygiene-physics-audit.md) - why squash-merged PR heads look divergent, safe cleanup and exact regression fingerprints.
 
