@@ -91,6 +91,7 @@ Start at [wiki/README.md](wiki/README.md):
 - [Mobile and library rendering](wiki/mobile-performance.md) - phone pixel ratio cap and lazy, bounded blueprint previews
 - [Browser smoke tests](wiki/browser-smoke.md) - verified full WebGL startup, desktop edit/save, simulated mobile station placement, and the mobile hint-overflow fix
 - [Exact point drags](wiki/direct-point-drag.md) - remove hidden neighbour shifts and banking edits after releasing a dragged point
+- [Complete-coaster lime drag](wiki/completed-lime-node-touch.md) - true mobile Chromium five-node tests of both sideways and upward non-station control-point movement, exact undo/redo and unchanged neighbors
 - [Draft backup and autosave safety](wiki/draft-rescue.md) - localStorage quota warnings and rescue JSON for unfinished builds
 - [Framing a lone station](wiki/station-framing.md) - why Frame Track must focus the only control point in an open draft
 - [Honest lap feedback](wiki/ride-insight.md) - report when the simplified physics used a minimum-speed assist and reset G traces between rides
