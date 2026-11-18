@@ -91,6 +91,7 @@ Start at [wiki/README.md](wiki/README.md):
 - [Browser smoke tests](wiki/browser-smoke.md) - verified full WebGL startup, desktop edit/save, simulated mobile station placement, and the mobile hint-overflow fix
 - [Exact point drags](wiki/direct-point-drag.md) - remove hidden neighbour shifts and banking edits after releasing a dragged point
 - [Draft backup and autosave safety](wiki/draft-rescue.md) - localStorage quota warnings and rescue JSON for unfinished builds
+- [Framing a lone station](wiki/station-framing.md) - why Frame Track must focus the only control point in an open draft
 
 ## Quality checks
 

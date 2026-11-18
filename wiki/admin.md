@@ -74,4 +74,5 @@ Screenshots of the actual running app are fine - they are the code-rendered game
 - [ ] Browser smoke passes (headless WebGL boot, desktop edit + save + thumbnail, emulated mobile blank plot + station tap). Keep physical iOS Safari manual testing separate.
 - [ ] Direct point regression passes (no post-release neighbour shifts, no accidental bank edits, exact point position).
 - [ ] Draft rescue regression passes (unfinished JSON round-trip, unchanged finished exports, quota warning and recovery). Browser smoke exercises actual export/import controls.
+- [ ] Frame a lone distant station after importing a draft; Frame Track should center it even with no spline.
 - [ ] If drag or rendering changed, validate pointercancel and iOS Safari on hardware; headless tests do not prove WebGL responsiveness.

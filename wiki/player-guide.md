@@ -33,6 +33,7 @@ Closed the loop with no hill at all? It still rides. A genuinely flat circuit ge
 ## The editor
 
 - The track is a closed loop of nodes. One node is the station. That is where rides start and end.
+- **Frame Track** works even if you have only placed a station. It brings that point back into view, including if a restored draft's station is far from the center of the plot.
 - The selected node grows a pole down to the ground, a ring on its footprint, and an orange cap floating above it. The cap is the height handle: drag it up or down and the node's height follows, with the number floating beside it. Heights are never smoothed, inherited, or second-guessed - what you set is what stays. The panel sliders drive the same numbers for precision.
 - The selected node also grows a blue grip on the end of a bar, riding a faint ring around the point. The grip is the banking handle: it sits wherever the current bank has rolled it, and dragging it around the ring rolls the track with it, degrees floating by the point. Shift-dragging the node sideways does the same thing the old way.
 - Double-click the track to insert a node at that point.

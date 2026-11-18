@@ -58,7 +58,10 @@ node tests/editor-runtime-regression.mjs
 node tests/library-render-regression.mjs
 node tests/direct-point-drag-regression.mjs
 node tests/draft-rescue-regression.mjs
+node tests/station-framing-regression.mjs
 ```
+
+The station-framing regression extracts the actual camera target and fallback functions, checks empty-plot coordinates are unchanged, then checks a distant lone station becomes the orbit target without mutating data. See [Station framing](station-framing.md).
 
 The draft rescue regression covers branded open JSON round-trips with 0/1/2/3/5 points, normal completed-format compatibility, and storage quota warning/recovery with the actual autosave helper. See [Draft rescue](draft-rescue.md).
 

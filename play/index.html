@@ -1633,7 +1633,9 @@ function buildTrack() {
    track looked like, so half the loop could hide behind the
    panel or drift out of frame. */
 function frameTrack() {
-  if (!track) return;
+  /* With no spline yet, Frame Track should still do something:
+     frame the station, or the empty plot if nothing was placed. */
+  if (!track) { framePlot(); return; }
   const min = new THREE.Vector3(1e9, 1e9, 1e9), max = new THREE.Vector3(-1e9, -1e9, -1e9);
   for (const sm of track.samples) { min.min(sm.pos); max.max(sm.pos); }
   const center = min.clone().add(max).multiplyScalar(0.5);
@@ -1772,9 +1774,20 @@ function buildLoneStation() {
 /* frame the empty plot - there is no track to fit yet, just the
    graph paper and the dirt. same three-quarter eye as a framed
    circuit, aimed at the middle of the sheet. */
+/* An imported/restored open draft may contain only a station, and
+   that station may be 100m from the origin. The old framePlot()
+   always aimed at 0,2,0 and Frame Track did nothing with no spline,
+   so the ONLY control point could be off-screen. Keep the default
+   empty-plot eye identical, but aim at the lone point when present. */
+function plotFrameTarget(list) {
+  if (list.length !== 1) return {x: 0, y: 2, z: 0};
+  const station = list[0];
+  return {x: station.x, y: Math.max(2, station.h), z: station.z};
+}
 function framePlot() {
-  camera.position.set(52, 46, 74);
-  controls.target.set(0, 2, 0);
+  const target = plotFrameTarget(nodes);
+  camera.position.set(target.x + 52, target.y + 44, target.z + 74);
+  controls.target.set(target.x, target.y, target.z);
   camera.up.set(0, 1, 0);
   controls.update();
 }

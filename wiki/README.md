@@ -16,6 +16,7 @@ North star, in one line: a returning NL1 builder lays a full closed-circuit coas
 - [Browser smoke](browser-smoke.md) - full HTML/Three.js boot in Chromium, real DOM editing and mobile viewport, with explicit limitations.
 - [Exact point drags](direct-point-drag.md) - why releasing a point must not shift its neighbours or adjust their banking.
 - [Draft rescue](draft-rescue.md) - warnings when browser autosave fails and export/import for unfinished coasters.
+- [Station framing](station-framing.md) - Frame Track camera fallback for empty plots and lone imported stations.
 - [Lift/drag playtest repair](../playtest-2026-11-18.md) - physics before/after and the explicit classic fingerprint change.
 
 There is also an in-app Field Manual. Press H in the app for the short version of the player guide.
