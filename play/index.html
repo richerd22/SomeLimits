@@ -1444,6 +1444,38 @@ function refreshTouchBankGizmo() {
   g.radius = newRadius;
 }
 
+/* Selecting a node changes only which of TWO colours is used:
+   white active, lime inactive. Previously every point allocated
+   its own identical MeshStandardMaterial on every track preview.
+   An 80-node coaster rebuilt 80 node materials for 2 looks.
+   Share by appearance within this disposable handle group.
+   Individual meshes and nodeIndex hit targets remain unchanged.
+   Lazily create each material so blank/one-node drafts don't leak
+   a material no mesh ever owns. disposeEditGroup already dedupes
+   shared resources by identity on every rebuild. */
+function buildNodeHandles() {
+  if (!nodes.length) return;
+  const hGeo = new THREE.SphereGeometry(1.05, 16, 12);
+  let selectedMat = null, normalMat = null;
+  nodes.forEach((n, i) => {
+    const active = i === selected;
+    let mat = active ? selectedMat : normalMat;
+    if (!mat) {
+      mat = new THREE.MeshStandardMaterial({
+        color: active ? 0xffffff : 0xC6FF00,
+        emissive: active ? 0x445500 : 0x222a00
+      });
+      if (active) selectedMat = mat;
+      else normalMat = mat;
+    }
+    const h = new THREE.Mesh(hGeo, mat);
+    h.position.set(n.x, n.h, n.z);
+    h.userData.nodeIndex = i;
+    handleGroup.add(h);
+    addHitProxy(handleGroup, h.position, 'node', {nodeIndex: i});
+  });
+}
+
 function buildTrack() {
   cancelTrackPreview();
   rebuildPlotDistanceIndex();
@@ -1807,15 +1839,7 @@ function buildTrack() {
   );
   trackGroup.add(hitTube);
 
-  const hGeo = new THREE.SphereGeometry(1.05, 16, 12);
-  nodes.forEach((n, i) => {
-    const mat = new THREE.MeshStandardMaterial({color: i === selected ? 0xffffff : 0xC6FF00, emissive: i === selected ? 0x445500 : 0x222a00});
-    const h = new THREE.Mesh(hGeo, mat);
-    h.position.set(n.x, n.h, n.z);
-    h.userData.nodeIndex = i;
-    handleGroup.add(h);
-    addHitProxy(handleGroup, h.position, 'node', {nodeIndex: i});
-  });
+  buildNodeHandles();
   buildSelectedEditHandles();
   handleGroup.visible = (mode === 'edit');
   scene.add(handleGroup);
@@ -1950,15 +1974,7 @@ function buildLoneStation() {
     trackGroup.add(plat);
   }
   scene.add(trackGroup);
-  const hGeo = new THREE.SphereGeometry(1.05, 16, 12);
-  nodes.forEach((n, i) => {
-    const mat = new THREE.MeshStandardMaterial({color: i === selected ? 0xffffff : 0xC6FF00, emissive: i === selected ? 0x445500 : 0x222a00});
-    const h = new THREE.Mesh(hGeo, mat);
-    h.position.set(n.x, n.h, n.z);
-    h.userData.nodeIndex = i;
-    handleGroup.add(h);
-    addHitProxy(handleGroup, h.position, 'node', {nodeIndex: i});
-  });
+  buildNodeHandles();
   /* The first station needs the same orange/blue precision controls
      as a station in a finished circuit; no fake track is created. */
   buildSelectedEditHandles();
