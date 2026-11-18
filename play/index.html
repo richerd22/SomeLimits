@@ -2015,9 +2015,6 @@ function setEditorView(view) {
   };
   $('dockGuide').textContent = guide[view];
 }
-document.querySelectorAll('[data-editor-view]').forEach(b =>
-  b.addEventListener('click', () => setEditorView(b.dataset.editorView)));
-$('btnFocusPoint').addEventListener('click', focusSelectedNode);
 
 /* ---------------- building from blank ----------------
    the open state, isolated: an explicit flag, its own track
@@ -2774,6 +2771,10 @@ $('btnDel').addEventListener('click', deleteNode);
 $('btnUndo').addEventListener('click', undo);
 $('btnRedo').addEventListener('click', redo);
 $('btnFrame').addEventListener('click', frameTrack);
+document.querySelectorAll('[data-editor-view]').forEach(b =>
+  b.addEventListener('click', () => setEditorView(b.dataset.editorView)));
+$('btnFocusPoint').addEventListener('click', focusSelectedNode);
+
 
 /* The point is the contract. Dragging one lime point must NEVER move
    the other points, adjust their bank, or pull the grabbed point away
