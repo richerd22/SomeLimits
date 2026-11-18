@@ -7,7 +7,7 @@ const html=readFileSync(new URL('../play/index.html',import.meta.url),'utf8');
 const script=html.match(/<script type="module">([\s\S]*?)<\/script>/)?.[1];
 assert.ok(script,'missing player module');
 new Function(script.replace(/^import[^\n]*\n/gm,'')); // validate actual game module syntax
-const start=script.indexOf('function openElevationPoint(prev, hit, view) {');
+const start=script.indexOf('function openElevationPoint(prev, hit, view, snap = 0) {');
 const end=script.indexOf('const draftRayPlane = new THREE.Plane();',start);
 assert.ok(start>=0&&end>start,'missing elevation construction function');
 const THREE={MathUtils:{clamp:(x,lo,hi)=>Math.min(hi,Math.max(lo,x))}};
