@@ -2289,6 +2289,8 @@ function syncPanel() {
   $('btnDel').disabled = !n;
   if (!n) {
     els.idx.textContent = '-';
+    els.h.value = 3;
+    els.b.value = 0;
     els.hVal.textContent = '-';
     els.bVal.textContent = '-';
     els.seg.textContent = 'empty plot - click the ground to place your station.';
