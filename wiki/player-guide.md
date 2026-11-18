@@ -128,6 +128,10 @@ At the end of the lap you get a summary:
 - min G
 - airtime seconds - time spent under 0.5 G, the floaty bit
 
+Below the stats, one note explains what the simulator **actually did**. If it had to invoke its built-in minimum-speed assist on a slow uphill section, the note tells you roughly where and suggests lowering the next hill or using an 8 m+ climb for a chain. If it completed unassisted but got slow, it points that out instead. These are simplified game physics, **not** a real-world safety check.
+
+**Restart Lap** and **Ride Again** both clear the previous G-force trace; the graph always belongs to the current lap.
+
 Then: Ride Again, or Back to Edit.
 
 Read your Gs honestly. High max G with a near-zero min G usually means one heroic hill and one violent corner. Fix the corner.
