@@ -31,7 +31,10 @@ The maintainer-only `tests/browser-smoke.mjs` loads the exact production `play/i
 2. Touch the lime station handle, drag **upward**, and release. Confirm that the real autosaved station height increases, while its x/z position, banking and station role remain identical.
 3. Click Undo and verify the original height is restored. Click Redo and verify the new height returns.
 4. Undo again. Start a second physical-style touch drag, then dispatch a window blur **before touchend**. Confirm the node returns to its grab-time height and the autosaved node data was not modified.
-5. Verify there were no browser console errors; complete the previous desktop and mobile smoke paths.
+5. Place a second finger during another uncommitted drag. The first point must return exactly to its grab snapshot; moving either finger afterwards must not modify it. Lifting both fingers must leave no saved change.
+6. Force the canvas to release its actual captured pointer during a third ongoing drag, without a pointercancel. The new lostpointercapture handler must roll back the temporary edit, and autosave must remain unchanged.
+7. Start a *new* touch drag after the two interruption routes; it must actually edit and save again, catching stuck pointer ownership or a permanently disabled camera.
+8. Verify there were no browser console errors; complete the previous desktop and mobile smoke paths.
 
 This is a much stronger input integration check than copying `setNodePlanPosition()` into an isolated stub: it runs pointer capture, Three.js picking, drag-plane math, queued geometry rebuilds, history and localStorage together. It still **does not prove real iOS Safari**; native touch gesture arbitration, OS interruptions and hardware frame times must be validated on an iPhone/iPad.
 
@@ -46,6 +49,6 @@ This is a much stronger input integration check than copying `setNodePlanPositio
 
 ## Follow-ups
 
-Separate tests should exercise a second finger during a grab, `lostpointercapture` independently of blur, and move/undo/redo for an ordinary multi-node completed coaster, not only a station. The design rule is that an **unfinished** gesture is reversible and **only** a successful release commits. This prevents a large class of inputs from leaving users wondering whether a change was saved.
+Additional tests now exercise a second finger during a grab and `lostpointercapture` independently of blur. The remaining substantial extension is movement/undo/redo for an ordinary multi-node completed coaster, plus orange-cap and blue-grip gestures. The design rule is that an **unfinished** gesture is reversible and **only** a successful release commits. This prevents a large class of inputs from leaving users wondering whether a change was saved.
 
 Related: [Editor runtime](editor-runtime.md), [Exact point drag contract](direct-point-drag.md), [Browser smoke](browser-smoke.md), [Mobile performance](mobile-performance.md).
