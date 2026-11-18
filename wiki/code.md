@@ -67,6 +67,10 @@ Built from the samples, rebuilt with the track. All code-rendered. No model file
 - **Ground.** A ground plane under the layout - the plane the nodes sit on.
 - **Node handles.** In edit mode, a draggable handle mesh per node, tagged with its node index for picking via raycast against a horizontal drag plane at the node's height.
 
+## Scene resource lifecycle
+
+Track and selected-handle geometry is rebuilt while editing. Pointer and slider `input` events now call `queueTrackPreview()` rather than rebuilding immediately: only one preview is queued per display frame, using the latest node values. Every release or committed change still uses synchronous `buildTrack()` and cancels a pending preview, so undo and autosave see the finished geometry. `disposeEditGroup()` disposes temporary geometries and materials exactly once, exempting the shared touch halo proxy resources. The terrain and nearby trees settle after the drag flag is cleared, not during the interaction. See [Editor runtime](editor-runtime.md) for the full diagnosis and regression checks.
+
 ## Editor interactions
 
 - Direct node dragging is gesture-direction based: after a small dead zone, a screen-up/down drag changes height on a camera-facing vertical plane, while a predominantly sideways drag changes `x`/`z` on the horizontal plane. A press-relative offset prevents jumps. Orange cap and slider retain precise height control. Banking stays on the point with a roll grip, shift/right drag and slider.
