@@ -10,6 +10,8 @@ A complete coaster is materially different. Its selected non-station point may b
 
 ## Browser scenario
 
+**CI proof:** the full PR integration reported `PASS multi-node direct sideways lime drag` and `PASS multi-node direct upward lime drag` with no game-code modifications. The first version of the test failed only because it prematurely expected a `move` cursor on pointerdown; after correcting the expectation to check the first movement, the actual browser tests passed.
+
 The full real-WebGL `tests/browser-smoke.mjs` test imports a deterministic five-point coaster with varied bank values and an elevated **second node** that is not the station. The five-point integration already verifies its orange cap and blue bank grip. This extension then:
 
 1. Reframe the coaster with the real **Frame Track** camera, and compute the elevated lime node's projected screen coordinates through the same spline-bounds and Three.js camera geometry used for the cap/grip test.
