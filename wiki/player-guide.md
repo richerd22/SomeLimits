@@ -136,20 +136,20 @@ Read your Gs honestly. High max G with a near-zero min G usually means one heroi
 Press L, or Ctrl+S to quick-save the current work by name from the save flow.
 
 - Coasters are saved by name into a library, stored in your browser's localStorage.
-- The current work also autosaves, so a refresh does not eat your coaster.
+- The current work also attempts to autosave on every change. If the browser blocks storage or runs out of quota, the editor now warns you clearly; export JSON before leaving. An unfinished draft can be exported and reopened.
 - Library cards show a top-down blueprint thumbnail of the layout, the name, saved date, node count, track length, and max height.
 - On a card: open, rename, duplicate, delete.
 - Duplicate before a big experiment is the cheapest insurance there is.
 
 ### Where saves actually live
 
-In your browser, on that device, nowhere else. They do not sync, they do not upload, there is no account to recover them from. Clear your browser storage and they are gone. If a coaster matters, export it as a file too. See below.
+In your browser, on that device, nowhere else. They do not sync, they do not upload, there is no account to recover them from. Clear your browser storage and they are gone. If autosave ever fails, the editor says so. Export JSON immediately, including a half-built coaster. If a coaster matters, export it as a file too. See below.
 
 ## Sharing and exports
 
 All one-click buttons in the app.
 
-- JSON download - the full coaster as a file. Keep it, back it up, send it to someone. JSON import in the app reads it back. Import also accepts the older v0 raw node array format, so old files still work.
+- JSON download - the full coaster as a file, **even if you have only placed a station or are still building**. An unfinished build downloads as a draft JSON and imports as an open, editable track. Complete coasters use the established format; import also accepts the older v0 raw node array format.
 - Copy Share Link - the coaster is encoded into the page URL hash, after the `#c=`. Send the link, the other person opens it and gets that coaster. The data is in the link itself, not on a server. Long link? Yes. That is the trade.
 - NL2 CSV export - one row per track sample, with position and up vectors. That is the spline data a NoLimits 2-style importer needs. If you want to take a SomeLimits layout into that world, this is the bridge.
 - CSV import - a CSV in that same position-plus-up layout turns back into nodes you can edit here. The bridge runs both ways.
