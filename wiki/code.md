@@ -73,7 +73,7 @@ Centre-post keep-out checks now query an 8 m x/z spatial grid, then apply the *s
 
 ## Blank node controls and station ownership
 
-`syncPanel()` now clears and disables node-specific controls when no point exists, rather than retaining values from a previous coaster. A single point reports its actual height and node count without inventing track length, drop or speed. In completed circuits, the station checkbox reassigns the unique station via `assignStation()`; it does not permit removing the last station. See [Empty draft and station ownership](empty-node-station.md), including source-backed and actual Chromium DOM checks.
+`syncPanel()` now clears and disables node-specific controls when no point exists, rather than retaining values from a previous coaster. A single point reports its actual height and node count without inventing track length, drop or speed. In completed circuits, the station checkbox reassigns the unique station via `assignStation()`; it does not permit removing the last station. The finished-coaster `sanitizeNodes()` likewise normalizes missing/duplicate station flags on import/export and share decode to a single station, preserving the first marked node or falling back to node 0. See [Empty draft and station ownership](empty-node-station.md), including source-backed and actual Chromium DOM checks.
 
 ## Framing an unfinished document
 
