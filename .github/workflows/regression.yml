@@ -20,6 +20,8 @@ jobs:
         run: node tests/blueprint-editor-regression.mjs
       - name: Precision node navigation, numeric coordinates and view-correct nudge axis
         run: node tests/precision-node-editor-regression.mjs
+      - name: Draw track from SIDE/FRONT and preserve independent camera navigation (no dependencies)
+        run: node tests/elevation-draw-regression.mjs
       - name: Mobile DPR and lazy library regression (no dependencies)
         run: node tests/library-render-regression.mjs
       - name: Drag stays on one control point (no dependencies)
