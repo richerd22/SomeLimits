@@ -15,6 +15,7 @@ North star, in one line: a returning NL1 builder lays a full closed-circuit coas
 - [Mobile performance](mobile-performance.md) - device pixel ratio, on-demand library blueprints and caching limits.
 - [Browser smoke](browser-smoke.md) - full HTML/Three.js boot in Chromium, real DOM editing and mobile viewport, with explicit limitations.
 - [Exact point drags](direct-point-drag.md) - why releasing a point must not shift its neighbours or adjust their banking.
+- [Complete coaster direct lime-node test](completed-lime-node-touch.md) - actual touch x/z and height drags on an elevated banked non-station node, with history/neighbor invariants.
 - [Draft rescue](draft-rescue.md) - warnings when browser autosave fails and export/import for unfinished coasters.
 - [Station framing](station-framing.md) - Frame Track camera fallback for empty plots and lone imported stations.
 - [Ride insight](ride-insight.md) - actual speed-assist observations on the lap summary and clean G-force graph restarts.
