@@ -110,7 +110,7 @@ try {
   assert.equal(after.nodes[0].bank,before.nodes[0].bank,'height edit moved the bank');
   /* The checkbox selects WHICH point is the station. Unchecking
      the only station must not silently strip the role from all nodes. */
-  await p.locator('#chkStation').uncheck();
+  await p.locator('#chkStation').click(); // app intentionally rechecks sole station
   assert.equal(await p.locator('#chkStation').isChecked(),true,
     'the unique station cannot be unchecked');
   const afterStationClick=await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
