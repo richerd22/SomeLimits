@@ -641,8 +641,16 @@ try {
   await gesture('touchStart',[touch(121,groundP.node.x,groundP.node.y)]);
   const nodeCursor=await q.evaluate(()=>document.querySelector('#app canvas').style.cursor);
   console.log('MULTI NODE DIRECT PICK '+JSON.stringify({nodeCursor,groundP}));
-  assert.equal(nodeCursor,'move','touching the centre of the lime point must grab the NODE, not cap/grip');
+  /* A lime node pointerdown deliberately leaves cursor unchanged
+     until the first move chooses horizontal vs vertical intent.
+     Cap/grip set their own cursors synchronously on pointerdown.
+     Assert neither special handle stole the press, then verify
+     the actual axis intent after movement. */
+  assert.ok(nodeCursor!=='ns-resize'&&nodeCursor!=='grabbing',
+    'touch at lime centre must not be claimed by cap or bank grip');
   await gesture('touchMove',[touch(121,groundP.node.x+86,groundP.node.y+1)]);
+  const groundCursor=await q.evaluate(()=>document.querySelector('#app canvas').style.cursor);
+  assert.equal(groundCursor,'move','sideways node touch must resolve to ground-plan drag');
   await gesture('touchEnd',[]);
   await q.waitForFunction(before=>{
     const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
@@ -670,8 +678,11 @@ try {
   const upP=await projectedMultiPoint(1);
   await gesture('touchStart',[touch(131,upP.node.x,upP.node.y)]);
   const upCursor=await q.evaluate(()=>document.querySelector('#app canvas').style.cursor);
-  assert.equal(upCursor,'move','vertical point movement should start from lime NODE, not orange cap');
+  assert.ok(upCursor!=='ns-resize'&&upCursor!=='grabbing',
+    'vertical drag touch at lime centre must not be claimed by cap/grip');
   await gesture('touchMove',[touch(131,upP.node.x+1,upP.node.y-90)]);
+  const verticalCursor=await q.evaluate(()=>document.querySelector('#app canvas').style.cursor);
+  assert.equal(verticalCursor,'ns-resize','vertical lime node touch should choose height intent');
   await gesture('touchEnd',[]);
   await q.waitForFunction(h=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes[1].h>h+3,
     directUpBefore.nodes[1].h,{timeout:18000});
