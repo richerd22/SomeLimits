@@ -22,6 +22,8 @@ jobs:
         run: node tests/direct-point-drag-regression.mjs
       - name: Open draft rescue and autosave failure (no dependencies)
         run: node tests/draft-rescue-regression.mjs
+      - name: Frame empty plot and lone restored station (no dependencies)
+        run: node tests/station-framing-regression.mjs
       - name: Install physics test dependency (not part of the game)
         run: npm install --no-save --no-package-lock three@0.160.0 playwright@1.56.1
       - name: Support clearance equivalence, including crossovers
