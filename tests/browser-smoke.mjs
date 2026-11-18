@@ -529,6 +529,16 @@ try {
         'touch exactly at '+kind+' center must select '+kind+' at bank '+angle);
       await send('touchEnd',[]);
     }
+    /* A cap halo can cover the lime node's center even when the
+       grip and cap correctly pick themselves. Editing the point
+       directly is more important than halo ordering: touching
+       the visible node must NOT initiate an orange or blue drag. */
+    await send('touchStart',[finger(290+angle,centers.node.x,centers.node.y)]);
+    const nodePick=await mp.evaluate(()=>document.querySelector('#app canvas').style.cursor);
+    console.log('EXTREME LIME NODE PICK '+JSON.stringify({angle,nodePick}));
+    assert.ok(nodePick!=='ns-resize'&&nodePick!=='grabbing',
+      'lime node center at bank '+angle+' must not be stolen by precision controls');
+    await send('touchEnd',[]);
     const afterTaps=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
     assert.deepEqual(afterTaps.nodes,stored.nodes,
       'testing handles with touch taps must not commit a false edit');
