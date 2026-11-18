@@ -93,6 +93,7 @@ Start at [wiki/README.md](wiki/README.md):
 - [Draft backup and autosave safety](wiki/draft-rescue.md) - localStorage quota warnings and rescue JSON for unfinished builds
 - [Framing a lone station](wiki/station-framing.md) - why Frame Track must focus the only control point in an open draft
 - [Honest lap feedback](wiki/ride-insight.md) - report when the simplified physics used a minimum-speed assist and reset G traces between rides
+- [Empty draft controls and stations](wiki/empty-node-station.md) - clear non-existent node controls; always retain one station on a finished coaster
 
 ## Quality checks
 
