@@ -31,7 +31,7 @@ The name is a dry joke: there always were some limits. We are owning them.
   - Banking lives on the point itself (drag the blue grip around it, shift-drag, or a slider), with a local blend. No roll-node objects.
   - Any climb of 8 m or more between points gets a chain lift automatically - drawn on the track as a bright strip - so a first build cannot stall for want of a menu. There is no lift button to find.
   - Height is by hand: drag a lime point up/down, drag the orange cap above it for precision, or use the height slider. Points land at ground level, so a drop is simply what happens after a hill.
-  - Auto-smooth on drag release tidies positions and banking, gently and locally - never heights. The heights you set are the heights that stay.
+  - Each dragged point stays where you leave it. Neighbouring control points and banking are never silently rewritten on release; the spline handles smooth track transitions between your points.
 - Ride mode with POV, chase, and orbit cameras, a live G-force HUD, and an honest lap summary. Station tires dispatch the train and keep truly flat circuits moving; chain lifts run at 7 m/s.
 - Presets that are rideable as loaded, including a vertical loop you can pull apart to see how it is built.
 - A library in your browser (localStorage), plus JSON export/import, share links that encode the coaster in the URL, a NoLimits 2-style CSV spline bridge both ways, and PNG screenshots. Blueprints are drawn only when their cards come into view, not stored as base64 ballast.
@@ -89,10 +89,11 @@ Start at [wiki/README.md](wiki/README.md):
 - [Support clearance performance](wiki/support-clearance.md) - indexed support checks with brute-force equivalence proof
 - [Mobile and library rendering](wiki/mobile-performance.md) - phone pixel ratio cap and lazy, bounded blueprint previews
 - [Browser smoke tests](wiki/browser-smoke.md) - verified full WebGL startup, desktop edit/save, simulated mobile station placement, and the mobile hint-overflow fix
+- [Exact point drags](wiki/direct-point-drag.md) - remove hidden neighbour shifts and banking edits after releasing a dragged point
 
 ## Quality checks
 
-The game itself remains a single HTML file and needs no build step. Maintainer-only tests run in GitHub Actions on PRs and pushes to main: editor resource/storage regression (zero dependencies) and the fixed 27.5s / 88 km/h classic physics fingerprint (pinned Three.js in CI). Run `node tests/editor-runtime-regression.mjs` for the fast local audit. See [Dev](wiki/dev.md).
+The game itself remains a single HTML file and needs no build step. Maintainer-only tests run in GitHub Actions on PRs and pushes to main: editor resource/storage regression (zero dependencies) and the fixed 27.5s / 88 km/h classic physics fingerprint (pinned Three.js in CI). Run `node tests/editor-runtime-regression.mjs` and `node tests/direct-point-drag-regression.mjs` for fast local audits. See [Dev](wiki/dev.md).
 
 ## Design rules
 
