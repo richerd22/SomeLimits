@@ -56,7 +56,10 @@ Use the zero-dependency editor regression first. It tests the actual game's tran
 ```sh
 node tests/editor-runtime-regression.mjs
 node tests/library-render-regression.mjs
+node tests/direct-point-drag-regression.mjs
 ```
+
+The point-drag test extracts the actual editor helper and verifies exact x/z placement, unchanged neighbouring nodes and banking, bounds, invalid inputs and station identity. See [Exact point drags](direct-point-drag.md).
 
 The library test checks the source-backed iOS pixel-ratio cap, lazy previews and 40-card LRU without a browser or network. See [Mobile performance](mobile-performance.md).
 
