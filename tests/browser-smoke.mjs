@@ -62,7 +62,9 @@ async function prepare(page){
   const errors=[];
   page.on('pageerror',err=>errors.push(err.message));
   page.on('console',msg=>{if(msg.type()==='error' && !msg.text().includes('favicon'))errors.push(msg.text());});
-  await page.goto(baseURL,{waitUntil:'domcontentloaded',timeout:30000});
+  /* commit only means the local document was received. The real boot
+     assertion below waits for all modules, scene construction and app state. */
+  await page.goto(baseURL,{waitUntil:'commit',timeout:15000});
   try {
     await page.waitForFunction(()=>window.__slBooted===true,null,{timeout:14000});
   } catch(err) {
@@ -116,6 +118,10 @@ try {
   assert.ok(image.complete && image.w>0,'visible library thumbnail did not load');
   assert.deepEqual(deskErrors,[],'desktop page errors after editing');
   console.log('PASS desktop WebGL: boot, supports, station, height edit, autosave, library, visible blueprint (from '+firstHeight+'m)');
+  /* A continuous desktop software-WebGL render loop can starve the
+     second Chromium page on GitHub's shared CPU runner. The two user
+     journeys are independent, so retire desktop before mobile boots. */
+  await desktop.close();
 
   // Mobile: 3x simulated device should render at 2x while preserving
   // touch-first blank-plot building. No external images or modes.
@@ -152,7 +158,7 @@ try {
   assert.deepEqual(mobileErrors,[],'mobile page errors after station tap');
   console.log('PASS mobile WebGL: 3x -> 2x raster, blank plot, station placed by touch');
 
-  await desktop.close();await mobile.close();
+  await mobile.close();
   console.log('PASS browser smoke: actual Three.js module + editor DOM in headless Chromium');
 } finally {
   if(browser)await browser.close();
