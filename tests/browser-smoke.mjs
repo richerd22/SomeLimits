@@ -127,10 +127,16 @@ try {
   const mobileErrors=await prepare(mp);
   const dims=await mp.evaluate(()=>{
     const canvas=document.querySelector('#app canvas');
+    const hint=document.querySelector('#hint');
     return {cssW:window.innerWidth,cssH:window.innerHeight,
+      screenW:screen.width,visualW:window.visualViewport?.width,
+      docClientW:document.documentElement.clientWidth,
+      bodyScrollW:document.body.scrollWidth,
+      hintBox:hint?.getBoundingClientRect().toJSON(),
       backingW:canvas.width,backingH:canvas.height};
   });
-  assert.equal(dims.cssW,390);
+  console.log('MOBILE VIEWPORT METRICS: '+JSON.stringify(dims));
+  assert.equal(dims.cssW,390,'mobile layout viewport expanded unexpectedly');
   assert.equal(dims.backingW,780,'3x device must draw at capped 2x DPR');
   assert.equal(dims.backingH,1688,'mobile canvas height must cap at 2x');
   await mp.locator('#btnStartNew').tap();
