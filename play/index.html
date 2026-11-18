@@ -1543,7 +1543,7 @@ function buildNodeHandles() {
     }
     const h = new THREE.Mesh(hGeo, mat);
     h.position.set(n.x, n.h, n.z);
-    if (camera.isOrthographicCamera) {
+    if (typeof camera !== 'undefined' && camera.isOrthographicCamera) {
       const unitsPerPixel = (camera.top - camera.bottom) / (camera.zoom * innerHeight);
       h.scale.setScalar(Math.max(1, unitsPerPixel * 9 / 1.05));
     }
@@ -1982,7 +1982,8 @@ function focusSelectedNode() {
   const delta = camera.position.clone().sub(controls.target);
   controls.target.copy(target);
   if (editorView === '3d') {
-    camera.position.copy(target).addScaledVector(delta.normalize(), Math.min(55, Math.max(15, delta.length())));
+    const distance = delta.length();
+    camera.position.copy(target).addScaledVector(delta.normalize(), Math.min(55, Math.max(15, distance)));
   } else {
     camera.position.copy(target).add(delta);
     camera.zoom = Math.max(camera.zoom, Math.min(8, (camera.top - camera.bottom) / 48));
@@ -2175,7 +2176,7 @@ function framePlot() {
 function buildHint() {
   return nodes.length === 0 ? `<b>${TAP} the ground</b> to place the station - everything starts there` :
     nodes.length === 1 ? `station is down. <b>${TAP} the ground</b> to lay track out from it` :
-    nodes.length < 4 ? `<b>${TAP}</b> to extend &middot; <b>drag sideways</b> to move &middot; <b>drag up</b> to raise a point` :
+    nodes.length < 4 ? `<b>${TAP}</b> to extend &middot; <b>TOP</b> for turns &middot; <b>SIDE</b> for height &middot; <b>DROP</b> to descend` :
     `bring it home - <b>${TAP} the station</b> to close the circuit`;
 }
 
@@ -2225,6 +2226,11 @@ function buildClickAtGround(pt) {
     return;
   }
   const prev = nodes[nodes.length - 1];
+  /* TOP is a plan drawing, not a ground-height command. Placing a dot
+     horizontally from a 40m crest preserves its elevation. Switch to
+     SIDE or press DROP to shape the descent; perspective ground clicks
+     retain the original quick ground-level placement. */
+  const pointHeight = editorView === 'top' ? prev.h : 3;
   for (const n of nodes) {
     /* "too close" is a 3D question. a loop stacks points over
        the same ground on purpose - same spot, different height
@@ -2233,19 +2239,15 @@ function buildClickAtGround(pt) {
        height this click would inherit. (the old rule measured
        ground distance only, at 3m - it refused exactly the
        stacked points a loop is made of.) */
-    if (Math.hypot(pt.x - n.x, pt.z - n.z) < 1 && Math.abs(prev.h - n.h) < 2) {
+    if (Math.hypot(pt.x - n.x, pt.z - n.z) < 1 && Math.abs(pointHeight - n.h) < 2) {
       toast('that is already a point - stack it higher or lower, or nudge it sideways.');
       return;
     }
   }
-  /* the new point lands at ground height - the click was on the
-     ground, so that is where the point goes. it used to inherit
-     the previous point's height, which made a drop unbuildable
-     by clicking: every point after a crest arrived AT crest
-     height, a plateau only a panel slider could break. now the
-     drop is the default outcome of clicking onward, and height
-     is something you add by hand, with the cap. */
-  nodes.push({x: Math.round(pt.x * 10) / 10, z: Math.round(pt.z * 10) / 10, h: 3, bank: prev.bank});
+  /* TOP retains the current elevation so a crest can become a turn.
+     3D keeps its familiar ground-click placement at 3m. Both offer
+     explicit DROP and SIDE editing; this never changes existing nodes. */
+  nodes.push({x: Math.round(pt.x * 10) / 10, z: Math.round(pt.z * 10) / 10, h: pointHeight, bank: prev.bank});
   selected = nodes.length - 1;
   buildTrack(); commit();
   if (nodes.length === 2) toast('track is growing. drag points to shape it, drag the orange cap above a point to raise it - 8m climbs grow a lift chain.', 5200);
