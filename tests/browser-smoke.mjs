@@ -212,6 +212,11 @@ try {
   assert.equal(dims.backingW,780,'3x device must draw at capped 2x DPR');
   assert.equal(dims.backingH,1688,'mobile canvas height must cap at 2x');
   await mp.locator('#btnStartNew').tap();
+  assert.equal(await mp.locator('[data-editor-view="top"]').getAttribute('aria-pressed'),'true',
+    'new coaster must start in 2D blueprint view');
+  /* Existing real mobile cap/grip/orbit regressions explicitly exercise
+     classic 3D; the new blueprint authoring journey runs afterward. */
+  await mp.locator('[data-editor-view="3d"]').tap();
   const blank=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
   assert.equal(blank.building,true);
   assert.equal(blank.nodes.length,0,'new must begin with an empty plot');
@@ -546,6 +551,53 @@ try {
   console.log('PASS extreme bank screen-space picking: orange cap and blue grip remain distinct at -90, -80 and +90 degrees');
   assert.deepEqual(mobileErrors,[],'mobile errors after precision handle and overlap touch tests');
 
+  /* Round 25 genuine browser workflow: the rest of this test retained
+     the old 3D gestures, now verify an actual blueprint lift crest
+     continues LEVEL instead of magically falling to 3m. */
+  await mp.evaluate(()=>{
+    document.getElementById('btnNew').click();
+    document.getElementById('btnNew').click();
+  });
+  await mp.waitForFunction(()=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.building && d.nodes.length===0 &&
+      document.querySelector('[data-editor-view="top"]').getAttribute('aria-pressed')==='true';
+  });
+  await mp.touchscreen.tap(195,380);
+  await mp.waitForFunction(()=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.nodes?.length===1;
+  });
+  await mp.evaluate(()=>{
+    const s=document.querySelector('#rngH');
+    s.value='42.5';s.dispatchEvent(new Event('input',{bubbles:true}));
+    s.dispatchEvent(new Event('change',{bubbles:true}));
+  });
+  await mp.waitForFunction(()=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.nodes?.[0]?.h===42.5;
+  });
+  await mp.locator('#btnContinue').tap();
+  await mp.locator('#btnTurnLeft').tap();
+  await mp.locator('#btnMakeDrop').tap();
+  const blueprint=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.equal(blueprint.nodes.length,4,'LEVEL, LEFT and DROP add one node each');
+  assert.deepEqual(blueprint.nodes.map(n=>n.h),[42.5,42.5,42.5,22.5],
+    'crest remains level through the turn and drops only when asked');
+  assert.ok(blueprint.nodes[2].x<blueprint.nodes[1].x,'LEFT really turns left');
+  await mp.evaluate(()=>document.getElementById('btnUndo').click());
+  const undone=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.equal(undone.nodes.length,3,'Undo removes deliberate drop');
+  await mp.evaluate(()=>document.getElementById('btnRedo').click());
+  assert.deepEqual((await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
+    blueprint.nodes,'Redo restores the exact node geometry');
+  for(const view of ['side','front','top','3d']){
+    await mp.locator('[data-editor-view="'+view+'"]').tap();
+    assert.equal(await mp.locator('[data-editor-view="'+view+'"]').getAttribute('aria-pressed'),'true',
+      'view selector must report '+view);
+  }
+  assert.deepEqual(mobileErrors,[],'real blueprint continuation and camera views produced no WebGL errors');
+  console.log('PASS blueprint WebGL: TOP new, 42.5m crest, LEVEL, LEFT, DROP, Undo/Redo, SIDE/FRONT/3D views');
   await mobile.close();
 
   /* A lone station has a special +X tangent fallback. Verify the
