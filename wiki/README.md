@@ -21,6 +21,7 @@ North star, in one line: a returning NL1 builder lays a full closed-circuit coas
 - [Empty draft and station ownership](empty-node-station.md) - no stale inputs when starting blank; station checkbox can move but never erase the one station.
 - [Touch interruptions and actual gesture testing](interruptions-and-touch-regression.md) - recover from focus/capture loss and test the real 3D point drag through Chromium.
 - [First station precision handles](first-station-precision-handles.md) - shared cap/grip renderer for the first station and completed tracks; touch-gesture proof.
+- [Screen-readable mobile bank grip](touch-grip-pixel-target.md) - camera-relative blue gizmo at zoom, five-point real-touch regression, unchanged desktop geometry.
 - [Lift/drag playtest repair](../playtest-2026-11-18.md) - physics before/after and the explicit classic fingerprint change.
 
 There is also an in-app Field Manual. Press H in the app for the short version of the player guide.
