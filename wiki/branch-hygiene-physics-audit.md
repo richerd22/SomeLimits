@@ -1,4 +1,4 @@
-# Branch hygiene + physics audit — 18 November 2026
+# Branch hygiene + physics audit  -  18 November 2026
 
 This is the reconciled state of the **SomeLimits** GitHub repository after the independent Muse review. It is written from GitHub PR/commit/check data, not from branch names alone.
 
@@ -59,7 +59,7 @@ These values are from `stepRide()` driven at **1/60s** using the exact productio
 
 **Preferred, and what should happen next:** after verifying PR #1–#15 are indeed merged and there is no open PR referencing an old head, delete their **remote feature branches** using [GitHub Branches](https://github.com/richerd22/SomeLimits/branches) or each merged PR's "Delete branch" action. This removes stale refs **without deleting the squash-merged changes or merged PR history**. Preserve `main`. Never delete an actively used agent branch, a protected branch, or one with a still-open PR.
 
-The linked GitHub connector in this environment supports branch creation, updates, and PR merge but **does not expose a delete-branch operation**. Therefore this audit does **not** claim those 15 old branches were deleted. They are safe to delete *after* checking any separate agents are not still using them. Do not force-update stale branch refs to main as a fake substitute for deletion—that rewrites historical pointers and makes conflict diagnosis harder.
+The linked GitHub connector in this environment supports branch creation, updates, and PR merge but **does not expose a delete-branch operation**. Therefore this audit does **not** claim those 15 old branches were deleted. They are safe to delete *after* checking any separate agents are not still using them. Do not force-update stale branch refs to main as a fake substitute for deletion - that rewrites historical pointers and makes conflict diagnosis harder.
 
 **Recommended settings/workflow:** enable GitHub repository setting **Settings → General → Pull Requests → Automatically delete head branches**, if your repo permissions allow it; keep a single short-lived branch per PR, use a green regression check before merge, squash merge, and inspect `main` again before starting the next improvement. If external agents have their own active branches, coordinate before deleting them.
 
