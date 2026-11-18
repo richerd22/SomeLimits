@@ -77,4 +77,5 @@ Screenshots of the actual running app are fine - they are the code-rendered game
 - [ ] Frame a lone distant station after importing a draft; Frame Track should center it even with no spline.
 - [ ] Ride insights regression passes (recorded speed rescues, flat drive exclusion, fixed classic timing, fresh G graph on restart).
 - [ ] Lap Complete note renders legibly at mobile widths and never describes game physics as a real-world safety certification.
+- [ ] Blank plot clears/disables old node inputs, one station shows honest partial stats, and unchecking the only station never removes it.
 - [ ] If drag or rendering changed, validate pointercancel and iOS Safari on hardware; headless tests do not prove WebGL responsiveness.
