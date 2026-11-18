@@ -75,7 +75,10 @@ Then run the standalone physics regression in `tests/physics-regression.mjs`. In
 npm install --no-save --no-package-lock three@0.160.0
 node tests/physics-regression.mjs
 node tests/support-clearance-regression.mjs
+node tests/ride-insight-regression.mjs
 ```
+
+The new ride-insight test uses the exact integrator: an unpowered low-speed case must report its minimum-speed assist, flat-tire sections must not be mislabeled, and the known classic lap fingerprint must remain unchanged. It also checks restart clears the prior G trace. See [Ride insight](ride-insight.md).
 
 The support clearance regression checks all 900+ spline samples against the full-scan reference on every preset, the playtest coaster, a crossing and a flat track. See [Support clearance](support-clearance.md).
 
