@@ -82,6 +82,16 @@
     #hud{bottom:auto;top:52px;left:8px}
     #mode{top:8px;right:8px}
     .card{padding:16px}
+    /* The hint was white-space:nowrap and positioned at 50%, so
+       on narrow phones it overflowed the layout viewport and made
+       a 390px screen report ~509px of page width (browser smoke).
+       That also sized the WebGL canvas too wide. Hints should wrap,
+       not demand a bigger phone. */
+    #hint{left:8px;right:8px;top:52px;transform:none;
+          white-space:normal;text-align:center;box-sizing:border-box;
+          overflow-wrap:break-word}
+    #toast{max-width:calc(100vw - 32px);box-sizing:border-box;
+           white-space:normal;overflow-wrap:break-word}
   }
   /* portrait fold (round 13): docked at the bottom of a tall
      narrow screen, the panel covered the lower half of the
