@@ -36,6 +36,8 @@ jobs:
         run: node tests/physics-regression.mjs
       - name: Honest ride insights and clean lap restarts
         run: node tests/ride-insight-regression.mjs
+      - name: Bank grip follows mobile camera zoom without track rebuild
+        run: node tests/touch-grip-camera-regression.mjs
       - name: Install test-only Chromium
         # GitHub's Ubuntu 24.04 image already ships the runtime libraries.
         # Only the headless shell is used; avoid a full apt transaction on
