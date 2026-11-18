@@ -16,6 +16,8 @@ jobs:
           node-version: '22'
       - name: Editor lifecycle tests (no dependencies)
         run: node tests/editor-runtime-regression.mjs
+      - name: Mobile DPR and lazy library regression (no dependencies)
+        run: node tests/library-render-regression.mjs
       - name: Install physics test dependency (not part of the game)
         run: npm install --no-save --no-package-lock three@0.160.0
       - name: Support clearance equivalence, including crossovers
