@@ -67,6 +67,10 @@ Built from the samples, rebuilt with the track. All code-rendered. No model file
 - **Ground.** A ground plane under the layout - the plane the nodes sit on.
 - **Node handles.** In edit mode, a draggable handle mesh per node, tagged with its node index for picking via raycast against a horizontal drag plane at the node's height.
 
+## Source-node arc parameter reuse in sampled coasters
+
+The 900 distance-spaced positions do **not** correspond to equal node fractions. The closed `computeTrack()` and open `computeOpenTrack()` guard every sample's height and attribute lift/point-local bank using the *same* exact `curve.getUtoTmapping(i/SAMPLES)`. That mapping is now computed once in the existing height guardrail loop and written to a 901-double `curveT` typed array; the later metadata pass reads it instead of repeating Three.js arc-table binary search. A production-source test reconstructs the prior repeated-call implementation and verifies **every sample field identical** across all presets and 80/90-node open/closed layouts, with **901 fewer mapping calls** per rebuild. See [Exact arc parameter cache](arc-parameter-cache.md) and [regression](../tests/curve-parameter-cache-regression.mjs).
+
 ## Reusable appearance materials within an editor rebuild
 
 The `buildNodeHandles()` helper renders individually raycastable control-point Meshes for both full circuits and one-station drafts. Each node keeps its own position, `userData.nodeIndex` and coarse-pointer touch proxy, but all unselected lime nodes share one lazily created MeshStandardMaterial while the selected white point uses one other material. An 80-node rebuild therefore allocates only **two** node appearance materials, not eighty. The shared sphere geometry was already single-instance. `disposeEditGroup()` deduplicates resources by identity and releases each temporary material only once, preserving per-group GPU ownership with no leaked unused material on blank/one-point drafts. See [Node material pooling](node-handle-material-pooling.md) and [regression proof](../tests/node-handle-material-regression.mjs).
