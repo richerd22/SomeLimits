@@ -9,7 +9,10 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {chromium} from 'playwright';
 
-const root=fileURLToPath(new URL('../',import.meta.url));
+// fileURLToPath(new URL('../', ...)) ends with '/', so normalize it.
+// Otherwise root + path.sep becomes a double slash and rejects every
+// perfectly legitimate local /play/ request with a false 403.
+const root=path.resolve(fileURLToPath(new URL('../',import.meta.url)));
 const threeRoot=path.join(root,'node_modules','three');
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8',
   '.svg':'image/svg+xml','.png':'image/png','.css':'text/css; charset=utf-8'};
