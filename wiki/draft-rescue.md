@@ -38,7 +38,7 @@ Worse, the JSON export button refused to export unfinished tracks. So the people
 
 `sanitizeDraftNodes()` is shared by branded draft imports/exports and boot-time recovery of an unfinished coaster from autosave. It admits fewer than four points but keeps the same coordinate, height, bank, lift and station rules that were previously duplicated in boot logic. The strict `sanitizeNodes()` still validates finished circuits.
 
-The UI import handler now reads `parsed.building`. Open drafts with zero/one node frame the plot; longer open drafts frame their existing track. It does not allow RIDE IT until the user closes the loop.
+The UI import handler now reads `parsed.building`. Open drafts with zero/one node frame the plot; a later framing repair makes the camera target the lone station's actual coordinates rather than the origin. Longer open drafts frame their existing track. See [Station framing](station-framing.md). It does not allow RIDE IT until the user closes the loop.
 
 ## Verification
 
