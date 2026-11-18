@@ -18,5 +18,7 @@ jobs:
         run: node tests/editor-runtime-regression.mjs
       - name: Install physics test dependency (not part of the game)
         run: npm install --no-save --no-package-lock three@0.160.0
+      - name: Support clearance equivalence, including crossovers
+        run: node tests/support-clearance-regression.mjs
       - name: Physics and share regression tests
         run: node tests/physics-regression.mjs
