@@ -144,6 +144,10 @@
   @media(max-width:760px){
     #editorDock{top:128px;right:8px;width:204px;padding:7px}
     #editorDock button{font-size:10px;padding:8px 2px}
+    /* The full desktop dock covered the 390px phone's central build canvas
+       down to ~380px. The core view/build actions stay thumb-sized, while
+       prose/focus move back to the expandable inspector/Frame Track. */
+    #editorDock #btnFocusPoint,#editorDock #dockGuide{display:none}
   }
 </style>
 </head>
