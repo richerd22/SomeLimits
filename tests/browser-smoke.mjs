@@ -275,6 +275,61 @@ try {
   const aborted=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
   assert.deepEqual(aborted.nodes,original.nodes,'blur cannot commit a half drag');
   console.log('PASS interrupted touch: blur restores node and does not change persisted document');
+
+  /* A second simultaneous touch is not an instruction to move the
+     grabbed point with the passenger finger. It must undo the first
+     uncommitted edit, hold OrbitControls while the grab is unresolved,
+     and release all ownership when both fingers lift. */
+  await mp.evaluate(()=>document.getElementById('btnFrame').click());
+  await send('touchStart',[finger(31,center.x,center.y)]);
+  await send('touchMove',[finger(31,center.x,center.y-85)]);
+  await mp.waitForFunction(h=>document.getElementById('hVal').textContent !== h.toFixed(1)+' m',
+    station.h,{timeout:9000});
+  await send('touchStart',[finger(31,center.x,center.y-85),finger(32,center.x+50,center.y-25)]);
+  await mp.waitForFunction(h=>document.getElementById('hVal').textContent === h.toFixed(1)+' m',
+    station.h,{timeout:9000});
+  await send('touchMove',[finger(31,center.x,center.y-120),finger(32,center.x+65,center.y-15)]);
+  await send('touchEnd',[]);
+  const afterPinch=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.deepEqual(afterPinch.nodes,original.nodes,'two-finger cancellation must not persist a half edit');
+
+  /* Capture loss is distinct from pointercancel: some browsers
+     drop it when focus changes or a gesture is handed to browser
+     chrome. Revoke canvas capture while the finger remains down. */
+  await mp.evaluate(()=>{
+    const canvas=document.querySelector('#app canvas');
+    canvas.addEventListener('pointerdown',e=>{window.__slTestActiveId=e.pointerId;},{capture:true});
+    document.getElementById('btnFrame').click();
+  });
+  await send('touchStart',[finger(41,center.x,center.y)]);
+  await send('touchMove',[finger(41,center.x,center.y-80)]);
+  await mp.waitForFunction(h=>document.getElementById('hVal').textContent !== h.toFixed(1)+' m',
+    station.h,{timeout:9000});
+  const hadCapture=await mp.evaluate(()=>{
+    const canvas=document.querySelector('#app canvas'),id=window.__slTestActiveId;
+    if(id==null)return false;
+    const held=canvas.hasPointerCapture(id);
+    if(held)canvas.releasePointerCapture(id);
+    return held;
+  });
+  assert.equal(hadCapture,true,'node drag must own pointer capture');
+  await mp.waitForFunction(h=>document.getElementById('hVal').textContent === h.toFixed(1)+' m',
+    station.h,{timeout:9000});
+  await send('touchEnd',[]);
+  const afterLost=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.deepEqual(afterLost.nodes,original.nodes,'lostpointercapture must roll back uncommitted drag');
+
+  /* The next touch must still work. This also detects a stuck
+     activePtr or controlsHeld after either cancellation path. */
+  await mp.evaluate(()=>document.getElementById('btnFrame').click());
+  await send('touchStart',[finger(51,center.x,center.y)]);
+  await send('touchMove',[finger(51,center.x,center.y-75)]);
+  await send('touchEnd',[]);
+  await mp.waitForFunction(h=>{
+    const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return st?.nodes?.length===1&&st.nodes[0].h>h+3;
+  },station.h,{timeout:12000});
+  console.log('PASS multi-touch and capture loss: uncommitted drags roll back; next touch remains usable');
   assert.deepEqual(mobileErrors,[],'mobile errors after touch drag and interruption');
 
   await mobile.close();
