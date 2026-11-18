@@ -69,7 +69,7 @@
   .bigbtn{display:block;width:100%;text-align:left;padding:10px 12px;margin:6px 0;font-size:13px}
   .libgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-top:10px}
   .libcard{border:1px solid #2b3644;border-radius:5px;padding:8px;background:#0d1219}
-  .libcard img{width:100%;border-radius:6px;display:block;background:#0b0e13}
+  .libcard img{width:100%;aspect-ratio:3/2;object-fit:contain;border-radius:6px;display:block;background:#0b0e13}
   .libcard .nm{font-size:12.5px;color:#dfe6ee;margin:7px 0 2px;word-break:break-word}
   .libcard .meta{font-size:10.5px;color:#8fa3b8;line-height:1.5}
   .libcard .row{margin-top:6px}
@@ -787,8 +787,13 @@ const CLOSE_R = 9;           // snap radius (m) around the station entry.
                              // still a fat target to hit on purpose.
 
 const app = document.getElementById('app');
+/* iPhones often report DPR 3. Drawing the same canvas at DPR 2 uses
+   4/9 as many pixels without lowering the builder's layout resolution.
+   Retina desktops at DPR 2 are unchanged; this is a pixel fill cap,
+   not a quality slider or another editor mode. */
+function gamePixelRatio(dpr) { return Math.min(Number.isFinite(dpr) && dpr > 0 ? dpr : 1, 2); }
 const renderer = new THREE.WebGLRenderer({antialias: true, preserveDrawingBuffer: true});
-renderer.setPixelRatio(devicePixelRatio);
+renderer.setPixelRatio(gamePixelRatio(window.devicePixelRatio));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -2849,15 +2854,51 @@ const LIB_KEY = 'somelimits-library-v1';
    saved nodes avoids storing hundreds of kilobytes of base64 for
    every coaster. Cache only while the page is open. */
 const libraryBlueprints = new Map();
+const MAX_LIBRARY_BLUEPRINTS = 40;
 function libraryBlueprint(entry) {
   const signature = JSON.stringify(entry.nodes);
   const cached = libraryBlueprints.get(entry.id);
-  if (cached && cached.signature === signature) return cached.src;
+  if (cached && cached.signature === signature) {
+    /* A small LRU: frequently viewed coasters stay ready, while an
+       enormous library cannot pin all its PNG previews in memory. */
+    libraryBlueprints.delete(entry.id);
+    libraryBlueprints.set(entry.id, cached);
+    return cached.src;
+  }
   try {
     const src = blueprint(entry.nodes);
+    libraryBlueprints.delete(entry.id);
     libraryBlueprints.set(entry.id, {signature, src});
+    if (libraryBlueprints.size > MAX_LIBRARY_BLUEPRINTS) {
+      libraryBlueprints.delete(libraryBlueprints.keys().next().value);
+    }
     return src;
   } catch { return ''; }
+}
+/* Opening 100 saved coasters used to synchronously calculate 100
+   Catmull-Rom splines just to draw their off-screen thumbnails.
+   Observe cards and render each blueprint only when it is near
+   the visible viewport. Older browsers get the original eager
+   behavior rather than an empty gallery. */
+const libraryThumbEntries = new WeakMap();
+let libraryThumbObserver = null;
+function resetLibraryThumbObserver() {
+  if (libraryThumbObserver) libraryThumbObserver.disconnect();
+  libraryThumbObserver = null;
+  if (typeof IntersectionObserver !== 'function') return;
+  libraryThumbObserver = new IntersectionObserver((items, observer) => {
+    for (const item of items) {
+      if (!item.isIntersecting) continue;
+      const entry = libraryThumbEntries.get(item.target);
+      if (entry) item.target.src = libraryBlueprint(entry);
+      observer.unobserve(item.target);
+    }
+  }, {rootMargin: '180px 0px'});
+}
+function queueLibraryThumb(img, entry) {
+  libraryThumbEntries.set(img, entry);
+  if (libraryThumbObserver) libraryThumbObserver.observe(img);
+  else img.src = libraryBlueprint(entry);
 }
 let libArmId = null, libArmUntil = 0;   // two-click guard state for "open"
 let libDelId = null, libDelUntil = 0;   // ...and for "delete"
@@ -2898,6 +2939,7 @@ function saveToLibrary() {
 function renderLib() {
   const lib = loadLib();
   const grid = $('libGrid');
+  resetLibraryThumbObserver();
   grid.innerHTML = '';
   $('libEmpty').style.display = lib.length ? 'none' : 'block';
   lib.forEach(entry => {
@@ -2907,7 +2949,7 @@ function renderLib() {
     div.innerHTML = '<img alt="track blueprint"><div class="nm"></div><div class="meta"></div>' +
       '<div class="row"><button data-act="open">open</button><button data-act="rename">rename</button>' +
       '<button data-act="dup">duplicate</button><button data-act="del" class="warn">delete</button></div>';
-    div.querySelector('img').src = libraryBlueprint(entry);
+    queueLibraryThumb(div.querySelector('img'), entry);
     div.querySelector('.nm').textContent = entry.name;
     div.querySelector('.meta').textContent = entry.stats.count + ' nodes - ' + entry.stats.len + ' m - tallest ' + entry.stats.maxH + ' m - saved ' + when;
     div.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
@@ -3186,6 +3228,8 @@ loop();
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
+  const ratio = gamePixelRatio(window.devicePixelRatio);
+  if (ratio !== renderer.getPixelRatio()) renderer.setPixelRatio(ratio);
   renderer.setSize(innerWidth, innerHeight);
 });
 </script>
