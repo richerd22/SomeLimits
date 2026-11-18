@@ -385,9 +385,14 @@ try {
      documented 2.4m orange cap and 2.6m roll grip into the known
      Frame Track camera, then exercise the *actual* grabbable meshes
      with Chromium's real touch events. No test-only app hooks. */
+  const gameSource=await readFile(path.join(root,'play/index.html'),'utf8');
+  const gripSrcStart=gameSource.indexOf('function editGripRadius(n) {');
+  const gripSrcEnd=gameSource.indexOf('function buildSelectedEditHandles()',gripSrcStart);
+  assert.ok(gripSrcStart>=0&&gripSrcEnd>gripSrcStart,'grip radius must be implemented once in game source');
+  const gripSrc=gameSource.slice(gripSrcStart,gripSrcEnd);
   async function loneHandlePixels(){
     await mp.evaluate(()=>document.getElementById('btnFrame').click());
-    return mp.evaluate(async ()=>{
+    return mp.evaluate(async (gripSrc)=>{
       const THREE=await import('three');
       const doc=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
       const n=doc.nodes[0];
@@ -395,6 +400,8 @@ try {
       eye.position.set(n.x+52,n.h+44,n.z+74);
       eye.lookAt(n.x,n.h,n.z);
       eye.updateMatrixWorld();
+      const gripRadius=new Function('THREE','camera','COARSE','innerHeight',
+        gripSrc+'\nreturn editGripRadius;')(THREE,eye,true,innerHeight)(n);
       const screen=(x,y,z)=>{
         const v=new THREE.Vector3(x,y,z).project(eye);
         return {x:Math.round((v.x+1)*innerWidth/2),
@@ -403,10 +410,10 @@ try {
       /* A lone station's tangent is +X by definition. Its bank
          starts at 0, so fr.side is world -Z; +90 banks to -Y. */
       return {cap:screen(n.x,n.h+2.4,n.z),
-              grip:screen(n.x,n.h,n.z-2.6),
-              rollDown:screen(n.x,n.h-2.6,n.z),
-              node:{...n}};
-    });
+              grip:screen(n.x,n.h,n.z-gripRadius),
+              rollDown:screen(n.x,n.h-gripRadius,n.z),
+              gripRadius,node:{...n}};
+    },gripSrc);
   }
   const beforeCap=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
   const capPix=await loneHandlePixels();
@@ -485,6 +492,145 @@ try {
   assert.deepEqual(mobileErrors,[],'mobile errors after precision handle and touch tests');
 
   await mobile.close();
+
+  /* A lone station has a special +X tangent fallback. Verify the
+     SAME gestures on an elevated, banked, non-station control point
+     in an actual completed circuit with a genuine geometric tangent.
+     Frame Track computes its own camera from the sampled spline;
+     the test projects the selected node from THE EXACT computeTrack
+     source so no camera test hook is added to the player. */
+  const loopNodes=[
+    {x:-45,z:45,h:3,bank:0,station:true},
+    {x:-45,z:-45,h:27,bank:40,lift:true},
+    {x:20,z:-55,h:9,bank:60},
+    {x:54,z:12,h:8,bank:-35},
+    {x:0,z:62,h:3,bank:15}
+  ];
+  const realCore=gameSource.match(/\/\* === CORE START === \*\/([\s\S]*?)\/\* === CORE END === \*\//)?.[1];
+  assert.ok(realCore,'must project same physics source the game uses');
+  const multi=await browser.newContext({viewport:{width:390,height:844},
+    deviceScaleFactor:3,isMobile:true,hasTouch:true});
+  const q=await multi.newPage();
+  const multiErrors=await prepare(q);
+  await q.locator('#btnStartBuild').tap();
+  await q.locator('#fileImp').setInputFiles([{
+    name:'five-point-test.somelimits.json',mimeType:'application/json',
+    buffer:Buffer.from(JSON.stringify({app:'somelimits',version:1,
+      name:'five point real touch',nodes:loopNodes}))
+  }]);
+  await q.waitForFunction(()=> {
+    const doc=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return doc?.building===false&&doc.nodes?.length===5&&doc.nodes[1].h===27;
+  },null,{timeout:20000});
+  await q.evaluate(()=>document.getElementById('btnFrame').click());
+
+  async function projectedMultiPoint(idx,targetBank=null){
+    const doc=await q.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+    return q.evaluate(async ({core,nodes,idx,targetBank,gripSrc})=>{
+      const THREE=await import('three');
+      const computeTrack=new Function('THREE',core+'\nreturn computeTrack;')(THREE);
+      const track=computeTrack(nodes);
+      const mn=new THREE.Vector3(1e9,1e9,1e9),mx=new THREE.Vector3(-1e9,-1e9,-1e9);
+      for(const sm of track.samples){mn.min(sm.pos);mx.max(sm.pos)}
+      const center=mn.clone().add(mx).multiplyScalar(0.5);
+      const radius=Math.max(20,mn.distanceTo(mx)/2);
+      const dist=radius/Math.sin(THREE.MathUtils.degToRad(62/2))*1.05;
+      const dir=new THREE.Vector3(0.85,0.62,1).normalize();
+      const camera=new THREE.PerspectiveCamera(62,390/844,0.1,1000);
+      camera.position.copy(center).addScaledVector(dir,dist);
+      camera.lookAt(center);camera.updateMatrixWorld();
+      const gripRadius=new Function('THREE','camera','COARSE','innerHeight',
+        gripSrc+'\nreturn editGripRadius;')(THREE,camera,true,innerHeight)(nodes[idx]);
+      const px=v=>{
+        const p=v.clone().project(camera);
+        return {x:Math.round((p.x+1)*390/2),y:Math.round((1-p.y)*844/2)};
+      };
+      const n=nodes[idx],prev=nodes[(idx-1+nodes.length)%nodes.length],
+        next=nodes[(idx+1)%nodes.length];
+      const tan=new THREE.Vector3(next.x-prev.x,next.h-prev.h,next.z-prev.z).normalize();
+      const up=new THREE.Vector3(0,1,0).addScaledVector(tan,-tan.y).normalize();
+      const side=new THREE.Vector3().crossVectors(up,tan).normalize();
+      const roll=(deg)=>{
+        const rad=THREE.MathUtils.degToRad(deg);
+        return new THREE.Vector3(n.x,n.h,n.z)
+          .addScaledVector(side,gripRadius*Math.cos(rad))
+          .addScaledVector(up,-gripRadius*Math.sin(rad));
+      };
+      const pos=new THREE.Vector3(n.x,n.h,n.z);
+      return {node:px(pos),cap:px(pos.clone().add(new THREE.Vector3(0,2.4,0))),
+        grip:px(roll(n.bank)),gripTarget:px(roll(targetBank??n.bank)),
+        gripRadius,index:idx,savedNode:n};
+    },{core:realCore,nodes:doc.nodes,idx,targetBank,gripSrc});
+  }
+
+  const pick=await projectedMultiPoint(1);
+  console.log('MULTI-NODE PIXELS '+JSON.stringify(pick));
+  assert.ok(pick.node.x>45&&pick.node.x<345&&pick.node.y>120&&pick.node.y<425,
+    'elevated non-station point must be inside the visible touch-safe viewport');
+  await q.touchscreen.tap(pick.node.x,pick.node.y);
+  await q.waitForFunction(()=>document.getElementById('nodeIdx').textContent==='#2 of 5',
+    null,{timeout:12000});
+  assert.equal(await q.locator('#rngB').inputValue(),'40',
+    'selected non-station point must show its OWN 40° bank');
+
+  const multiCDP=await multi.newCDPSession(q);
+  const touch=(id,x,y)=>({id,x,y});
+  const gesture=(type,pts)=>multiCDP.send('Input.dispatchTouchEvent',{type,touchPoints:pts});
+  const beforeElevated=await q.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  const capP=await projectedMultiPoint(1);
+  await gesture('touchStart',[touch(101,capP.cap.x,capP.cap.y)]);
+  await gesture('touchMove',[touch(101,capP.cap.x,capP.cap.y-65)]);
+  await gesture('touchEnd',[]);
+  await q.waitForFunction(h=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes[1].h>h+2,
+    beforeElevated.nodes[1].h,{timeout:18000});
+  const higher=await q.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.deepEqual(higher.nodes.filter((_,i)=>i!==1),beforeElevated.nodes.filter((_,i)=>i!==1),
+    'dragging cap of node 2 must never shift the four neighboring nodes');
+  assert.equal(higher.nodes[1].x,beforeElevated.nodes[1].x);
+  assert.equal(higher.nodes[1].z,beforeElevated.nodes[1].z);
+  assert.equal(higher.nodes[1].bank,beforeElevated.nodes[1].bank);
+  await q.evaluate(()=>document.getElementById('btnUndo').click());
+  await q.waitForFunction(h=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes[1].h===h,
+    beforeElevated.nodes[1].h,{timeout:8000});
+  await q.evaluate(()=>document.getElementById('btnRedo').click());
+  await q.waitForFunction(h=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes[1].h===h,
+    higher.nodes[1].h,{timeout:8000});
+  console.log('PASS multi-node cap: edited only elevated point 2; four neighbors untouched; exact undo/redo');
+
+  await q.evaluate(()=>document.getElementById('btnFrame').click());
+  const beforeBank=await q.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  const gripP=await projectedMultiPoint(1,120);
+  console.log('MULTI-NODE BANK PIXELS '+JSON.stringify(gripP));
+  assert.ok(Math.hypot(gripP.grip.x-gripP.node.x,gripP.grip.y-gripP.node.y)>=14,
+    'mobile grip must be at least 14 screen px from the node center');
+  assert.ok(Math.hypot(gripP.gripTarget.x-gripP.grip.x,gripP.gripTarget.y-gripP.grip.y)>=12,
+    'bank target must be far enough away to represent a deliberate gesture');
+  await gesture('touchStart',[touch(111,gripP.grip.x,gripP.grip.y)]);
+  const gripCursor=await q.evaluate(()=>document.querySelector('#app canvas')?.style.cursor);
+  console.log('MULTI-NODE TOUCH PICK '+JSON.stringify({gripCursor}));
+  await gesture('touchMove',[touch(111,gripP.gripTarget.x,gripP.gripTarget.y)]);
+  await gesture('touchEnd',[]);
+  await q.waitForFunction(b=>{
+    const doc=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return Math.abs(doc.nodes[1].bank-b)>20;
+  },beforeBank.nodes[1].bank,{timeout:18000});
+  const banked=await q.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.deepEqual(banked.nodes.filter((_,i)=>i!==1),beforeBank.nodes.filter((_,i)=>i!==1),
+    'banking node 2 must not rewrite neighbor banking or any adjacent positions');
+  for(const key of ['x','z','h','station','lift']){
+    assert.equal(banked.nodes[1][key],beforeBank.nodes[1][key],
+      'banking non-station node changed its '+key);
+  }
+  await q.evaluate(()=>document.getElementById('btnUndo').click());
+  await q.waitForFunction(b=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes[1].bank===b,
+    beforeBank.nodes[1].bank,{timeout:8000});
+  await q.evaluate(()=>document.getElementById('btnRedo').click());
+  await q.waitForFunction(b=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes[1].bank===b,
+    banked.nodes[1].bank,{timeout:8000});
+  assert.deepEqual(multiErrors,[],'real multi-node canvas editing raised browser errors');
+  console.log('PASS multi-node bank: nonstation grip adjusts only point 2 bank, neighbors stable, undo/redo exact');
+  await multi.close();
+
   console.log('PASS browser smoke: actual Three.js module + editor DOM in headless Chromium');
 } finally {
   if(browser)await browser.close();

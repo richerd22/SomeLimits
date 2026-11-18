@@ -28,7 +28,7 @@ The name is a dry joke: there always were some limits. We are owning them.
 
 - A complete closed-circuit coaster, end to end: station, lift hill, drops, banked turns, inversions if you build them, brake run back to the station.
 - Building is just placing points and dragging things:
-  - Banking lives on the point itself (drag the blue grip around it, shift-drag, or a slider), with a local blend. No roll-node objects.
+  - Banking lives on the point itself (drag the blue grip around it, shift-drag, or a slider), with a local blend. No roll-node objects. On mobile, the grip adapts to zoom so it remains visually grab-able from a full-coaster view.
   - Any climb of 8 m or more between points gets a chain lift automatically - drawn on the track as a bright strip - so a first build cannot stall for want of a menu. There is no lift button to find.
   - Height is by hand: drag a lime point up/down, drag the orange cap above it for precision, or use the height slider. Points land at ground level, so a drop is simply what happens after a hill.
   - Each dragged point stays where you leave it. Neighbouring control points and banking are never silently rewritten on release; the spline handles smooth track transitions between your points.
@@ -96,6 +96,7 @@ Start at [wiki/README.md](wiki/README.md):
 - [Empty draft controls and stations](wiki/empty-node-station.md) - clear non-existent node controls; always retain one station on a finished coaster
 - [Touch gestures and interruption recovery](wiki/interruptions-and-touch-regression.md) - roll back unfinished drags after capture loss or browser focus loss; real Chromium touch drag/undo integration
 - [First-station precision handles](wiki/first-station-precision-handles.md) - orange cap and blue bank grip are available immediately on the first station; real touch tests
+- [Readable mobile banking grip](wiki/touch-grip-pixel-target.md) - why zoomed-out bank handles need touch-sized visual spacing, five-point browser proof and source-backed radius bounds
 
 ## Quality checks
 

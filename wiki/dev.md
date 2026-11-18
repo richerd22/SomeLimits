@@ -60,7 +60,10 @@ node tests/direct-point-drag-regression.mjs
 node tests/draft-rescue-regression.mjs
 node tests/station-framing-regression.mjs
 node tests/empty-panel-station-regression.mjs
+node tests/touch-grip-size-regression.mjs
 ```
+
+The grip-radius regression extracts the production helper and checks desktop parity, touch-camera size scaling and exact shared ring/bar/grip geometry. See [Screen-readable mobile bank grip](touch-grip-pixel-target.md).
 
 The empty-panel test exercises the actual station-assignment and panel state helpers: zero-node disabled controls, one-node editable controls, invalid station uncheck, and exact unique ownership. Browser smoke verifies these states in the real DOM. See [Empty draft and station ownership](empty-node-station.md).
 
