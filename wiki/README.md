@@ -11,6 +11,7 @@ North star, in one line: a returning NL1 builder lays a full closed-circuit coas
 - [Dev](dev.md) - running it locally, repo layout, conventions, testing, forking.
 - [Admin](admin.md) - hosting, updates, ownership, trademark posture, and the imagery rule.
 - [Editor runtime](editor-runtime.md) - why drag builds are coalesced, how GPU objects are released, and why library thumbnails are regenerated.
+- [Large-coaster terrain index](terrain-proximity-bvh.md) - exact segment BVH and one distance per grid vertex; benchmark and 80-node browser verification.
 - [Support clearance](support-clearance.md) - spatial broadphase proof, exact crossbeam minima and regression tests.
 - [Mobile performance](mobile-performance.md) - device pixel ratio, on-demand library blueprints and caching limits.
 - [Browser smoke](browser-smoke.md) - full HTML/Three.js boot in Chromium, real DOM editing and mobile viewport, with explicit limitations.

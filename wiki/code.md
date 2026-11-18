@@ -67,6 +67,10 @@ Built from the samples, rebuilt with the track. All code-rendered. No model file
 - **Ground.** A ground plane under the layout - the plane the nodes sit on.
 - **Node handles.** In edit mode, a draggable handle mesh per node, tagged with its node index for picking via raycast against a horizontal drag plane at the node's height.
 
+## Terrain proximity on high-node-count coasters
+
+The editor renders a 109×109 terrain grid, fading and tinting ground according to the nearest X/Z distance to the node polyline. A settled update formerly recomputed this nearest segment **twice per terrain vertex**, each time scanning all control segments. `updateTerrain()` now computes that exact value once and supplies it to `terrainHeightAt(x,z,d)`; all other callers still use the two-argument form. Coasters over 16 control points use an exact segment bounding-volume hierarchy built at the start of each track regeneration. AABB lower bounds eliminate distant candidates but final distances use the unchanged original projection formula. Closed/open, duplicates, vertical loops and 0–16 node fallback are preserved. An 80-node terrain scan dropped from 950,480 to 55,700 exact segment projections per query pass. See [Terrain proximity BVH](terrain-proximity-bvh.md) and [numerical equivalence regression](../tests/terrain-distance-regression.mjs).
+
 ## Support clearance broad phase
 
 Centre-post keep-out checks now query an 8 m x/z spatial grid, then apply the *same* exact arc, height and horizontal-distance tests. This is a safe broad phase, not a relaxation of collision rules: any sample within sqrt(2.9) m horizontally lies inside the indexed query region. Side-frame beam clearance compares squared distances and performs one final square root, preserving its minimum and 1.15 m threshold. Diagnostics remain on `window.__slSupports`; see [support clearance](support-clearance.md) and `tests/support-clearance-regression.mjs` for the proof and brute-force reference.

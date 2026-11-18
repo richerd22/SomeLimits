@@ -970,25 +970,93 @@ function terrainNoise(x, z) {
        + 2.8 * Math.sin(x * 0.047 - 2.1) * Math.sin(z * 0.041 + 1.2)
        + 1.2 * Math.sin((x + z) * 0.093 + 0.4);
 }
-/* plan-view distance to the node polyline. the terrain fade
-   reads it, and so does the ground tint in updateTerrain. */
+/* The dirt apron asks for the distance from a ground point to
+   the control-point polyline. With 80 nodes a 109x109 terrain scan
+   once did roughly 2 million segment projections per settled edit:
+   one for height, then the SAME distance again for ground colour.
+   Keep the original nearest-segment formula, but for larger layouts
+   build a small bounding-volume tree once per track rebuild.
+   Rectangle lower bounds reject entire distant segment groups
+   without approximating the result (including crossovers, duplicate
+   nodes and the closing segment). Tiny layouts retain the direct
+   loop, avoiding index overhead on the first coaster. */
+let plotDistanceTree = null;
+function rebuildPlotDistanceIndex() {
+  plotDistanceTree = null;
+  if (nodes.length <= 16) return;
+  const segs = nodes.map((a, i) => {
+    const b = nodes[(i + 1) % nodes.length];
+    return {a, b,
+      minX: Math.min(a.x, b.x), maxX: Math.max(a.x, b.x),
+      minZ: Math.min(a.z, b.z), maxZ: Math.max(a.z, b.z),
+      midX: (a.x + b.x) / 2, midZ: (a.z + b.z) / 2};
+  });
+  function branch(items) {
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const q of items) {
+      if (q.minX < minX) minX = q.minX;
+      if (q.maxX > maxX) maxX = q.maxX;
+      if (q.minZ < minZ) minZ = q.minZ;
+      if (q.maxZ > maxZ) maxZ = q.maxZ;
+    }
+    const node = {minX, maxX, minZ, maxZ, left: null, right: null, items: null};
+    if (items.length <= 6) { node.items = items; return node; }
+    const splitX = maxX - minX >= maxZ - minZ;
+    items.sort((a, b) => splitX ? a.midX - b.midX : a.midZ - b.midZ);
+    const half = Math.floor(items.length / 2);
+    node.left = branch(items.slice(0, half));
+    node.right = branch(items.slice(half));
+    return node;
+  }
+  plotDistanceTree = branch(segs);
+}
+function plotBoundsDistSq(q, x, z) {
+  const dx = Math.max(q.minX - x, 0, x - q.maxX);
+  const dz = Math.max(q.minZ - z, 0, z - q.maxZ);
+  return dx * dx + dz * dz;
+}
+function plotSegmentDistSq(a, b, x, z) {
+  /* Keep the exact old arithmetic and zero-length segment fallback.
+     Even a vertical loop projects to an ordinary segment on ground. */
+  const abx = b.x - a.x, abz = b.z - a.z;
+  const len2 = abx * abx + abz * abz || 1;
+  const t = Math.max(0, Math.min(1, ((x - a.x) * abx + (z - a.z) * abz) / len2));
+  const dx = x - (a.x + abx * t), dz = z - (a.z + abz * t);
+  return dx * dx + dz * dz;
+}
 function plotDist(x, z) {
   let best = 1e18;
-  for (let i = 0; i < nodes.length; i++) {
-    const a = nodes[i], b = nodes[(i + 1) % nodes.length];
-    const abx = b.x - a.x, abz = b.z - a.z;
-    const len2 = abx * abx + abz * abz || 1;
-    const t = Math.max(0, Math.min(1, ((x - a.x) * abx + (z - a.z) * abz) / len2));
-    const dx = x - (a.x + abx * t), dz = z - (a.z + abz * t);
-    const d = dx * dx + dz * dz;
-    if (d < best) best = d;
+  if (!plotDistanceTree) {
+    for (let i = 0; i < nodes.length; i++) {
+      const d = plotSegmentDistSq(nodes[i], nodes[(i + 1) % nodes.length], x, z);
+      if (d < best) best = d;
+    }
+  } else {
+    function visit(q) {
+      /* An epsilon prevents a floating-point boundary lower bound
+         from rejecting a genuinely closer segment near equality. */
+      if (plotBoundsDistSq(q, x, z) > best + 1e-9) return;
+      if (q.items) {
+        for (const item of q.items) {
+          if (plotBoundsDistSq(item, x, z) > best + 1e-9) continue;
+          const d = plotSegmentDistSq(item.a, item.b, x, z);
+          if (d < best) best = d;
+        }
+        return;
+      }
+      const l = plotBoundsDistSq(q.left, x, z);
+      const r = plotBoundsDistSq(q.right, x, z);
+      if (l < r) { if (l <= best + 1e-9) visit(q.left); if (r <= best + 1e-9) visit(q.right); }
+      else { if (r <= best + 1e-9) visit(q.right); if (l <= best + 1e-9) visit(q.left); }
+    }
+    visit(plotDistanceTree);
   }
   return Math.sqrt(best);
 }
-function terrainHeightAt(x, z) {
-  // hills fade to zero across a 26m apron around the track,
-  // full height by 58m out
-  let f = THREE.MathUtils.smoothstep(plotDist(x, z), 26, 58);
+function terrainHeightAt(x, z, dist = plotDist(x, z)) {
+  // Same 26–58m terrain apron, with an optional already-measured
+  // distance so updateTerrain() doesn't compute it twice per vertex.
+  let f = THREE.MathUtils.smoothstep(dist, 26, 58);
   /* while building from blank, the whole plot is graph-paper flat:
      the hills fade across the building square, not just the track
      apron, so the ground reads as a sheet you draw on. */
@@ -1034,7 +1102,8 @@ function updateTerrain() {
   const posA = terrainGeo.attributes.position, arr = terrainColors.array;
   for (let i = 0; i < posA.count; i++) {
     const x = posA.getX(i), z = posA.getZ(i);
-    const h = terrainHeightAt(x, z);
+    const d = plotDist(x, z);
+    const h = terrainHeightAt(x, z, d);
     posA.setY(i, h);
     const t = THREE.MathUtils.clamp((h + 2.5) / 11, 0, 1);
     _tc.copy(_tcLow).lerp(_tcMid, Math.min(1, t * 1.7)).lerp(_tcHigh, Math.max(0, t - 0.5) * 1.6);
@@ -1043,7 +1112,6 @@ function updateTerrain() {
        textures), worn dirt on the apron the track sits on. */
     const n2 = Math.sin(x * 0.11 + z * 0.043) * Math.sin(z * 0.09 - x * 0.031);
     if (n2 > 0.25) _tc.lerp(_tcDry, Math.min(0.45, (n2 - 0.25) * 0.8));
-    const d = plotDist(x, z);
     if (d < 14) _tc.lerp(_tcDirt, (1 - d / 14) * 0.55);
     arr[i * 3] = _tc.r; arr[i * 3 + 1] = _tc.g; arr[i * 3 + 2] = _tc.b;
   }
@@ -1378,6 +1446,7 @@ function refreshTouchBankGizmo() {
 
 function buildTrack() {
   cancelTrackPreview();
+  rebuildPlotDistanceIndex();
   if (building && nodes.length < 2) { buildLoneStation(); return; }
   track = building ? computeOpenTrack(nodes) : computeTrack(nodes);
   const hasLift = track.samples.some(s => s.lift);
@@ -1866,6 +1935,7 @@ function computeOpenTrack(nodes) {
    lone station standing on it. handles + platform, nothing else. */
 function buildLoneStation() {
   cancelTrackPreview();
+  rebuildPlotDistanceIndex();
   track = null; hitTube = null;
   prevLiftSeen = false;
   disposeEditGroup(trackGroup);

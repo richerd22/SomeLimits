@@ -756,6 +756,65 @@ try {
     directUpAfter.nodes[1].h,{timeout:9000});
   console.log('PASS multi-node direct upward lime drag: only point 2 height, ground/bank unchanged, undo/redo exact');
   assert.deepEqual(multiErrors,[],'multi-node lime point gestures raised browser errors');
+
+  /* The source-level BVH test proves exact terrain math and fewer
+     segment projections. Exercise a real 80-node import AND edit
+     through the actual browser to catch stale proximity indexes,
+     geometry rebuild exceptions, or subtle saved-node corruption.
+     Timing is diagnostic only: headless software WebGL is not a
+     valid physical iPhone FPS benchmark. */
+  const largeNodes=Array.from({length:80},(_,i)=>{
+    const angle=i*Math.PI/40;
+    return {x:Math.cos(angle)*(71+6*Math.sin(i*.42)),
+      z:Math.sin(angle)*(63+8*Math.cos(i*.37)),
+      h:8+15*(1+Math.sin(i*.19))/2,
+      bank:Math.round(40*Math.sin(i*.27)),
+      station:i===0,lift:i===1};
+  });
+  const importStarted=Date.now();
+  await q.locator('#fileImp').setInputFiles([{
+    name:'eighty-node-performance.somelimits.json',
+    mimeType:'application/json',
+    buffer:Buffer.from(JSON.stringify({app:'somelimits',version:1,
+      name:'eighty-point browser performance',nodes:largeNodes}))
+  }]);
+  await q.waitForFunction(()=> {
+    const doc=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return doc?.nodes?.length===80&&doc.nodes[0].station===true&&
+      doc.name==='eighty-point browser performance';
+  },null,{timeout:60000});
+  const importWallMs=Date.now()-importStarted;
+  const fullBefore=await q.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  const desiredHeight=fullBefore.nodes[0].h+6;
+  const editStarted=Date.now();
+  await q.evaluate(value=>{
+    const slider=document.getElementById('rngH');
+    slider.value=String(value);
+    slider.dispatchEvent(new Event('input',{bubbles:true}));
+    slider.dispatchEvent(new Event('change',{bubbles:true}));
+  },desiredHeight);
+  await q.waitForFunction(h=>{
+    const doc=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return doc?.nodes?.length===80&&Math.abs(doc.nodes[0].h-h)<1e-7;
+  },desiredHeight,{timeout:60000});
+  const editWallMs=Date.now()-editStarted;
+  const fullAfter=await q.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.deepEqual(fullAfter.nodes.slice(1),fullBefore.nodes.slice(1),
+    '80-node height slider must not move any of 79 other nodes');
+  assert.equal(fullAfter.nodes.filter(n=>n.station).length,1);
+  await q.evaluate(()=>document.getElementById('btnUndo').click());
+  await q.waitForFunction(h=>{
+    const doc=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return doc?.nodes?.length===80&&Math.abs(doc.nodes[0].h-h)<1e-7;
+  },fullBefore.nodes[0].h,{timeout:60000});
+  await q.evaluate(()=>document.getElementById('btnRedo').click());
+  await q.waitForFunction(h=>{
+    const doc=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return doc?.nodes?.length===80&&Math.abs(doc.nodes[0].h-h)<1e-7;
+  },fullAfter.nodes[0].h,{timeout:60000});
+  assert.deepEqual(multiErrors,[],'80-node import/edit browser errors');
+  console.log('PASS 80-node WebGL import/height edit/undo-redo: all 79 neighbors unchanged; '+
+    'import wall '+importWallMs+'ms, slider edit wall '+editWallMs+'ms (software WebGL timing diagnostic)');
   await multi.close();
 
   console.log('PASS browser smoke: actual Three.js module + editor DOM in headless Chromium');
