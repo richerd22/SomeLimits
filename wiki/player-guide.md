@@ -9,8 +9,8 @@ This guide is also summarized in the app as the Field Manual. Press H.
 This is the preset path - a complete circuit first, pulled apart second. For the blank-plot path, see "From blank" below.
 
 1. Open the app. You start on the title screen, then in the editor with a preset already loaded. It is already a complete, rideable circuit. You do not have to fix it before it works.
-2. Drag a node. Click and drag any node on the ground plane to move it. The track is a smooth loop through all the nodes, so it follows.
-3. Pick a node and raise it: drag the orange cap floating above it, or use the height slider - same number, the cap is just your hand on it. Raise it to make a hill, lower it to make a valley.
+2. Drag a node. Drag a lime node sideways to move it across the plot, or straight up/down to raise/lower it. After the first clear movement, that drag stays on the chosen axis. No tool switch.
+3. For precise height, drag the orange cap floating above the selected point or use the height slider - same number, different grip. Raise it to make a hill, lower it to make a valley.
 4. Bank that node: drag the blue grip around it - it rides a ring around the point, and the track rolls as you pull it around. Banking runs from -180 to 180 degrees. Bank into turns so the ride does not throw you sideways.
 5. Let go. On drag release, auto-smooth gently tidies the moved node's neighbourhood - positions and banking. It is the built-in version of the old smoothing ritual. You do not need to do it by hand.
 6. Want a lift? Just make a climb of 8 m or more between two nodes - the chain lift grows by itself, drawn as a bright strip on the track. (A checkbox on the node can force a chain onto a shorter climb; it is an override, not the way.) Your first hill cannot stall because you missed a menu.
@@ -24,11 +24,11 @@ The other way in, and the one the game is really about. **+ new coaster** clears
 
 1. Click the ground to place the station. Everything leaves from there.
 2. Keep clicking to lay points out from it. Each click is the next point, and each point lands at ground level - the track runs flat until you raise something, and a drop is just what happens after a hill.
-3. Drag points to shape the run. Raise one by dragging the orange cap above it - height by hand; a climb of 8 m or more grows its own lift chain, drawn as a bright strip on the track.
+3. Drag points sideways to shape the plan; drag one up/down to make a hill. The orange cap is still the precise height grip. A climb of 8 m or more grows its own lift chain, drawn as a bright strip on the track.
 4. Click the station (or the glowing ring around it) to close the circuit. Under 4 points it refuses, politely.
 5. Press RIDE IT, or press R.
 
-Closed the loop with no hill at all? It still rides - at walking pace, for a long time. The game will tell you so, and it is right: raise a point and let the chain do the work.
+Closed the loop with no hill at all? It still rides. A genuinely flat circuit gets station-tire drive at about 23 km/h, since gravity has nothing to spend. Raise a point 8 m to get a proper lift-and-drop ride.
 
 ## The editor
 
@@ -46,14 +46,14 @@ Closed the loop with no hill at all? It still rides - at walking pace, for a lon
 
 | Action | How |
 |---|---|
-| Select and move a node | Drag the node on the ground plane |
-| Raise or lower a node | Drag the orange cap above it up or down |
+| Select and move a node | Drag the lime node sideways across the screen |
+| Raise or lower a node | Drag the lime node up/down, or use the orange cap for precision |
 | Bank a node | Drag the blue grip around the node - it rolls as you pull (or shift-drag / right-drag the node sideways) |
 | Insert a node | Double-click the track, or click empty ground to drop one where you click |
 | Orbit the camera | Drag empty space |
 | Pan and zoom | Use the editor camera controls - drag and scroll as labelled in the app |
 
-Height is the cap drag or a slider per selected node. Banking is the grip drag, the sideways shift-drag, or the slider - all three drive the same number on the same node, and they stay in sync.
+Height is a direct up/down node drag, an orange-cap drag or a slider. Banking is the grip drag, the sideways shift-drag, or the slider - all three drive the same number on the same node, and they stay in sync.
 
 ### Keys
 
@@ -86,12 +86,12 @@ On small screens the panels stack. It still works, it is just taller.
 
 - A flagged lift node gives you a chain lift from that node.
 - Any climb of 8 m or more between two nodes gets a chain lift automatically, flagged or not.
-- On a lift segment the chain holds the train at about 5.2 m/s. Slow, clanky in spirit, correct.
+- On a climbing lift segment the chain holds the train at 7.0 m/s (25 km/h). It only engages uphill. The station dispatches at 6.5 m/s (23 km/h), so a long flat lead-in no longer takes all day.
 - One big lift at the start is the classic shape: up slow, down fast, spend the height for the rest of the lap.
 
 ### Drops, hills, and speed
 
-- Speed comes from height. No height, no speed. The physics is energy-based: gravity from the slope, minus drag and a little rolling friction.
+- On a gravity coaster, speed comes from height: gravity from slope, minus drag and rolling friction. A flat-only layout is the exception - it uses a small powered tire-drive floor. No invisible mountain.
 - A drop that falls short will not magically make the next hill. Raise the first hill or lower the next one.
 - Check grade in the selected-node readout. A wall is not a hill.
 
@@ -114,7 +114,7 @@ On small screens the panels stack. It still works, it is just taller.
 Press RIDE IT or R.
 
 - The train starts at the station.
-- Lift segments hold chain speed. Everything else is gravity, drag, and friction doing their jobs.
+- Climbing lift segments hold chain speed. The station dispatches the train; flat-only circuits receive tire power. On regular gravity coasters, everything beyond the lift is gravity, drag and friction doing their jobs.
 - The brake run in the final approach to the station slows the train to a stop at the station. That ends the lap. No button mash, no missed stop.
 - HUD shows speed in km/h, height, and live G-force.
 - Cameras: POV, chase, orbit. Press C to cycle. Esc to exit.
