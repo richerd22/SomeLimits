@@ -1249,6 +1249,20 @@ function cancelTrackPreview() {
    deserves exactly the same gestures as every later point.
    One-node tangent falls back to +X in nodeRollFrame(), so the bank
    grip still has a defined up/side plane before a track exists. */
+/* The roll grip is a 3D direction control, not a coaster part.
+   At a zoomed-out mobile Frame Track camera the old fixed 2.6m
+   bar collapsed to ~4 CSS pixels on the glass, under the node
+   halo: impossible to aim or drag a meaningful arc with a thumb.
+   Scale ONLY the editing gizmo (not the track or the node's bank)
+   to a readable screen size. Desktop retains the classic 2.6m
+   gizmo and touch zoom-in preserves the same minimum radius. */
+function editGripRadius(n) {
+  if (!COARSE) return 2.6;
+  const distance = camera.position.distanceTo(new THREE.Vector3(n.x, n.h, n.z));
+  const worldPerCssPx = 2 * distance * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) / innerHeight;
+  return Math.min(24, Math.max(2.6, worldPerCssPx * 44));
+}
+
 function buildSelectedEditHandles() {
   /* the selected point's height kit: a pole tying it to the
      ground (its height becomes visible instead of guessed), a
@@ -1284,21 +1298,22 @@ function buildSelectedEditHandles() {
        has rolled it, so picking it up never jumps. shift-drag
        and the slider stay as backups, like the height slider. */
     const fr = nodeRollFrame(selected);
+    const gripRadius = editGripRadius(n);
     const rad = THREE.MathUtils.degToRad(n.bank);
     const rolled = fr.side.clone().multiplyScalar(Math.cos(rad)).addScaledVector(fr.up, -Math.sin(rad));
-    const ringB = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.035, 8, 44),
+    const ringB = new THREE.Mesh(new THREE.TorusGeometry(gripRadius, 0.035, 8, 44),
       new THREE.MeshBasicMaterial({color: 0x2b5aa6, transparent: true, opacity: 0.38, depthWrite: false}));
     ringB.position.set(n.x, n.h, n.z);
     ringB.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), fr.tan);
     handleGroup.add(ringB);
-    const barGeo = new THREE.CylinderGeometry(0.05, 0.05, 2.6, 6); barGeo.translate(0, 1.3, 0);
+    const barGeo = new THREE.CylinderGeometry(0.05, 0.05, gripRadius, 6); barGeo.translate(0, gripRadius / 2, 0);
     const bar = new THREE.Mesh(barGeo, new THREE.MeshBasicMaterial({color: 0x2b5aa6, transparent: true, opacity: 0.7}));
     bar.position.set(n.x, n.h, n.z);
     bar.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), rolled);
     handleGroup.add(bar);
     const grip = new THREE.Mesh(new THREE.SphereGeometry(0.62, 14, 10),
       new THREE.MeshStandardMaterial({color: 0x2b5aa6, emissive: 0x0d2144, roughness: 0.4}));
-    grip.position.set(n.x + rolled.x * 2.6, n.h + rolled.y * 2.6, n.z + rolled.z * 2.6);
+    grip.position.set(n.x + rolled.x * gripRadius, n.h + rolled.y * gripRadius, n.z + rolled.z * gripRadius);
     grip.userData.bankNode = selected;
     handleGroup.add(grip);
     addHitProxy(handleGroup, grip.position, 'grip', {bankNode: selected});
