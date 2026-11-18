@@ -32,6 +32,8 @@ In the latest drafting polish, **TOP gets persistent graph paper** even on close
 
 Precision editing now includes previous/next node selection for stacked points, exact X/Z numeric controls, and view-correct arrow-key nudges (1m, Shift 5m, Option/Alt 0.1m). These commit ordinary undoable edits; selecting another node never mutates the coaster. See [Round 27 precision editor](wiki/precision-node-authoring-round27.md).
 
+Round 28 makes elevation views proper builders: **tap SIDE to place the next X/height point, or FRONT for Z/height**, with the hidden axis inherited from the previous endpoint. A lime ghost segment previews the tap before placing; each view keeps its own zoom/pan when switching, with explicit − / FIT / + controls. No changes to coaster physics, saves, or existing gestures. See [Round 28 engineering rationale](wiki/elevation-drawing-round28.md).
+
 ## What you get
 
 - A complete closed-circuit coaster, end to end: station, lift hill, drops, banked turns, inversions if you build them, brake run back to the station.
