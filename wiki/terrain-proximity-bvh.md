@@ -48,7 +48,7 @@ The complete first CI run recorded **7,938 exact distance + terrain height probe
 
 The old terrain settle made *two* full scans, or approximately **1.90 million** projections for that 80-node case. The new settle makes one indexed scan, or approximately **55,700**, about **97.1% fewer exact segment projections** during that part of the terrain pass. The timing result is **diagnostic CI data**, not a universal FPS multiplier: the total editor rebuild still includes spline sampling, many rail/tie/support meshes, GPU work and tree/terrain updates, and CI hardware differs from a real phone.
 
-The existing full smoke suite also passed actual Chromium desktop/mobile WebGL, first-station and five-node touch editing, exact Undo/Redo, collision/support clearance, autosave/draft, and all four locked physics time/speed fingerprints. A further real-browser 80-node import/edit/Undo/Redo test was added to catch runtime integration and saved-node corruption that headless numerical equivalence alone cannot detect.
+The existing full smoke suite also passed actual Chromium desktop/mobile WebGL, first-station and five-node touch editing, exact Undo/Redo, collision/support clearance, autosave/draft, and all four locked physics time/speed fingerprints. A further real-browser 80-node import/edit/Undo/Redo test passed and showed **all 79 other nodes unchanged**, an exact Undo/Redo round-trip and no JavaScript errors. In that software-WebGL CI environment, importing took **418ms wall time** and editing the station's height took **46ms wall time**; these numbers are diagnostic only, not a physical iPhone FPS measurement.
 
 ## Run the tests
 
