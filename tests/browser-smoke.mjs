@@ -385,9 +385,14 @@ try {
      documented 2.4m orange cap and 2.6m roll grip into the known
      Frame Track camera, then exercise the *actual* grabbable meshes
      with Chromium's real touch events. No test-only app hooks. */
+  const gameSource=await readFile(path.join(root,'play/index.html'),'utf8');
+  const gripSrcStart=gameSource.indexOf('function editGripRadius(n) {');
+  const gripSrcEnd=gameSource.indexOf('function buildSelectedEditHandles()',gripSrcStart);
+  assert.ok(gripSrcStart>=0&&gripSrcEnd>gripSrcStart,'grip radius must be implemented once in game source');
+  const gripSrc=gameSource.slice(gripSrcStart,gripSrcEnd);
   async function loneHandlePixels(){
     await mp.evaluate(()=>document.getElementById('btnFrame').click());
-    return mp.evaluate(async ()=>{
+    return mp.evaluate(async (gripSrc)=>{
       const THREE=await import('three');
       const doc=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
       const n=doc.nodes[0];
@@ -395,6 +400,8 @@ try {
       eye.position.set(n.x+52,n.h+44,n.z+74);
       eye.lookAt(n.x,n.h,n.z);
       eye.updateMatrixWorld();
+      const gripRadius=new Function('THREE','camera','COARSE','innerHeight',
+        gripSrc+'\nreturn editGripRadius;')(THREE,eye,true,innerHeight)(n);
       const screen=(x,y,z)=>{
         const v=new THREE.Vector3(x,y,z).project(eye);
         return {x:Math.round((v.x+1)*innerWidth/2),
@@ -403,10 +410,10 @@ try {
       /* A lone station's tangent is +X by definition. Its bank
          starts at 0, so fr.side is world -Z; +90 banks to -Y. */
       return {cap:screen(n.x,n.h+2.4,n.z),
-              grip:screen(n.x,n.h,n.z-2.6),
-              rollDown:screen(n.x,n.h-2.6,n.z),
-              node:{...n}};
-    });
+              grip:screen(n.x,n.h,n.z-gripRadius),
+              rollDown:screen(n.x,n.h-gripRadius,n.z),
+              gripRadius,node:{...n}};
+    },gripSrc);
   }
   const beforeCap=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
   const capPix=await loneHandlePixels();
@@ -499,7 +506,6 @@ try {
     {x:54,z:12,h:8,bank:-35},
     {x:0,z:62,h:3,bank:15}
   ];
-  const gameSource=await readFile(path.join(root,'play/index.html'),'utf8');
   const realCore=gameSource.match(/\/\* === CORE START === \*\/([\s\S]*?)\/\* === CORE END === \*\//)?.[1];
   assert.ok(realCore,'must project same physics source the game uses');
   const multi=await browser.newContext({viewport:{width:390,height:844},
@@ -520,7 +526,7 @@ try {
 
   async function projectedMultiPoint(idx,targetBank=null){
     const doc=await q.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
-    return q.evaluate(async ({core,nodes,idx,targetBank})=>{
+    return q.evaluate(async ({core,nodes,idx,targetBank,gripSrc})=>{
       const THREE=await import('three');
       const computeTrack=new Function('THREE',core+'\nreturn computeTrack;')(THREE);
       const track=computeTrack(nodes);
@@ -533,6 +539,8 @@ try {
       const camera=new THREE.PerspectiveCamera(62,390/844,0.1,1000);
       camera.position.copy(center).addScaledVector(dir,dist);
       camera.lookAt(center);camera.updateMatrixWorld();
+      const gripRadius=new Function('THREE','camera','COARSE','innerHeight',
+        gripSrc+'\nreturn editGripRadius;')(THREE,camera,true,innerHeight)(nodes[idx]);
       const px=v=>{
         const p=v.clone().project(camera);
         return {x:Math.round((p.x+1)*390/2),y:Math.round((1-p.y)*844/2)};
@@ -545,14 +553,14 @@ try {
       const roll=(deg)=>{
         const rad=THREE.MathUtils.degToRad(deg);
         return new THREE.Vector3(n.x,n.h,n.z)
-          .addScaledVector(side,2.6*Math.cos(rad))
-          .addScaledVector(up,-2.6*Math.sin(rad));
+          .addScaledVector(side,gripRadius*Math.cos(rad))
+          .addScaledVector(up,-gripRadius*Math.sin(rad));
       };
       const pos=new THREE.Vector3(n.x,n.h,n.z);
       return {node:px(pos),cap:px(pos.clone().add(new THREE.Vector3(0,2.4,0))),
         grip:px(roll(n.bank)),gripTarget:px(roll(targetBank??n.bank)),
-        index:idx,savedNode:n};
-    },{core:realCore,nodes:doc.nodes,idx,targetBank});
+        gripRadius,index:idx,savedNode:n};
+    },{core:realCore,nodes:doc.nodes,idx,targetBank,gripSrc});
   }
 
   const pick=await projectedMultiPoint(1);
@@ -593,7 +601,13 @@ try {
   const beforeBank=await q.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
   const gripP=await projectedMultiPoint(1,120);
   console.log('MULTI-NODE BANK PIXELS '+JSON.stringify(gripP));
+  assert.ok(Math.hypot(gripP.grip.x-gripP.node.x,gripP.grip.y-gripP.node.y)>=14,
+    'mobile grip must be at least 14 screen px from the node center');
+  assert.ok(Math.hypot(gripP.gripTarget.x-gripP.grip.x,gripP.gripTarget.y-gripP.grip.y)>=12,
+    'bank target must be far enough away to represent a deliberate gesture');
   await gesture('touchStart',[touch(111,gripP.grip.x,gripP.grip.y)]);
+  const gripCursor=await q.evaluate(()=>document.querySelector('#app canvas')?.style.cursor);
+  console.log('MULTI-NODE TOUCH PICK '+JSON.stringify({gripCursor}));
   await gesture('touchMove',[touch(111,gripP.gripTarget.x,gripP.gripTarget.y)]);
   await gesture('touchEnd',[]);
   await q.waitForFunction(b=>{
