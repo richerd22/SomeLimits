@@ -37,6 +37,12 @@ Finally, library saves stored `thumb: blueprint(nodes)`, a base64 PNG data URI, 
 - [ ] Simulate localStorage quota/blocked writes: the UI must **not** claim the coaster was saved.
 - [ ] Run classic, oval, wild, looper and user 47.5m layout; lap logic should be unchanged.
 
+## Follow-up: indexed post checks
+
+The next performance pass added `supportSpatialIndex()` for centre-post clearance and replaced per-candidate crossbeam square roots with one final square root. Collision decisions and min-beam diagnostics remain exact. The equivalence test checks all presets and crossover cases against the original brute-force approach. Details: [Support clearance](support-clearance.md).
+
+A library-cache follow-up evicts a deleted coaster's derived blueprint immediately after a successful library write, instead of retaining it until refresh. The existing editor regression tests enforce this.
+
 ## Known limits / next work
 
 This round does not replace the GPU benchmark with measured FPS on real iOS Safari. Coalescing prevents redundant work within a frame, but individual rebuilds remain heavy (support clearances and terrain projection still cost CPU). Real-device profiling is the next step, and further optimization must preserve the support keep-out checks, especially vertical loops and crossovers.
