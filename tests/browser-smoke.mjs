@@ -657,6 +657,39 @@ try {
     assert.equal(await mp.locator('[data-editor-view="'+view+'"]').getAttribute('aria-pressed'),'true',
       'view selector must report '+view);
   }
+  /* Precision after construction: TOP arrow nudges must touch only the
+     selected point and only the visible axis. Inspector coordinate edits
+     are undoable, and prev/next selection must not create document edits
+     even if stacked nodes are impossible to distinguish by screen tap. */
+  await mp.locator('[data-editor-view="top"]').tap();
+  const preNudge=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  await mp.keyboard.press('ArrowLeft');
+  await mp.waitForFunction(x=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.nodes?.length===4&&d.nodes[3].x<x-.5;
+  },preNudge.nodes[3].x,{timeout:9000});
+  const afterNudge=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.deepEqual(afterNudge.nodes.slice(0,3),preNudge.nodes.slice(0,3),'nudge moves only selected node');
+  assert.equal(afterNudge.nodes[3].z,preNudge.nodes[3].z,'left nudge leaves Z alone');
+  assert.equal(afterNudge.nodes[3].h,preNudge.nodes[3].h,'left nudge leaves height alone');
+  assert.equal(afterNudge.nodes[3].bank,preNudge.nodes[3].bank,'left nudge leaves banking alone');
+  await mp.evaluate(()=>{
+    const x=document.getElementById('inpNodeX');
+    x.value='22.7';x.dispatchEvent(new Event('change',{bubbles:true}));
+  });
+  const afterNumber=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.equal(afterNumber.nodes[3].x,22.7,'numeric X editor commits exact 0.1 m');
+  assert.deepEqual(afterNumber.nodes.slice(0,3),preNudge.nodes.slice(0,3),'numeric edit leaves neighbors alone');
+  await mp.evaluate(()=>document.getElementById('btnUndo').click());
+  const afterCoordUndo=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.deepEqual(afterCoordUndo.nodes,afterNudge.nodes,'Undo restores pre-number position');
+  await mp.evaluate(()=>document.getElementById('btnPrevNode').click());
+  assert.equal(await mp.locator('#nodeIdx').textContent(),'#3 of 4','prev selects stacked neighbor exactly');
+  await mp.evaluate(()=>document.getElementById('btnNextNode').click());
+  assert.equal(await mp.locator('#nodeIdx').textContent(),'#4 of 4','next reselects actual last node');
+  assert.deepEqual((await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
+    afterNudge.nodes,'node selection never changes autosave document');
+  console.log('PASS precision WebGL: TOP arrow nudge axis isolation, numeric X, Undo, previous/next no document changes');
   assert.deepEqual(mobileErrors,[],'real blueprint continuation and camera views produced no WebGL errors');
   console.log('PASS blueprint WebGL: TOP new, 42.5m crest, LEVEL, LEFT, DROP, Undo/Redo, SIDE/FRONT/3D views');
   await mobile.close();
