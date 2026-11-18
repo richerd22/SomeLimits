@@ -32,7 +32,7 @@ Adding the station restores editable height/banking immediately, while the stati
 
 ### The checkbox moves the station; it cannot erase it
 
-`assignStation(nodes, selected, checked)` is a small source-backed helper. An unchecked or invalid target is a no-op. Checking a node sets that node's station flag and clears the rest, returning whether anything actually changed.
+`assignStation(nodes, selected, checked)` is a small source-backed helper. An unchecked or invalid target is a no-op. Checking a node sets that node's station flag and clears the rest, returning whether anything actually changed. The shared completed-coaster `sanitizeNodes()` also normalizes malformed/legacy JSON and share links with zero or multiple station flags: it preserves the **first designated station**, or chooses node 0 if none was designated. All unrelated coordinates, banking and lift values remain intact.
 
 If the user unchecks the **only** station on a finished coaster, the checkbox is immediately restored and a plain toast explains: *every coaster needs a station. select another point to move it.* No build, history commit or autosave mutation occurs. Checking a different node moves the unique station and commits normally.
 
