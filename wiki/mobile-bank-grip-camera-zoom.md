@@ -17,7 +17,7 @@ Keep the **same** source-backed `editGripRadius(n)` model: touch devices aim for
 On building a selected node's bank control:
 - `buildSelectedEditHandles()` records references to the existing blue torus, bar, blue sphere and coarse-pointer hit proxy in `handleGroup.userData.touchBankGizmo`. It also records the node's roll direction, origin, originally built radius, last applied radius, camera position and CSS viewport height.
 - `addHitProxy()` now returns the proxy it already created; existing callers may ignore the return value, preserving their behavior. The blue grip's caller stores that object instead of allocating a duplicate halo.
-- No new scene graph group, mode, button, saved field or asset is created.
+- No new scene graph group, mode, button, saved field or asset is created. A later [all-halo camera-continuity follow-up](mobile-touch-halo-camera.md) also resizes the **existing** lime-node and orange-cap invisible proxies using their original coefficients whenever the camera moves; the blue grip proxy keeps following the visible blue sphere.
 
 Once each frame, **after** OrbitControls applies its damping:
 - `refreshTouchBankGizmo()` skips on desktop, during ride mode and while any point/bank/cap edit is active. A camera that has not moved by a meaningful threshold, with unchanged viewport height, takes an immediate cheap no-op path.
