@@ -533,6 +533,8 @@ try {
     const stored=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
     for(const [kind,expected] of [['cap','ns-resize'],['grip','grabbing']]){
       const pt=centers[kind],id=220+angle+ (kind==='grip'?1:0);
+      const topElement=await mp.evaluate(point=>document.elementFromPoint(point.x,point.y)?.tagName,pt);
+      assert.equal(topElement,'CANVAS','mobile dock must not cover '+kind+' at bank '+angle+' (screen '+pt.x+','+pt.y+')');
       await send('touchStart',[finger(id,pt.x,pt.y)]);
       const actual=await mp.evaluate(()=>document.querySelector('#app canvas').style.cursor);
       console.log('EXTREME HANDLE TOUCH '+JSON.stringify({angle,kind,actual,expected}));
