@@ -445,12 +445,25 @@ try {
   await send('touchStart',[finger(81,gripPix.grip.x,gripPix.grip.y)]);
   await send('touchMove',[finger(81,gripPix.rollDown.x,gripPix.rollDown.y)]);
   await mp.waitForFunction(b=>{
+    const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return Math.abs(st.nodes[0].bank-b)>30;
+  },beforeGrip.nodes[0].bank,{timeout:11000});
+  const midGrip=await mp.evaluate(()=>{
+    const label=document.getElementById('hLabel');
+    return {label:label.textContent,inlineDisplay:label.style.display,
+      computedDisplay:getComputedStyle(label).display,
+      bank:Number(document.getElementById('rngB').value),
+      bankValue:document.getElementById('bVal').textContent,
+      saved:JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes[0]};
+  });
+  console.log('LIVE GRIP READOUT DIAGNOSTICS '+JSON.stringify(midGrip));
+  await mp.waitForFunction(b=>{
     const label=document.getElementById('hLabel');
     const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
     return label.style.display==='block'&&label.textContent.startsWith('bank ')&&
       Math.abs(st.nodes[0].bank-b)>30 &&
       label.textContent==='bank '+st.nodes[0].bank+' deg';
-  },beforeGrip.nodes[0].bank,{timeout:11000});
+  },beforeGrip.nodes[0].bank,{timeout:8000});
   await send('touchEnd',[]);
   await mp.waitForFunction(b=>{
     const doc=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
