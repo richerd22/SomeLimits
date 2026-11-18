@@ -1144,6 +1144,14 @@ function disposeEditGroup(group) {
   for (const geo of geos) geo.dispose();
   for (const mat of mats) mat.dispose();
 }
+/* One radius rule for all touch halos, whether created during a
+   track rebuild or resized after a camera-only move. The original
+   cap/grip/node factors and minimum sizes stay unchanged. */
+function touchHaloRadius(kind, distance) {
+  return kind === 'cap' ? Math.max(2.4, distance * 0.026) :
+         kind === 'grip' ? Math.max(2.3, distance * 0.025) :
+                           Math.max(2.6, distance * 0.028);
+}
 function addHitProxy(parent, pos, kind, userData) {
   if (!COARSE) return null;
   const p = new THREE.Mesh(proxyGeoUnit, hitProxyMat);
@@ -1158,12 +1166,14 @@ function addHitProxy(parent, pos, kind, userData) {
      point is - floored at the close-range sizes so near work
      behaves exactly as it did. */
   const d = camera.position.distanceTo(pos);
-  const r = kind === 'cap' ? Math.max(2.4, d * 0.026) :
-            kind === 'grip' ? Math.max(2.3, d * 0.025) :
-                              Math.max(2.6, d * 0.028);
-  p.scale.setScalar(r);
+  p.scale.setScalar(touchHaloRadius(kind, d));
   Object.assign(p.userData, userData);
   parent.add(p);
+  /* Keep only references to pre-existing proxy meshes. The selected
+     node kit may be rebuilt many times but the old group (and its
+     list) is released through the normal edit disposal path. */
+  if (!parent.userData.touchProxies) parent.userData.touchProxies = [];
+  parent.userData.touchProxies.push({mesh: p, kind});
   return p;
 }
 /* the train: three articulated cars, not one box. each car is
@@ -1344,6 +1354,15 @@ function refreshTouchBankGizmo() {
   if (g.lastHeight === innerHeight && g.lastCamera.distanceToSquared(camera.position) < 0.0001) return;
   g.lastCamera.copy(camera.position);
   g.lastHeight = innerHeight;
+  /* The lime node and orange cap use the same thumb-sized halos as
+     the blue grip. Camera zoom used to leave those scales frozen at
+     the last track rebuild. Retarget the EXISTING meshes; never add
+     another picking sphere or re-sample the coaster. Do this even
+     when the blue ring radius is clamped and stays unchanged. */
+  for (const hit of handleGroup.userData.touchProxies || []) {
+    const distance = camera.position.distanceTo(hit.mesh.position);
+    hit.mesh.scale.setScalar(touchHaloRadius(hit.kind, distance));
+  }
   const newRadius = editGripRadius(nodes[g.nodeIndex]);
   if (Math.abs(newRadius - g.radius) < 0.02) return;
   const scale = newRadius / g.builtRadius;
@@ -1352,7 +1371,7 @@ function refreshTouchBankGizmo() {
   g.grip.position.copy(g.origin).addScaledVector(g.rolled, newRadius);
   if (g.proxy) {
     g.proxy.position.copy(g.grip.position);
-    g.proxy.scale.setScalar(Math.max(2.3, camera.position.distanceTo(g.grip.position) * 0.025));
+    g.proxy.scale.setScalar(touchHaloRadius('grip', camera.position.distanceTo(g.grip.position)));
   }
   g.radius = newRadius;
 }
