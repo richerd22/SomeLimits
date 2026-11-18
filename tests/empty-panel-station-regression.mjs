@@ -31,6 +31,30 @@ nodes[0].station=true; // simulate an invalid imported multi-station state
 assert.equal(assignStation(nodes,1,true),true);
 assert.deepEqual(nodes.map(n=>!!n.station),[false,true,false],'reassign repairs duplicates');
 
+// Bad/old completed imports can specify NO station or more than one.
+// The same sanitizer is used by JSON and URL-share restores; it must
+// turn all finished circuits into exactly one station consistently.
+const core=html.match(/\/\* === CORE START === \*\/([\s\S]*?)\/\* === CORE END === \*\//)?.[1];
+assert.ok(core,'core source missing');
+const THREE={MathUtils:{clamp:(v,lo,hi)=>Math.min(Math.max(v,lo),hi)}};
+const {sanitizeNodes,encodeCoaster,decodeCoaster}=new Function('THREE',
+  core+'\nreturn {sanitizeNodes,encodeCoaster,decodeCoaster};')(THREE);
+const legacy=[
+ {x:0,z:20,h:3,bank:0,station:false},
+ {x:20,z:0,h:8,bank:30,station:true},
+ {x:0,z:-20,h:3,bank:-20,station:true},
+ {x:-20,z:0,h:3,bank:0,station:false}
+];
+const normalized=sanitizeNodes(legacy);
+assert.deepEqual(normalized.map(n=>n.station),[false,true,false,false],
+  'first designated station wins on malformed multi-station import');
+assert.equal(normalized[1].bank,30,'normalization does not change banking');
+const absent=sanitizeNodes(legacy.map(n=>({...n,station:false})));
+assert.deepEqual(absent.map(n=>n.station),[true,false,false,false],
+  'missing station falls back to node zero');
+assert.deepEqual(decodeCoaster(encodeCoaster('legacy',legacy)).nodes.map(n=>n.station),
+  [false,true,false,false],'share round trip must normalize duplicates');
+
 // Extract the production panel function, evaluating only its null-track
 // path (no fake graphics or reimplemented panel logic).
 const panelStart=script.indexOf('function syncPanel() {');
