@@ -313,6 +313,11 @@ try {
     return held;
   });
   assert.equal(hadCapture,true,'node drag must own pointer capture');
+  /* Pointer Events processes a pending release at the NEXT pointer
+     event; releasePointerCapture() does not guarantee synchronous
+     lostpointercapture dispatch. Move while the finger is still
+     down to trigger real browser capture-release ordering. */
+  await send('touchMove',[finger(41,center.x,center.y-81)]);
   await mp.waitForFunction(h=>document.getElementById('hVal').textContent === h.toFixed(1)+' m',
     station.h,{timeout:9000});
   await send('touchEnd',[]);
