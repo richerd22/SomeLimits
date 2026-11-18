@@ -695,6 +695,70 @@ try {
   assert.deepEqual((await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
     afterNudge.nodes,'node selection never changes autosave document');
   console.log('PASS precision WebGL: TOP arrow nudge axis isolation, numeric X, Undo, previous/next no document changes');
+  /* Round 28: SIDE and FRONT can now CREATE nodes on an open layout, not
+     only move old points. Test actual finger taps with WebGL raycasting,
+     inherited hidden coordinates, exact Undo/Redo and camera view memory. */
+  await mp.evaluate(()=>{
+    document.getElementById('btnNew').click();
+    document.getElementById('btnNew').click();
+  });
+  await mp.waitForFunction(()=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.building===true&&d.nodes.length===0;
+  });
+  await mp.touchscreen.tap(195,380);
+  await mp.waitForFunction(()=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.building===true&&d.nodes.length===1&&d.nodes[0].station===true;
+  });
+  const stationForDrawing=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes[0]);
+  const stationSidePixel=await projectedLoneElevation('side');
+  const sideNext={x:stationSidePixel.x+70,y:stationSidePixel.y-54};
+  assert.equal(await mp.evaluate(pt=>document.elementFromPoint(pt.x,pt.y)?.tagName,sideNext),
+    'CANVAS','SIDE drawing surface must remain tappable after view dock additions');
+  await mp.touchscreen.tap(sideNext.x,sideNext.y);
+  await mp.waitForFunction(()=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.nodes?.length===2;
+  },null,{timeout:14000});
+  const drawnSide=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.equal(drawnSide.nodes[1].z,stationForDrawing.z,'SIDE new point inherits hidden Z');
+  assert.equal(drawnSide.nodes[1].bank,stationForDrawing.bank,'SIDE new point inherits bank');
+  assert.ok(drawnSide.nodes[1].x>stationForDrawing.x+5,'SIDE tap extends along the X drawing axis');
+  assert.ok(drawnSide.nodes[1].h>stationForDrawing.h+8,'SIDE tap creates the uphill lift directly');
+  await mp.locator('#btnZoomIn').tap();
+  await mp.waitForFunction(()=>document.getElementById('zoomReadout').textContent==='1.3x',
+    null,{timeout:6000});
+  await mp.locator('[data-editor-view="top"]').tap();
+  await mp.locator('[data-editor-view="side"]').tap();
+  await mp.waitForFunction(()=>document.getElementById('zoomReadout').textContent==='1.3x',
+    null,{timeout:6000});
+  assert.deepEqual((await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
+    drawnSide.nodes,'changing/returning drafting view must preserve node data');
+  await mp.locator('#btnFrameView').tap();
+  await mp.waitForFunction(()=>document.getElementById('zoomReadout').textContent==='1.0x',
+    null,{timeout:6000});
+  await mp.locator('[data-editor-view="front"]').tap();
+  const frontNext={x:260,y:425};
+  assert.equal(await mp.evaluate(pt=>document.elementFromPoint(pt.x,pt.y)?.tagName,frontNext),
+    'CANVAS','FRONT drawing surface cannot be covered by controls');
+  await mp.touchscreen.tap(frontNext.x,frontNext.y);
+  await mp.waitForFunction(()=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.nodes?.length===3;
+  },null,{timeout:14000});
+  const drawnFront=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.equal(drawnFront.nodes[2].x,drawnSide.nodes[1].x,'FRONT new point inherits hidden X');
+  assert.notEqual(drawnFront.nodes[2].z,drawnSide.nodes[1].z,'FRONT tap controls Z');
+  assert.equal(drawnFront.nodes[2].bank,drawnSide.nodes[1].bank,'FRONT tap inherits bank');
+  assert.deepEqual(drawnFront.nodes.slice(0,2),drawnSide.nodes,'FRONT placement never changes upstream nodes');
+  await mp.evaluate(()=>document.getElementById('btnUndo').click());
+  assert.deepEqual((await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
+    drawnSide.nodes,'Undo removes only the FRONT extension');
+  await mp.evaluate(()=>document.getElementById('btnRedo').click());
+  assert.deepEqual((await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
+    drawnFront.nodes,'Redo returns exact FRONT-drawn geometry');
+  console.log('PASS elevation DRAW WebGL: SIDE tap creates lift, FRONT tap shapes next segment, camera zoom survives view switching, FIT resets, exact Undo/Redo');
   assert.deepEqual(mobileErrors,[],'real blueprint continuation and camera views produced no WebGL errors');
   console.log('PASS blueprint WebGL: TOP new, 42.5m crest, LEVEL, LEFT, DROP, Undo/Redo, SIDE/FRONT/3D views');
   await mobile.close();

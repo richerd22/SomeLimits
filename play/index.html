@@ -145,6 +145,8 @@
   #editorDock #buildTools{margin-top:10px;padding-top:8px;border-top:1px solid #2b3644}
   #editorDock #dockGuide{font-size:10.5px;color:#adc0d0;line-height:1.4;margin-top:7px}
   #editorDock #btnFocusPoint{display:block;width:100%;margin-top:6px}
+  #editorDock .viewnav{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;margin-top:6px;align-items:center}
+  #editorDock #zoomReadout{font-size:10px;color:#a8bdcb;text-align:center;font-variant-numeric:tabular-nums}
   @media(max-width:760px){
     #editorDock{top:128px;right:8px;width:204px;padding:7px}
     #editorDock button{font-size:10px;padding:8px 2px}
@@ -272,6 +274,12 @@
     <button type="button" data-editor-view="side" aria-pressed="false" title="Side elevation: drag nodes along X and height">SIDE</button>
     <button type="button" data-editor-view="front" aria-pressed="false" title="Front elevation: drag nodes along Z and height">FRONT</button>
     <button type="button" data-editor-view="3d" aria-pressed="true" title="Free-orbit 3D inspection">3D</button>
+  </div>
+  <div class="viewnav" role="group" aria-label="Drawing navigation">
+    <button type="button" id="btnZoomOut" aria-label="Zoom out">−</button>
+    <button type="button" id="btnFrameView" title="Fit the whole coaster in this view">FIT</button>
+    <button type="button" id="btnZoomIn" aria-label="Zoom in">+</button>
+    <span id="zoomReadout">3D</span>
   </div>
   <button type="button" id="btnFocusPoint" title="Zoom toward the selected point">focus selected node</button>
   <div id="buildTools" style="display:none">
@@ -1003,6 +1011,8 @@ perspectiveCamera.position.set(60, 55, 85);
 const orthoCamera = new THREE.OrthographicCamera(-80, 80, 80, -80, 0.1, 1000);
 let camera = perspectiveCamera;
 let editorView = '3d'; // separate drawing projection, never part of save/physics
+let draftingCameraStates = Object.create(null); // UI-only; never saved with coaster
+let lastZoomReadout = '';
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(10, 8, 0);
 controls.enableDamping = true;
@@ -1158,6 +1168,19 @@ const gridGroup = new THREE.Group();
   gridGroup.visible = false;
 }
 scene.add(gridGroup);
+/* Exactly two persistent preview objects show the new elevation point
+   and its line from the current end. Move their buffer attribute
+   in place on hover: no full coaster rebuild, saved point or autosave. */
+const draftGuideGeo = new THREE.BufferGeometry();
+draftGuideGeo.setAttribute('position',
+  new THREE.BufferAttribute(new Float32Array(6), 3).setUsage(THREE.DynamicDrawUsage));
+const draftGuide = new THREE.Line(draftGuideGeo,
+  new THREE.LineBasicMaterial({color:0xC6FF00,transparent:true,opacity:0.7,depthTest:false}));
+draftGuide.renderOrder = 99; draftGuide.frustumCulled = false; draftGuide.visible = false;
+const draftGhost = new THREE.Mesh(new THREE.SphereGeometry(0.9,12,8),
+  new THREE.MeshBasicMaterial({color:0xC6FF00,transparent:true,opacity:0.8,depthTest:false}));
+draftGhost.renderOrder = 100; draftGhost.visible = false;
+scene.add(draftGuide,draftGhost);
 /* Drafting overlays: persistent axis grids for SIDE and FRONT views.
    Keep a single reusable GridHelper so switching views allocates no
    track meshes or materials. No grid in ride/perspective scenes. */
@@ -2030,28 +2053,77 @@ function focusSelectedNode() {
   }
   controls.update();
 }
+/* A view switch is a workspace operation, not a command to throw away
+   the user's painstaking zoom and pan. Store each 2D orientation's own
+   viewport independently. FIT deliberately resets only the active view.
+   State is ephemeral, and a new/imported coaster clears it. */
+function captureDrawingCamera(view) {
+  if (view === '3d') return;
+  draftingCameraStates[view] = {
+    position: orthoCamera.position.clone(),
+    target: controls.target.clone(),
+    up: orthoCamera.up.clone(),
+    halfHeight: (orthoCamera.top - orthoCamera.bottom) / 2,
+    zoom: orthoCamera.zoom
+  };
+}
+function restoreDrawingCamera(view) {
+  const saved = draftingCameraStates[view];
+  if (!saved) return;
+  const aspect = innerWidth / innerHeight;
+  orthoCamera.left = -saved.halfHeight * aspect;
+  orthoCamera.right = saved.halfHeight * aspect;
+  orthoCamera.top = saved.halfHeight;
+  orthoCamera.bottom = -saved.halfHeight;
+  orthoCamera.zoom = saved.zoom;
+  orthoCamera.position.copy(saved.position);
+  orthoCamera.up.copy(saved.up);
+  controls.target.copy(saved.target);
+  orthoCamera.updateProjectionMatrix();
+  orthoCamera.lookAt(controls.target);
+  controls.update();
+}
+function zoomEditor(factor) {
+  if (mode !== 'edit' || !Number.isFinite(factor) || factor <= 0) return;
+  if (editorView !== '3d') {
+    orthoCamera.zoom = THREE.MathUtils.clamp(orthoCamera.zoom * factor, 0.2, 20);
+    orthoCamera.updateProjectionMatrix();
+    controls.update();
+    refreshTouchBankGizmo(); // resize existing point hit areas, not the coaster
+  } else {
+    const delta = camera.position.clone().sub(controls.target);
+    const radius = THREE.MathUtils.clamp(delta.length() / factor, controls.minDistance, controls.maxDistance);
+    if (delta.lengthSq() > 1e-8) camera.position.copy(controls.target).addScaledVector(delta.normalize(), radius);
+    controls.update();
+  }
+}
 function setEditorView(view) {
   if (mode !== 'edit' || !['top', 'side', 'front', '3d'].includes(view)) return;
   if (activePtr !== null) abortInterruptedInput();
+  if (view === editorView) return; // don't secretly reset framing on reselect
+  captureDrawingCamera(editorView);
   editorView = view;
   if (view === '3d') gridGroup.position.set(0, 0, 0);
   camera = view === '3d' ? perspectiveCamera : orthoCamera;
   controls.object = camera;
   controls.enableRotate = view === '3d';
+  controls.zoomToCursor = view === '3d'; // 2D wheel zoom stays centered, no sideways drift
   controls.mouseButtons.LEFT = view === '3d' ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN;
   controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
   controls.touches.ONE = view === '3d' ? THREE.TOUCH.ROTATE : THREE.TOUCH.PAN;
   controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
   controls.update();
   frameTrack();
-  buildTrack(); // new view's edit handles only; leaves node coordinates and physics intact
+  if (view !== '3d') restoreDrawingCamera(view);
+  hideDraftPreview();
+  buildTrack(); // view handles only; saved coordinates and physics unchanged
   for (const b of document.querySelectorAll('[data-editor-view]'))
     b.setAttribute('aria-pressed', String(b.dataset.editorView === view));
   const guide = {
-    top: 'TOP: drag dots to plan turns. Empty-space drag pans; wheel/pinch zooms.',
-    side: 'SIDE: drag dots for distance + height. Use TOP to change direction.',
-    front: 'FRONT: drag dots sideways + vertically. Use TOP to extend.',
-    '3d': '3D: drag empty space to orbit, right-drag to pan, scroll to zoom.'
+    top: 'TOP: draw turns at the endpoint height. Empty drag pans, wheel/pinch zooms.',
+    side: 'SIDE: tap empty drawing to ADD track at exact X/height; drag dots to refine.',
+    front: 'FRONT: tap empty drawing to ADD track at exact Z/height; drag dots to refine.',
+    '3d': '3D: drag to orbit; right-drag to pan; scroll to zoom.'
   };
   $('dockGuide').textContent = guide[view];
   if (building) $('hint').innerHTML = buildHint();
@@ -2213,7 +2285,9 @@ function framePlot() {
 /* the hint line while building teaches the build, in order. */
 function buildHint() {
   if (editorView === 'side' || editorView === 'front')
-    return '<b>drag nodes</b> to shape hills and drops here &middot; <b>TOP</b> to place more track';
+    return !nodes.length ?
+      '<b>TOP</b> to place the station first, then draw your lift in SIDE' :
+      '<b>tap empty drawing</b> to add the next point at this height &middot; <b>drag nodes</b> to reshape';
   if (!nodes.length) return `<b>${TAP}</b> the drawing to place your station - everything starts there`;
   if (nodes.length === 1) return `<b>${TAP}</b> to extend &middot; <b>SIDE</b> to shape the lift`;
   if (editorView === 'top')
@@ -2229,6 +2303,7 @@ function buildHint() {
 function updateDraftingVisibility() {
   const drafting = mode === 'edit' && editorView !== '3d';
   const showWorld = !drafting;
+  if (!drafting || !building) hideDraftPreview();
   terrain.visible = showWorld;
   for (const tree of treeParts) {
     tree.trunk.visible = showWorld;
@@ -2263,6 +2338,63 @@ function syncBuildUI() {
 
 /* one ground click while building, in NL1 order of business:
    station first, then points out from it, then home. */
+/* SIDE and FRONT are real construction planes. The point's invisible
+   coordinate inherits from the previous end; only its visible
+   horizontal coordinate and its height come from the click.
+   Clamping/rounding uses exactly the existing node schema/limits. */
+function openElevationPoint(prev, hit, view) {
+  if (!prev || !hit || (view !== 'side' && view !== 'front')) return null;
+  const x = view === 'side' ? hit.x : prev.x;
+  const z = view === 'front' ? hit.z : prev.z;
+  if (![x, z, hit.y].every(Number.isFinite)) return null;
+  const n = {
+    x: THREE.MathUtils.clamp(Math.round(x * 10) / 10, -150, 150),
+    z: THREE.MathUtils.clamp(Math.round(z * 10) / 10, -150, 150),
+    h: THREE.MathUtils.clamp(Math.round(hit.y * 10) / 10, 1, 80),
+    bank: prev.bank
+  };
+  if (Math.hypot(n.x - prev.x, n.z - prev.z, n.h - prev.h) < 1) return null;
+  return n;
+}
+const draftRayPlane = new THREE.Plane();
+function draftPointFromRay() {
+  if (mode !== 'edit' || !building || !nodes.length ||
+      (editorView !== 'side' && editorView !== 'front')) return null;
+  const n = nodes[nodes.length - 1];
+  const normal = editorView === 'side' ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
+  draftRayPlane.setFromNormalAndCoplanarPoint(normal, new THREE.Vector3(n.x, n.h, n.z));
+  const hit = new THREE.Vector3();
+  return ray.ray.intersectPlane(draftRayPlane, hit) ? openElevationPoint(n, hit, editorView) : null;
+}
+function hideDraftPreview() {
+  draftGuide.visible = false;
+  draftGhost.visible = false;
+}
+function updateDraftPreview(point) {
+  if (!point || !nodes.length) { hideDraftPreview(); return; }
+  const end = nodes[nodes.length - 1];
+  const a = draftGuideGeo.attributes.position.array;
+  a[0] = end.x; a[1] = end.h; a[2] = end.z;
+  a[3] = point.x; a[4] = point.h; a[5] = point.z;
+  draftGuideGeo.attributes.position.needsUpdate = true;
+  draftGhost.position.set(point.x, point.h, point.z);
+  draftGuide.visible = true;
+  draftGhost.visible = true;
+}
+function buildClickAtElevation(point) {
+  if (!point || !building || !nodes.length) return false;
+  /* Keep the old 'same point in space' guard, including remote points
+     in stacked loops. A distinct height may occupy the same plan spot. */
+  if (nodes.some(n => Math.hypot(point.x - n.x, point.z - n.z) < 1 &&
+                         Math.abs(point.h - n.h) < 2)) {
+    toast('there is already a node there - choose another height or distance.');
+    return false;
+  }
+  nodes.push(point);
+  selected = nodes.length - 1;
+  buildTrack(); commit();
+  return true;
+}
 function buildClickAtGround(pt) {
   if (nodes.length === 0) {
     nodes = [{x: Math.round(pt.x * 10) / 10, z: Math.round(pt.z * 10) / 10, h: 3, bank: 0, station: true}];
@@ -2640,7 +2772,10 @@ function applyState(st) {
 /* start a fresh history whose ONLY entry is the current document.
    loading a document (new / preset / library / import) is not an
    edit - undo must never walk back into a different coaster. */
-function resetHistory() { history = []; hIndex = -1; commit(); }
+function resetHistory() {
+  draftingCameraStates = Object.create(null); // new/imported document, never stale camera targets
+  history = []; hIndex = -1; commit();
+}
 function undo() {
   if (hIndex > 0) { hIndex--; applyState(history[hIndex]); syncHistoryButtons(); }
   else toast('nothing to undo - this is the coaster you started with.');
@@ -2849,6 +2984,9 @@ $('btnFrame').addEventListener('click', frameTrack);
 document.querySelectorAll('[data-editor-view]').forEach(b =>
   b.addEventListener('click', () => setEditorView(b.dataset.editorView)));
 $('btnFocusPoint').addEventListener('click', focusSelectedNode);
+$('btnZoomIn').addEventListener('click', () => zoomEditor(1.25));
+$('btnZoomOut').addEventListener('click', () => zoomEditor(0.8));
+$('btnFrameView').addEventListener('click', frameTrack);
 $('btnFocusSelected').addEventListener('click', focusSelectedNode);
 /* When vertical loops stack points on the same projected pixel, there
    must be an exact way to select every one, without fake geometry or
@@ -3084,6 +3222,7 @@ function cancelGesture() {
   dragIntent = null; dragPressGround = null; elevationPress = null;
   dragMoved = false; bankMoved = false; heightMoved = false; gripMoved = false;
   downAt = null; grabSnap = null; pressAt = null;
+  hideDraftPreview();
   renderer.domElement.style.cursor = '';
   if (hadGrab && mode === 'edit') { controlsHeld = true; controls.enabled = false; }
   else controls.enabled = (mode === 'edit');
@@ -3163,6 +3302,7 @@ renderer.domElement.addEventListener('pointerdown', e => {
     return;
   }
   activePtr = e.pointerId;
+  hideDraftPreview();
   pressAt = {x: e.clientX, y: e.clientY};
   grabSnap = null;
   castAt(e);
@@ -3298,7 +3438,11 @@ renderer.domElement.addEventListener('pointermove', e => {
   }
   if (mode === 'edit' && dragging < 0 && banking < 0) {
     castAt(e);
-    if (building) {
+    if (building && (editorView === 'side' || editorView === 'front')) {
+      updateDraftPreview(draftPointFromRay());
+      hoverPt = null;
+    } else if (building) {
+      hideDraftPreview();
       /* track the cursor's ground point so the snap ring can
          light up when a closing click is on the table */
       dragPlane.constant = 0;
@@ -3451,7 +3595,14 @@ renderer.domElement.addEventListener('pointerup', e => {
       Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) < slopFor(downAt.type)) {
     castAt(e);
     const onTrack = hitTube && ray.intersectObject(hitTube).length > 0;
-    if ((building || !onTrack) && ray.ray.direction.y < -0.04) {
+    if (building && (editorView === 'side' || editorView === 'front')) {
+      /* Parallel to the camera-facing drafting plane is unambiguous;
+         unlike a ground ray it works from SIDE and FRONT. */
+      if (performance.now() - lastGroundAdd > 350) {
+        const point = draftPointFromRay();
+        if (point && buildClickAtElevation(point)) lastGroundAdd = performance.now();
+      }
+    } else if ((building || !onTrack) && ray.ray.direction.y < -0.04) {
       dragPlane.constant = 0;
       const out = new THREE.Vector3();
       if (ray.ray.intersectPlane(dragPlane, out) &&
@@ -3466,6 +3617,7 @@ renderer.domElement.addEventListener('pointerup', e => {
     }
   }
   downAt = null;
+  hideDraftPreview();
   releaseControlsHold();
 });
 /* the browser can take a gesture away mid-drag - a system
@@ -3930,6 +4082,11 @@ function loop() {
   else {
     controls.update();
     refreshTouchBankGizmo();
+    const z = editorView === '3d' ? '3D' : orthoCamera.zoom.toFixed(1) + 'x';
+    if (z !== lastZoomReadout) {
+      $('zoomReadout').textContent = z;
+      lastZoomReadout = z;
+    }
   }
   cloudGroup.rotation.y = performance.now() * 0.0000012;
   renderer.render(scene, camera);
