@@ -99,6 +99,7 @@ Start at [wiki/README.md](wiki/README.md):
 - [Touch gestures and interruption recovery](wiki/interruptions-and-touch-regression.md) - roll back unfinished drags after capture loss or browser focus loss; real Chromium touch drag/undo integration
 - [First-station precision handles](wiki/first-station-precision-handles.md) - orange cap and blue bank grip are available immediately on the first station; real touch tests
 - [Readable mobile banking grip](wiki/touch-grip-pixel-target.md) - why zoomed-out bank handles need touch-sized visual spacing, five-point browser proof and source-backed radius bounds
+- [Bank grip follows camera zoom](wiki/mobile-bank-grip-camera-zoom.md) - keep the existing blue ring/bar/ball and touch proxy aligned while zooming, without rebuilding the coaster
 - [Extreme-bank touch ownership](wiki/extreme-bank-touch-arbitration.md) - actual mobile taps prove orange cap, blue grip and lime node stay separately selectable at -90/-80/+90 degrees
 
 ## Quality checks

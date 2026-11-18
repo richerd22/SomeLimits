@@ -28,7 +28,7 @@ return Math.min(24, Math.max(2.6, worldPerCssPx * 44));
 
 The **44 CSS pixels** are a nominal 3D-radius guideline, not a promise that every rolled direction projects to exactly 44 pixels. Perspective, view angle and the track tangent foreshorten some orientations. The real mobile browser test separately measures whether the actual projected grip sits visibly apart from the node.
 
-This radius is used consistently by the selected-point **blue torus, support bar, blue grip sphere, and invisible grip hit proxy at the new position**. It is calculated whenever the selected handle group is rebuilt. The original bank value, its local roll frame, shortest-angle interpolation, auto lift, physics, spline sampling, save JSON, share links, undo/history and the orange cap's position remain unchanged.
+This radius is used consistently by the selected-point **blue torus, support bar, blue grip sphere, and invisible grip hit proxy at the new position**. It is calculated when the selected handle group is built. A later [camera-continuity follow-up](mobile-bank-grip-camera-zoom.md) also updates the **existing** blue ring, bar, ball and hit proxy as OrbitControls changes camera distance, without rebuilding rail/terrain/support geometry. This prevents the grip's apparent size becoming stale after a zoom. The original bank value, its local roll frame, shortest-angle interpolation, auto lift, physics, spline sampling, save JSON, share links, undo/history and the orange cap's position remain unchanged.
 
 There is no new tool, mode, slider, gesture, texture, asset or Three.js dependency. The grip still maps to the same existing `gripBank` pointer path, based on the local roll-plane intersection; it simply has enough on-screen leverage to be aimed at.
 

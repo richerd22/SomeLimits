@@ -1145,7 +1145,7 @@ function disposeEditGroup(group) {
   for (const mat of mats) mat.dispose();
 }
 function addHitProxy(parent, pos, kind, userData) {
-  if (!COARSE) return;
+  if (!COARSE) return null;
   const p = new THREE.Mesh(proxyGeoUnit, hitProxyMat);
   p.position.copy(pos);
   /* a thumb's error is measured in pixels, but a halo lives in
@@ -1164,6 +1164,7 @@ function addHitProxy(parent, pos, kind, userData) {
   p.scale.setScalar(r);
   Object.assign(p.userData, userData);
   parent.add(p);
+  return p;
 }
 /* the train: three articulated cars, not one box. each car is
    posed off the spline at its own arc offset, so the consist
@@ -1316,8 +1317,44 @@ function buildSelectedEditHandles() {
     grip.position.set(n.x + rolled.x * gripRadius, n.h + rolled.y * gripRadius, n.z + rolled.z * gripRadius);
     grip.userData.bankNode = selected;
     handleGroup.add(grip);
-    addHitProxy(handleGroup, grip.position, 'grip', {bankNode: selected});
+    const gripProxy = addHitProxy(handleGroup, grip.position, 'grip', {bankNode: selected});
+    if (COARSE) {
+      /* Cache only live gizmo meshes. Camera zoom must resize their
+         screen-space reach without rebuilding 900 sampled rails,
+         supports, terrain or point handles. The group is disposed
+         normally on a real track edit. */
+      handleGroup.userData.touchBankGizmo = {
+        nodeIndex: selected, origin: new THREE.Vector3(n.x, n.h, n.z),
+        rolled, ring: ringB, bar, grip, proxy: gripProxy,
+        builtRadius: gripRadius, radius: gripRadius,
+        lastCamera: camera.position.clone(), lastHeight: innerHeight
+      };
+    }
   }
+}
+/* OrbitControls can zoom/orbit without editing a node or rebuilding
+   the track. Keep only the touch bank gizmo and its hit proxy aligned
+   with the new camera. Do not allocate or dispose geometry per frame,
+   and do not interfere while an actual point edit owns the input. */
+function refreshTouchBankGizmo() {
+  if (!COARSE || mode !== 'edit' || dragging >= 0 || heightDrag >= 0 ||
+      banking >= 0 || gripBank >= 0) return;
+  const g = handleGroup.userData.touchBankGizmo;
+  if (!g || !nodes[g.nodeIndex] || selected !== g.nodeIndex) return;
+  if (g.lastHeight === innerHeight && g.lastCamera.distanceToSquared(camera.position) < 0.0001) return;
+  g.lastCamera.copy(camera.position);
+  g.lastHeight = innerHeight;
+  const newRadius = editGripRadius(nodes[g.nodeIndex]);
+  if (Math.abs(newRadius - g.radius) < 0.02) return;
+  const scale = newRadius / g.builtRadius;
+  g.ring.scale.set(scale, scale, 1);
+  g.bar.scale.y = scale;
+  g.grip.position.copy(g.origin).addScaledVector(g.rolled, newRadius);
+  if (g.proxy) {
+    g.proxy.position.copy(g.grip.position);
+    g.proxy.scale.setScalar(Math.max(2.3, camera.position.distanceTo(g.grip.position) * 0.025));
+  }
+  g.radius = newRadius;
 }
 
 function buildTrack() {
@@ -3417,7 +3454,10 @@ function loop() {
     } else hl.style.display = 'none';
   } else hl.style.display = 'none';
   if (mode === 'ride' && ride) poseRide(dt);
-  else controls.update();
+  else {
+    controls.update();
+    refreshTouchBankGizmo();
+  }
   cloudGroup.rotation.y = performance.now() * 0.0000012;
   renderer.render(scene, camera);
 }
