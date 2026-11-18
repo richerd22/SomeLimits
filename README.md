@@ -95,6 +95,7 @@ Start at [wiki/README.md](wiki/README.md):
 - [Honest lap feedback](wiki/ride-insight.md) - report when the simplified physics used a minimum-speed assist and reset G traces between rides
 - [Empty draft controls and stations](wiki/empty-node-station.md) - clear non-existent node controls; always retain one station on a finished coaster
 - [Touch gestures and interruption recovery](wiki/interruptions-and-touch-regression.md) - roll back unfinished drags after capture loss or browser focus loss; real Chromium touch drag/undo integration
+- [First-station precision handles](wiki/first-station-precision-handles.md) - orange cap and blue bank grip are available immediately on the first station; real touch tests
 
 ## Quality checks
 
