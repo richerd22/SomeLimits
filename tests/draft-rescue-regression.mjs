@@ -63,7 +63,7 @@ assert.equal(changed[1].station,false,'other draft nodes must not take station r
 
 // Actual shipped autosave helper under a mock browser storage quota.
 const start=script.indexOf('const AUTOSAVE_WARNING');
-const stop=script.indexOf('function applyState(st)',start);
+const stop=script.indexOf('function syncPanel()',start);
 assert.ok(start>=0 && stop>start,'autosave warning helper missing');
 const autosaveCode=script.slice(start,stop);
 let full=false, writes=[],toasts=[];
