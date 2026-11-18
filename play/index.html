@@ -35,7 +35,11 @@
   button:disabled{opacity:.35;cursor:default}
   button:disabled:hover{border-color:#33445a;color:#dfe6ee}
   .hudbtn{font-size:11px;padding:2px 6px}
-  input[type=text]{background:#0d1219;color:#dfe6ee;border:1px solid #33445a;border-radius:3px;padding:5px 7px;font:inherit;font-size:12px;width:100%;box-sizing:border-box}
+  input[type=text],input[type=number]{background:#0d1219;color:#dfe6ee;border:1px solid #33445a;border-radius:3px;padding:5px 7px;font:inherit;font-size:12px;width:100%;box-sizing:border-box}
+  #nodePositionFields{display:flex;gap:8px;margin-top:4px}
+  #nodePositionFields label{flex:1;min-width:0;margin-top:4px}
+  #nodePositionFields input{margin-top:3px}
+  #nodeCoords{color:#9fc1d1;font-variant-numeric:tabular-nums;font-size:10px;margin-top:3px}
   input[type=range]{width:100%;accent-color:#C6FF00}
   label{display:block;font-size:11px;color:#8fa3b8;margin:8px 0 2px}
   .val{color:#dfe6ee}
@@ -190,6 +194,17 @@
   </div>
   <hr>
   <div class="sub">NODE <span id="nodeIdx" class="val">-</span></div>
+  <div class="row" style="margin-top:5px">
+    <button id="btnPrevNode" type="button" title="Select previous node, including overlapping points">← prev</button>
+    <button id="btnNextNode" type="button" title="Select next node, including overlapping points">next →</button>
+    <button id="btnFocusSelected" type="button" title="Center the view on this node">focus</button>
+  </div>
+  <div id="nodeCoords">choose a node to inspect its coordinates</div>
+  <div id="nodePositionFields">
+    <label>X (m)<input id="inpNodeX" aria-label="Selected node X in metres" type="number" min="-150" max="150" step="0.1"></label>
+    <label>Z (m)<input id="inpNodeZ" aria-label="Selected node Z in metres" type="number" min="-150" max="150" step="0.1"></label>
+  </div>
+  <div class="sub" style="margin-top:4px">2D precision: arrow keys nudge 1m, Shift+arrow 5m, Option/Alt+arrow 0.1m. [ and ] select overlapping nodes.</div>
   <label>height <span id="hVal" class="val"></span></label>
   <input id="rngH" type="range" min="1" max="80" step="0.5">
   <label>banking <span id="bVal" class="val"></span></label>
@@ -2597,10 +2612,15 @@ $('btnMute').addEventListener('click', () => {
 /* ---------------- panel + history ---------------- */
 const els = {idx: $('nodeIdx'), h: $('rngH'), b: $('rngB'), hVal: $('hVal'), bVal: $('bVal'),
              lift: $('chkLift'), station: $('chkStation'), saveMsg: $('saveMsg'),
-             name: $('inpName'), seg: $('segInfo')};
+             name: $('inpName'), seg: $('segInfo'), x: $('inpNodeX'),
+             z: $('inpNodeZ'), coords: $('nodeCoords'), prev: $('btnPrevNode'), next: $('btnNextNode')};
 
 let history = [], hIndex = -1;
-function snapshot() { return {name: trackName, nodes: structuredClone(nodes), building}; }
+/* Keep selected index in in-memory Undo history only. The autosave,
+   share link, NL2 CSV and JSON export document schemas stay untouched.
+   Otherwise undoing then redoing a DROP leaves the selection on the
+   penultimate point and the next arrow edits the wrong control node. */
+function snapshot() { return {name: trackName, nodes: structuredClone(nodes), building, selected}; }
 function commit() {
   history = history.slice(0, hIndex + 1);
   history.push(snapshot());
@@ -2612,7 +2632,8 @@ function commit() {
 function applyState(st) {
   trackName = st.name; nodes = structuredClone(st.nodes);
   building = !!st.building;
-  selected = nodes.length ? Math.min(selected, nodes.length - 1) : 0;
+  selected = nodes.length ?
+    THREE.MathUtils.clamp(Number.isInteger(st.selected) ? st.selected : selected, 0, nodes.length - 1) : 0;
   liftToastMutedUntil = performance.now() + 2500; // a restored lift is not a newborn lift
   buildTrack(); syncPanel(); autosave();
 }
@@ -2673,6 +2694,12 @@ function syncPanel() {
   els.h.disabled = els.b.disabled = els.lift.disabled = !n;
   els.station.disabled = !n || building;
   $('btnDel').disabled = !n;
+  if (els.x) { els.x.disabled = !n; els.z.disabled = !n; }
+  if (els.prev) { els.prev.disabled = !n; els.next.disabled = !n; }
+  if (els.coords) els.coords.textContent = n ?
+    'x ' + n.x.toFixed(1) + ' m · z ' + n.z.toFixed(1) + ' m · height ' + n.h.toFixed(1) + ' m' :
+    'choose a node to inspect its coordinates';
+  if (n && els.x) { els.x.value = n.x.toFixed(1); els.z.value = n.z.toFixed(1); }
   if (!n) {
     els.idx.textContent = '-';
     els.h.value = 3;
@@ -2822,6 +2849,61 @@ $('btnFrame').addEventListener('click', frameTrack);
 document.querySelectorAll('[data-editor-view]').forEach(b =>
   b.addEventListener('click', () => setEditorView(b.dataset.editorView)));
 $('btnFocusPoint').addEventListener('click', focusSelectedNode);
+$('btnFocusSelected').addEventListener('click', focusSelectedNode);
+/* When vertical loops stack points on the same projected pixel, there
+   must be an exact way to select every one, without fake geometry or
+   enormous selection halos. Selection changes only edit UI, never the
+   stored track or Undo stack. */
+function stepSelectedNode(dir) {
+  if (mode !== 'edit' || nodes.length === 0) return false;
+  selected = (selected + dir + nodes.length) % nodes.length;
+  buildTrack();
+  return true;
+}
+$('btnPrevNode').addEventListener('click', () => stepSelectedNode(-1));
+$('btnNextNode').addEventListener('click', () => stepSelectedNode(1));
+/* Precise position inputs are the fallback for a node behind another
+   node or a coordinate that a touchscreen cannot hit exactly.
+   Changing x or z commits a single undoable edit, no other axis. */
+for(const [axis, input] of [['x',els.x],['z',els.z]]) {
+  input.addEventListener('change', () => {
+    const n=nodes[selected], num=Number(input.value);
+    if (!n || input.value.trim()==='' || !Number.isFinite(num)) { syncPanel(); return; }
+    const value=THREE.MathUtils.clamp(Math.round(num*10)/10,-150,150);
+    if (n[axis] !== value) {
+      n[axis]=value;
+      buildTrack(); commit();
+    } else syncPanel();
+  });
+}
+/* Real 2D nudge math: screen directions move only the axes visible
+   in that orthographic projection. G is up, track fields are untouched
+   except x/z/h; no 3D screen-relative guessing. */
+function nudgeAxes(view,key,step) {
+  if (!['top','side','front'].includes(view) || !Number.isFinite(step) || step<=0)
+    return null;
+  const arrow={ArrowLeft:-step,ArrowRight:step,ArrowUp:step,ArrowDown:-step};
+  if (!(key in arrow)) return null;
+  const h=key==='ArrowLeft'||key==='ArrowRight';
+  if (view==='top')
+    return h?{axis:'x',delta:arrow[key]}:{axis:'z',delta:-arrow[key]};
+  if (view==='side')
+    return h?{axis:'x',delta:arrow[key]}:{axis:'h',delta:arrow[key]};
+  /* The FRONT eye looks down -X. Screen-right is world -Z. */
+  return h?{axis:'z',delta:-arrow[key]}:{axis:'h',delta:arrow[key]};
+}
+function nudgeSelectedNode(key,step) {
+  if (mode!=='edit'||!nodes[selected]) return false;
+  const change=nudgeAxes(editorView,key,step);
+  if(!change) return false;
+  const n=nodes[selected],axis=change.axis;
+  const limits=axis==='h'?[1,80]:[-150,150];
+  const value=THREE.MathUtils.clamp(Math.round((n[axis]+change.delta)*10)/10,...limits);
+  if (value===n[axis]) return false;
+  n[axis]=value;
+  buildTrack(); commit();
+  return true;
+}
 
 
 /* The point is the contract. Dragging one lime point must NEVER move
@@ -3706,6 +3788,15 @@ addEventListener('keydown', e => {
     if (e.key === 'r' || e.key === 'R') startRide();
     if (e.key === 'f' || e.key === 'F') frameTrack();
     if (e.key === 'n' || e.key === 'N') addNode();
+    if (e.key === '[' || e.key === ']') {
+      if (!document.querySelector('.overlay.open')) {
+        e.preventDefault(); stepSelectedNode(e.key === '[' ? -1 : 1);
+      }
+    }
+    if (e.key.startsWith('Arrow') && editorView !== '3d' && !document.querySelector('.overlay.open')) {
+      e.preventDefault();
+      nudgeSelectedNode(e.key, e.altKey ? .1 : e.shiftKey ? 5 : 1);
+    }
     if (e.key === '1') setEditorView('top');
     if (e.key === '2') setEditorView('side');
     if (e.key === '3') setEditorView('front');

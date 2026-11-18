@@ -30,6 +30,8 @@ The name is a dry joke: there always were some limits. We are owning them.
 
 In the latest drafting polish, **TOP gets persistent graph paper** even on closed coasters, SIDE/FRONT get real vertical elevation grids, and scenery fades out of the way only while you're drawing. The hints now follow the view, and new mobile browser tests drag and undo actual elevated points in both elevation views. [Round 26 implementation and limitations](wiki/drafting-views-round26.md).
 
+Precision editing now includes previous/next node selection for stacked points, exact X/Z numeric controls, and view-correct arrow-key nudges (1m, Shift 5m, Option/Alt 0.1m). These commit ordinary undoable edits; selecting another node never mutates the coaster. See [Round 27 precision editor](wiki/precision-node-authoring-round27.md).
+
 ## What you get
 
 - A complete closed-circuit coaster, end to end: station, lift hill, drops, banked turns, inversions if you build them, brake run back to the station.
