@@ -21,8 +21,9 @@ For every physics substep after the initial 8m dispatch section:
 A pure `lapInsight(ride)` creates a short plain-language note displayed **under the existing lap summary**, not in a new setup panel:
 
 1. If the minimum-speed floor was needed for at least 0.25 seconds, report the duration and first approximate metre along the lap. Suggest lowering a difficult next hill or changing the climb to 8m or more between nodes so the existing automatic chain picks it up.
-2. Otherwise, if unpowered non-braking speed dropped below 3.0 m/s (about 11 km/h), report the slow spot's speed and approximate distance from the station.
-3. Otherwise state that no minimum-speed rescue was needed and explicitly remind the builder that these are simplified game physics, **not a real-world safety check**.
+2. Otherwise, if a *brief* assist was recorded (<0.25 seconds), say that it happened and where. Never call an actually rescued ride unassisted just because it was below the stronger warning threshold.
+3. Otherwise, if unpowered non-braking speed dropped below 3.0 m/s (about 11 km/h), report the slow spot's speed and approximate distance from the station.
+4. Otherwise state that no minimum-speed rescue was needed and explicitly remind the builder that these are simplified game physics, **not a real-world safety check**.
 
 No prediction is calculated from a theoretical drop; the note comes from the completed integrated ride. The 0.25s threshold avoids reporting a one-frame numerical blip as the central ride result.
 
@@ -43,7 +44,7 @@ The test extracts the exact `computeTrack`, `createRide`, `stepRide`, and `lapIn
 
 - A clean ride starts with no artificial assists recorded.
 - Truly flat circuits powered by tires are **not falsely reported as unpowered speed rescues**.
-- Deliberately slowing the train to near zero on a real sampled, non-braking unpowered section triggers assist seconds, the correct first-distance marker and a grounded note.
+- Deliberately slowing the train to near zero on a real sampled, non-braking unpowered section triggers assist seconds and the correct first-distance marker. Even a brief actual assist is reported honestly; a longer assist gets the more detailed warning.
 - A slow section that did not need an assist gets a distinct message from one that did.
 - The classic preset still finishes at **27.45 s / 88 km/h** under fixed 1/60s steps.
 - The actual `resetLapState()` clears a previous ride's G history and resets lap state; both restart controls are wired to it.
