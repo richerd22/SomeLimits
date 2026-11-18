@@ -10,12 +10,18 @@ North star, in one line: a returning NL1 builder lays a full closed-circuit coas
 - [Code](code.md) - how the single HTML file works: track math, physics, save formats.
 - [Dev](dev.md) - running it locally, repo layout, conventions, testing, forking.
 - [Admin](admin.md) - hosting, updates, ownership, trademark posture, and the imagery rule.
+- [Editor runtime](editor-runtime.md) - why drag builds are coalesced, how GPU objects are released, and why library thumbnails are regenerated.
+- [Lift/drag playtest repair](../playtest-2026-11-18.md) - physics before/after and the explicit classic fingerprint change.
 
 There is also an in-app Field Manual. Press H in the app for the short version of the player guide.
 
 ## The app in one paragraph
 
 The whole game is one self-contained HTML file at `play/index.html`. It uses Three.js from a CDN. No build step, no backend, no accounts. Your coasters live in your browser. See the player guide for what that actually means for your saves.
+
+## Maintenance quick check
+
+Run `node tests/editor-runtime-regression.mjs` for the editor lifecycle. The physics fingerprint regression is `node tests/physics-regression.mjs` after temporarily installing `three@0.160.0`. Both run in GitHub Actions before changes reach main. No build pipeline was added to the game.
 
 ## House rules
 
