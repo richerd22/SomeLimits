@@ -51,7 +51,13 @@ Either way you need internet once, for the Three.js CDN (`three@0.160.0` via unp
 
 ## Testing
 
-There's now a small standalone physics regression in `tests/physics-regression.mjs`. Install the pinned Three.js version temporarily and run it with Node (no build step and no tracked dependencies):
+Use the zero-dependency editor regression first. It tests the actual game's transient resource lifecycle, preview scheduling and library persistence helpers:
+
+```sh
+node tests/editor-runtime-regression.mjs
+```
+
+Then run the standalone physics regression in `tests/physics-regression.mjs`. Install the pinned Three.js version temporarily and run it with Node (no game build step and no tracked dependencies):
 
 ```sh
 npm install --no-save --no-package-lock three@0.160.0
@@ -59,6 +65,8 @@ node tests/physics-regression.mjs
 ```
 
 It checks all presets, the November 2026 shared 47.5m climb, a completely flat circuit, correct auto-chain ownership, the share round-trip, and the deliberate classic baseline of **27.5s / 88 km/h**. See [the playtest report](../playtest-2026-11-18.md) for before/after timing.
+
+GitHub Actions now runs both regressions on PRs and `main` pushes in `.github/workflows/regression.yml` - tests are maintainer-side only, not part of the visitor's single-file app. The exact editor disposal, pointer coalescing, terrain-settle and legacy-thumbnail migration decisions are documented in [Editor runtime](editor-runtime.md).
 
 The original harness approach still applies:
 
@@ -68,7 +76,7 @@ The original harness approach still applies:
   - parallel transport around a closed loop returns close to its starting frame
   - a lift-flagged climb holds chain speed, an 8 m-plus climb is auto-lift
   - an energy run with no drag loses no height it did not spend
-- **By hand, in the browser.** Load each preset, ride each one start to finish, check the lap summary appears, save and reload from the library, round-trip JSON out and back in, round-trip CSV out and back in, and open a share link in a private window.
+- **By hand, in the browser.** No automated browser WebGL or iOS Safari interaction test is claimed. Load each preset, ride each one start to finish, check the lap summary appears, save and reload from the library, round-trip JSON out and back in, round-trip CSV out and back in, and open a share link in a private window.
 - **Round-trip rule.** Any change to the save format, CSV layout, or share encoding is not done until export, import in a fresh page, and ride all still work on an old file.
 
 If you add a harness, keep it in a scratch or tools folder, dependency-free, and say how to run it at the top of the file.
