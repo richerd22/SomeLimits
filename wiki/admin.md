@@ -12,7 +12,7 @@ Two free options:
 
 - Repo Settings, then Pages, then Build and deployment: deploy from a branch.
 - Branch: `main`, folder: `/ (root)`. The repo root has an `index.html` that sends visitors straight to `play/`, and a `.nojekyll` file so Pages serves the files as-is.
-- New commits on `main` deploy automatically once Pages is on.
+- New commits on `main` deploy automatically once Pages is on. The repository also has a separate GitHub Actions regression job for editor and physics tests; it does not bundle, transform, or otherwise build the game.
 
 ### Cloudflare Pages
 
@@ -69,3 +69,5 @@ Screenshots of the actual running app are fine - they are the code-rendered game
 - [ ] Live hosted page verified after deploy, not just the local file.
 - [ ] Any new visual is SVG by hand, code-rendered, or type. No exceptions, no placeholders that quietly stay.
 - [ ] Docs updated in the same push if behaviour changed.
+- [ ] Editor regression passes (GPU disposal, pointer preview coalescing, library persistence and quota feedback).
+- [ ] If drag or rendering changed, validate pointercancel and iOS Safari on hardware; headless tests do not prove WebGL responsiveness.
