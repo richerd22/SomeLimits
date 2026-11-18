@@ -192,7 +192,7 @@
   <div class="sub" id="saveMsg" style="margin-top:6px"></div>
   <hr>
   <div class="sub">
-    <b style="color:#dfe6ee">drag</b> a lime node to move it. <b style="color:#dfe6ee">double-click</b> the track to insert a node there,
+    <b style="color:#dfe6ee">drag up/down</b> on a lime point to change height, <b style="color:#dfe6ee">drag sideways</b> to move it across the plot. <b style="color:#dfe6ee">double-click</b> the track to insert a node there,
     or <b style="color:#dfe6ee">click empty ground</b> to drop a node where you click (while building from blank, ground clicks
     lay the track out from the station instead, one point at a time, each at ground level). <b style="color:#dfe6ee">drag the blue grip</b> around the selected node to bank it - it rides a ring around the point, the track rolls with it.
     <b style="color:#dfe6ee">drag the orange cap</b> above the selected node to set its height by hand - the number rides above it.
@@ -309,7 +309,7 @@
     <h3>your first coaster in five minutes</h3>
     <ul>
       <li>two ways in: <b>new coaster</b> gives you a blank plot - <b>click the ground</b> to place the station, click again to lay points out from it (each point lands at ground level, so a drop is just what happens after a hill), and click the station to close the circuit. or take a <b>preset</b> - complete circuits, not demos, rideable the second they land.</li>
-      <li><b>drag</b> any lime node to move it. <b>drag the orange cap</b> floating above the selected node to raise or lower it - a pole ties it to the ground, the number floats beside it, and the height stays where you leave it. the height and banking sliders drive the same numbers, for precision.</li>
+      <li><b>drag a lime point up/down</b> to change height, or <b>drag it sideways</b> to move it across the plot. the first clear direction wins for that drag. <b>drag the orange cap</b> above it for precise height - the slider drives the same number. no extra tools.</li>
       <li>make a hill taller than the rest - any climb of 8m or more grows a lift chain by itself, drawn as a bright strip on the track. nobody presses a lift button; there effectively isn't one.</li>
       <li><b>double-click</b> the track to add a node exactly there. <b>click empty ground</b> to drop a node where you click instead. banking past +/-90 degrees rolls the train over - rolls are banking, loops are shapes (next section). you are the loop menu.</li>
       <li><b>drag the blue grip</b> around the selected node to bank it - the grip rides a ring around the point on the end of a bar, sitting wherever the current bank has rolled it; pull it around and the track rolls with your hand, degrees floating by the point. <b>shift-drag</b> (or right-drag) a node sideways does the same thing the old way, and the slider drives the same number; all three stay in sync.</li>
@@ -383,7 +383,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
    ================================================================ */
 /* === CORE START === */
 const SAMPLES = 900;
-const GRAV = 9.81, LIFT_SPEED = 5.2;
+const GRAV = 9.81, LIFT_SPEED = 7.0, DISPATCH_SPEED = 6.5, FLAT_DRIVE_SPEED = 6.5;
 
 const PRESETS = {
   classic: [
@@ -550,14 +550,16 @@ function computeTrack(nodes) {
   for (let i = 0; i <= SAMPLES; i++) {
     const p = pos[i % SAMPLES], tan = tans[i];
     if (i > 0) dist += pos[i].distanceTo(pos[i - 1]);
-    const f = (i / SAMPLES) * N;
-    const i0 = Math.floor(f) % N, i1 = (i0 + 1) % N;
+    /* Arc-length samples do not divide evenly between nodes. The true
+       curve parameter keeps lift and bank on their own segment. */
+    const f = curve.getUtoTmapping(i / SAMPLES) * N;
+    const i0 = Math.min(Math.floor(f), N - 1), i1 = (i0 + 1) % N;
     const bankDeg = bankAt(nodes, f);
     const up = transported[i].clone().applyAxisAngle(tan, -THREE.MathUtils.degToRad(bankDeg)).normalize();
     const side = new THREE.Vector3().crossVectors(up, tan).normalize();
     const climb = nodes[i1].h - nodes[i0].h;
     const lift = !!nodes[i0].lift || climb >= 8;
-    samples.push({pos: p.clone(), tan, up, side, s: dist, lift, bankDeg});
+    samples.push({pos: p.clone(), tan, up, side, s: dist, lift, bankDeg, nodeSeg: i0});
   }
   const totalLen = dist;
   /* the station's real address on the loop. this was the
@@ -571,7 +573,11 @@ function computeTrack(nodes) {
     const dToStation = ((stationS - sm.s) % totalLen + totalLen) % totalLen;
     sm.brake = dToStation < 32 && dToStation > 0.5;
   }
-  return {samples, totalLen, stationS, curve};
+  /* Flat-only circuits have no gravity source. Station tires power
+     these instead of sending them round at walking speed. */
+  const heights = nodes.map(n => n.h);
+  const poweredFlat = Math.max(...heights) - Math.min(...heights) < 2 && !samples.some(sm => sm.lift);
+  return {samples, totalLen, stationS, curve, poweredFlat};
 }
 
 function sampleAt(track, s) {
@@ -627,7 +633,7 @@ function trackData(nodes, track) {
 /* ---------------- ride physics ---------------- */
 function createRide(track) {
   return {
-    s: track.stationS, v: 0, traveled: 0, time: 0,
+    s: track.stationS, v: DISPATCH_SPEED, traveled: 0, time: 0,
     running: true, finished: false,
     maxV: 0, maxG: 1, minG: 1, airtime: 0, gSmooth: 1, gVert: 1, gLat: 0,
     prevVel: new THREE.Vector3(), hasPrev: false
@@ -645,7 +651,8 @@ function stepRide(track, ride, dt) {
     let a = -GRAV * dhds - 0.005 * ride.v * Math.abs(ride.v);
     if (ride.v > 0.01) a -= 0.05; // rolling friction only while moving
     ride.v += a * h;
-    if (here.lift && dhds > 0.01 && ride.v < LIFT_SPEED) ride.v = LIFT_SPEED; // chain
+    if (here.lift && dhds > 0.01 && ride.v < LIFT_SPEED) ride.v = LIFT_SPEED; // uphill chain
+    if (track.poweredFlat && !here.brake && ride.v < FLAT_DRIVE_SPEED) ride.v = FLAT_DRIVE_SPEED; // tires on flat circuits
     const dLeft = ((track.stationS - ride.s) % total + total) % total;
     if (here.brake) {
       const vT = THREE.MathUtils.clamp(dLeft * 0.25, 1.1, 6);
@@ -1592,14 +1599,14 @@ function computeOpenTrack(nodes) {
   for (let i = 0; i <= SAMPLES; i++) {
     const p = pos[i], tan = tans[i];
     if (i > 0) dist += pos[i].distanceTo(pos[i - 1]);
-    const f = (i / SAMPLES) * (N - 1);
+    const f = curve.getUtoTmapping(i / SAMPLES) * (N - 1);
     const i0 = Math.min(Math.floor(f), N - 1), i1 = Math.min(i0 + 1, N - 1);
     const bankDeg = bankAtOpen(nodes, f);
     const up = transported[i].clone().applyAxisAngle(tan, -THREE.MathUtils.degToRad(bankDeg)).normalize();
     const side = new THREE.Vector3().crossVectors(up, tan).normalize();
     const climb = nodes[i1].h - nodes[i0].h;
     const lift = !!nodes[i0].lift || climb >= 8;
-    samples.push({pos: p.clone(), tan, up, side, s: dist, lift, bankDeg, brake: false});
+    samples.push({pos: p.clone(), tan, up, side, s: dist, lift, bankDeg, brake: false, nodeSeg: i0});
   }
   return {samples, totalLen: dist, stationS: arcOfPoint(samples, pts[stIdx], stIdx / (N - 1), false, dist), curve};
 }
@@ -1656,7 +1663,7 @@ function framePlot() {
 function buildHint() {
   return nodes.length === 0 ? `<b>${TAP} the ground</b> to place the station - everything starts there` :
     nodes.length === 1 ? `station is down. <b>${TAP} the ground</b> to lay track out from it` :
-    nodes.length < 4 ? `<b>${TAP}</b> to extend &middot; <b>drag</b> points to shape &middot; drag the <b>orange cap</b> above a point to raise it` :
+    nodes.length < 4 ? `<b>${TAP}</b> to extend &middot; <b>drag sideways</b> to move &middot; <b>drag up</b> to raise a point` :
     `bring it home - <b>${TAP} the station</b> to close the circuit`;
 }
 
@@ -1738,14 +1745,10 @@ function closeLoop() {
   building = false;
   selected = Math.max(0, nodes.findIndex(n => n.station));
   buildTrack(); commit();
-  /* honest about a pancake: a circuit with no lift and no drop
-     is rideable the way a parking lot is drivable - the train
-     creeps at walking pace and the lap screen will say so. the
-     round-5 physics run clocked a flat 100m loop at 90 seconds,
-     max 4 km/h. say the fix out loud instead of overselling. */
+  /* A flat-only circuit uses tire drive now, not imaginary gravity. */
   const td = trackData(nodes, track);
   if (td.maxDropM < 2 && !track.samples.some(s => s.lift)) {
-    toast('circuit closed - flat as a pancake, though: no lift, no drop, so she will crawl. drag a cap up 8m or more and the chain does the work.', 5200);
+    toast('circuit closed - flat as a pancake. station tires will push it round. raise a point 8m for a gravity coaster.', 5200);
   } else {
     toast('circuit closed - she is rideable. RIDE IT when ready.', 3600);
   }
@@ -2286,6 +2289,8 @@ $('btnNew').addEventListener('click', newDocument);
 /* ---------------- dragging + insert ---------------- */
 const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
 let dragging = -1, dragMoved = false;
+let dragIntent = null, dragPressGround = null, dragPressHeight = 0;
+let capPressHeight = 0; // world-space grab offsets avoid first-move jumps
 let heightDrag = -1, heightMoved = false;  // vertical cap-drag state
 const vertPlane = new THREE.Plane();       // the upright plane a cap drag runs on
 let banking = -1, bankStartX = 0, bankStartVal = 0, bankMoved = false;  // sideways bank-drag state
@@ -2359,6 +2364,7 @@ function cancelGesture() {
     restored = true;
   }
   dragging = -1; banking = -1; heightDrag = -1; gripBank = -1;
+  dragIntent = null; dragPressGround = null;
   dragMoved = false; bankMoved = false; heightMoved = false; gripMoved = false;
   downAt = null; grabSnap = null;
   renderer.domElement.style.cursor = '';
@@ -2421,7 +2427,7 @@ function addNodeAtGround(pt) {
     if (d < bestD) { bestD = d; best = i; }
   }
   const sm = track.samples[best];
-  const at = Math.floor(best / SAMPLES * nodes.length) + 1;
+  const at = sm.nodeSeg + 1;
   nodes.splice(at, 0, {x: Math.round(pt.x * 10) / 10, z: Math.round(pt.z * 10) / 10,
                        h: Math.round(sm.pos.y * 10) / 10, bank: Math.round(sm.bankDeg)});
   selected = at; buildTrack(); commit();
@@ -2475,6 +2481,8 @@ renderer.domElement.addEventListener('pointerdown', e => {
     if (nrm.lengthSq() < 1e-6) nrm.set(0, 0, 1);
     nrm.normalize();
     vertPlane.setFromNormalAndCoplanarPoint(nrm, new THREE.Vector3(nodes[i].x, nodes[i].h, nodes[i].z));
+    const press = new THREE.Vector3();
+    capPressHeight = ray.ray.intersectPlane(vertPlane, press) ? press.y : nodes[i].h;
     renderer.domElement.style.cursor = 'ns-resize';
     syncPanel();
     return;
@@ -2513,7 +2521,17 @@ renderer.domElement.addEventListener('pointerdown', e => {
       renderer.domElement.style.cursor = 'ew-resize';
     } else {
       dragging = i;
+      dragIntent = null;
       dragPlane.constant = -nodes[i].h;
+      const ground = new THREE.Vector3();
+      dragPressGround = ray.ray.intersectPlane(dragPlane, ground) ? ground.clone() : null;
+      const face = new THREE.Vector3();
+      camera.getWorldDirection(face); face.y = 0;
+      if (face.lengthSq() < 1e-6) face.set(0, 0, 1);
+      face.normalize();
+      vertPlane.setFromNormalAndCoplanarPoint(face, new THREE.Vector3(nodes[i].x, nodes[i].h, nodes[i].z));
+      const upright = new THREE.Vector3();
+      dragPressHeight = ray.ray.intersectPlane(vertPlane, upright) ? upright.y : nodes[i].h;
     }
     buildTrack();
   } else if (e.button === 0) {
@@ -2526,7 +2544,7 @@ renderer.domElement.addEventListener('pointermove', e => {
     castAt(e);
     const out = new THREE.Vector3();
     if (ray.ray.intersectPlane(vertPlane, out)) {
-      const nh = THREE.MathUtils.clamp(Math.round(out.y * 10) / 10, 1, 80);
+      const nh = THREE.MathUtils.clamp(Math.round((grabSnap.h + out.y - capPressHeight) * 10) / 10, 1, 80);
       if (nh !== nodes[heightDrag].h) {
         nodes[heightDrag].h = nh; heightMoved = true;
         els.h.value = nh; els.hVal.textContent = nh.toFixed(1) + ' m';
@@ -2585,13 +2603,28 @@ renderer.domElement.addEventListener('pointermove', e => {
     return;
   }
   if (dragging < 0) return;
+  /* A clear screen-up drag raises the point. Sideways drags shape the
+     ground plan. The axis is chosen once after a small dead zone. */
+  if (!dragIntent) {
+    const dx = e.clientX - pressAt.x, dy = e.clientY - pressAt.y;
+    if (Math.hypot(dx, dy) < (e.pointerType === 'touch' ? 13 : 8)) return;
+    dragIntent = Math.abs(dy) > Math.abs(dx) * 1.25 ? 'height' : 'ground';
+    renderer.domElement.style.cursor = dragIntent === 'height' ? 'ns-resize' : 'move';
+  }
   castAt(e);
   const out = new THREE.Vector3();
-  if (ray.ray.intersectPlane(dragPlane, out)) {
-    nodes[dragging].x = THREE.MathUtils.clamp(out.x, -150, 150);
-    nodes[dragging].z = THREE.MathUtils.clamp(out.z, -150, 150);
-    dragMoved = true;
-    buildTrack();
+  if (dragIntent === 'height') {
+    if (ray.ray.intersectPlane(vertPlane, out)) {
+      const nh = THREE.MathUtils.clamp(Math.round((grabSnap.h + out.y - dragPressHeight) * 10) / 10, 1, 80);
+      if (nh !== nodes[dragging].h) { nodes[dragging].h = nh; dragMoved = true; buildTrack(); }
+    }
+  } else if (dragPressGround && ray.ray.intersectPlane(dragPlane, out)) {
+    const nx = THREE.MathUtils.clamp(grabSnap.x + out.x - dragPressGround.x, -150, 150);
+    const nz = THREE.MathUtils.clamp(grabSnap.z + out.z - dragPressGround.z, -150, 150);
+    if (nx !== nodes[dragging].x || nz !== nodes[dragging].z) {
+      nodes[dragging].x = nx; nodes[dragging].z = nz;
+      dragMoved = true; buildTrack();
+    }
   }
 });
 renderer.domElement.addEventListener('pointerup', e => {
@@ -2652,8 +2685,13 @@ renderer.domElement.addEventListener('pointerup', e => {
     closeLoop();
     return;
   }
-  if (dragging >= 0 && dragMoved) { smoothAround(dragging); buildTrack(); commit(); }
-  dragging = -1; grabSnap = null; controls.enabled = mode === 'edit';
+  if (dragging >= 0 && dragMoved) {
+    if (dragIntent !== 'height') smoothAround(dragging);
+    buildTrack(); commit();
+  }
+  dragging = -1; dragIntent = null; dragPressGround = null; grabSnap = null;
+  renderer.domElement.style.cursor = '';
+  controls.enabled = mode === 'edit';
   /* a press that started on empty canvas and barely moved was a
      click, not an orbit. if the click missed the track itself it
      was aiming at the ground: drop a point there. clicks ON the
@@ -2711,7 +2749,7 @@ renderer.domElement.addEventListener('dblclick', e => {
     if (d < bestD) { bestD = d; best = i; }
   }
   const sm = track.samples[best];
-  const at = Math.floor(best / SAMPLES * nodes.length) + 1;
+  const at = sm.nodeSeg + 1;
   nodes.splice(at, 0, {x: Math.round(sm.pos.x * 10) / 10, z: Math.round(sm.pos.z * 10) / 10,
                        h: Math.round(sm.pos.y * 10) / 10, bank: Math.round(sm.bankDeg)});
   selected = at; buildTrack(); commit();
@@ -2904,7 +2942,7 @@ addEventListener('keydown', e => {
 /* the hint bar rotates its one line - discovery, not a tutorial.
    every line is a true sentence about a gesture that exists. */
 const HINTS = [
-  '<b>drag</b> the lime dots to shape it &middot; <b>double-click</b> the track to add a point &middot; <b>RIDE IT</b> when ready',
+  '<b>drag up</b> on a lime point to raise it &middot; <b>drag sideways</b> to move it &middot; <b>RIDE IT</b> when ready',
   '<b>click empty ground</b> to drop a point right there',
   '<b>drag the orange cap</b> above a point to set its height by hand - the slider is just the backup',
   'make a climb of <b>8m or more</b> between two nodes - the lift chain builds itself',
@@ -2916,7 +2954,7 @@ const HINTS = [
    the panel. only the lines that named a mouse or a keyboard
    change; the gestures they teach are identical. */
 if (COARSE) {
-  HINTS[0] = '<b>drag</b> the lime dots to shape it &middot; <b>tap empty ground</b> to drop a point &middot; <b>RIDE IT</b> when ready';
+  HINTS[0] = '<b>drag up</b> on a lime point to raise it &middot; <b>tap empty ground</b> to place a point &middot; <b>RIDE IT</b> when ready';
   HINTS[1] = '<b>tap empty ground</b> to drop a point right there';
   HINTS[5] = '<b>undo</b> in the panel walks back through your edits - it never leaves this coaster';
 }
