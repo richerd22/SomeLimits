@@ -16,6 +16,8 @@ jobs:
           node-version: '22'
       - name: Editor lifecycle tests (no dependencies)
         run: node tests/editor-runtime-regression.mjs
+      - name: Classic blueprint, lift-crest continuation and elevation source regression (no dependencies)
+        run: node tests/blueprint-editor-regression.mjs
       - name: Mobile DPR and lazy library regression (no dependencies)
         run: node tests/library-render-regression.mjs
       - name: Drag stays on one control point (no dependencies)
