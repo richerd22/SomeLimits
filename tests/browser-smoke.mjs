@@ -784,8 +784,8 @@ try {
     return d?.nodes?.length===1&&d.nodes[0].station===true;
   });
   const snappedStation=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes[0]);
-  assert.equal(snappedStation.x%5,0,'TOP station X snapped to 5m grid');
-  assert.equal(snappedStation.z%5,0,'TOP station Z snapped to 5m grid');
+  assert.equal(Math.abs(snappedStation.x%5),0,'TOP station X snapped to 5m grid');
+  assert.equal(Math.abs(snappedStation.z%5),0,'TOP station Z snapped to 5m grid');
   const snapSidePixel=await projectedLoneElevation('side');
   await mp.touchscreen.tap(snapSidePixel.x+70,snapSidePixel.y-54);
   await mp.waitForFunction(()=>{
@@ -793,8 +793,8 @@ try {
     return d?.nodes?.length===2;
   },null,{timeout:14000});
   const snappedSide=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
-  assert.equal(snappedSide.nodes[1].x%5,0,'SIDE new point X snaps to 5m');
-  assert.equal(snappedSide.nodes[1].h%5,0,'SIDE new point height snaps to 5m');
+  assert.equal(Math.abs(snappedSide.nodes[1].x%5),0,'SIDE new point X snaps to 5m');
+  assert.equal(Math.abs(snappedSide.nodes[1].h%5),0,'SIDE new point height snaps to 5m');
   assert.equal(snappedSide.nodes[1].z,snappedStation.z,'SIDE hidden Z stays exact');
   await mp.locator('[data-editor-view="top"]').tap();
   /* Move a real mouse over otherwise empty drafting paper. The
@@ -813,8 +813,8 @@ try {
     return d?.nodes?.length===3;
   },null,{timeout:14000});
   const snappedTop=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
-  assert.equal(snappedTop.nodes[2].x%5,0,'TOP new turn X snaps to 5m');
-  assert.equal(snappedTop.nodes[2].z%5,0,'TOP new turn Z snaps to 5m');
+  assert.equal(Math.abs(snappedTop.nodes[2].x%5),0,'TOP new turn X snaps to 5m');
+  assert.equal(Math.abs(snappedTop.nodes[2].z%5),0,'TOP new turn Z snaps to 5m');
   assert.equal(snappedTop.nodes[2].h,snappedSide.nodes[1].h,
     'TOP still inherits exact lift crest height');
   await mp.locator('#btnGridSnap').tap();
