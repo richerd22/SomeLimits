@@ -108,6 +108,13 @@ try {
   const after=await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
   assert.equal(after.nodes[0].h,20,'height slider did not commit to autosave');
   assert.equal(after.nodes[0].bank,before.nodes[0].bank,'height edit moved the bank');
+  /* The checkbox selects WHICH point is the station. Unchecking
+     the only station must not silently strip the role from all nodes. */
+  await p.locator('#chkStation').uncheck();
+  assert.equal(await p.locator('#chkStation').isChecked(),true,
+    'the unique station cannot be unchecked');
+  const afterStationClick=await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.equal(afterStationClick.nodes.filter(n=>n.station).length,1);
   await p.locator('#btnSaveLib').click();
   const saved=await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-library-v1')));
   assert.ok(saved?.length===1,'library save did not create an entry');
@@ -128,11 +135,33 @@ try {
     const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
     return st?.building === true && st.nodes?.length === 0;
   });
+  const blankControls=await p.evaluate(()=>({
+    index:document.querySelector('#nodeIdx').textContent,
+    hLabel:document.querySelector('#hVal').textContent,
+    bLabel:document.querySelector('#bVal').textContent,
+    heightDisabled:document.querySelector('#rngH').disabled,
+    bankDisabled:document.querySelector('#rngB').disabled,
+    stationDisabled:document.querySelector('#chkStation').disabled,
+    liftDisabled:document.querySelector('#chkLift').disabled,
+    deleteDisabled:document.querySelector('#btnDel').disabled,
+    nodeCount:document.querySelector('#dsN').textContent,
+    length:document.querySelector('#dsLen').textContent
+  }));
+  assert.deepEqual(blankControls,{
+    index:'-',hLabel:'-',bLabel:'-',heightDisabled:true,bankDisabled:true,
+    stationDisabled:true,liftDisabled:true,deleteDisabled:true,
+    nodeCount:'0',length:'-'
+  },'empty draft must not display old node controls or previous stats');
   await p.mouse.click(850,480); // free canvas area, not the side panel
   await p.waitForFunction(() => {
     const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
     return st?.building === true && st.nodes?.length === 1 && st.nodes[0].station === true;
   });
+  assert.equal(await p.locator('#rngH').isDisabled(),false,'height editor returns with a station');
+  assert.equal(await p.locator('#rngB').isDisabled(),false,'bank editor returns with a station');
+  assert.equal(await p.locator('#chkStation').isDisabled(),true,'station checkbox locked while building');
+  assert.equal(await p.locator('#dsN').textContent(),'1','one station is one actual node');
+  assert.match(await p.locator('#dsH').textContent(),/3\.0 m/,'lone station height must be real');
   const downloadPending=p.waitForEvent('download');
   await p.locator('#btnExportJson').click();
   const downloaded=await downloadPending;
