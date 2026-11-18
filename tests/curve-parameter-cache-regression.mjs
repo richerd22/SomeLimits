@@ -18,13 +18,16 @@ const oStart=game.indexOf('function bankAtOpen(nodes, f) {');
 const oEnd=game.indexOf('/* fewer than 2 points:',oStart);
 assert.ok(oStart>=0&&oEnd>oStart,'open spline functions missing');
 const open=game.slice(oStart,oEnd);
-const cacheLines='  const curveT = new Float64Array(SAMPLES + 1);\n'+
-  '  for (let i = 0; i <= SAMPLES; i++) curveT[i] = curve.getUtoTmapping(i / SAMPLES);\n';
-assert.equal(core.split(cacheLines).length-1,1,'closed curve must cache one mapping table');
-assert.equal(open.split(cacheLines).length-1,1,'open curve must cache one mapping table');
+const cacheLine='  const curveT = new Float64Array(SAMPLES + 1);\n';
+assert.equal(core.split(cacheLine).length-1,1,'closed curve must cache one mapping table');
+assert.equal(open.split(cacheLine).length-1,1,'open curve must cache one mapping table');
+for(const section of [core,open]){
+  assert.ok(section.includes('    const t = curve.getUtoTmapping(i / SAMPLES);\n    curveT[i] = t;'),
+    'true arc lookup must be stored in the EXISTING height guard loop, no extra pass');
+}
 function previousVersion(src) {
-  const out=src.split(cacheLines).join('')
-    .replaceAll('const t = curveT[i];','const t = curve.getUtoTmapping(i / SAMPLES);')
+  const out=src.split(cacheLine).join('')
+    .replaceAll('    curveT[i] = t;\n','')
     .replaceAll('const f = curveT[i] * N;', 'const f = curve.getUtoTmapping(i / SAMPLES) * N;')
     .replaceAll('const f = curveT[i] * (N - 1);',
       'const f = curve.getUtoTmapping(i / SAMPLES) * (N - 1);');
@@ -88,13 +91,22 @@ try {
       ': '+b.calls+' -> '+a.calls+' exact Three.js arc lookups');
   }
   const nodes=shapes[shapes.length-2].nodes;
-  let optMs=0,oldMs=0;
-  for(let i=0;i<4;i++){
-    let t=performance.now();optimized.computeTrack(nodes);optMs+=performance.now()-t;
-    t=performance.now();previous.computeTrack(nodes);oldMs+=performance.now()-t;
+  for(let i=0;i<14;i++){
+    optimized.computeTrack(nodes);previous.computeTrack(nodes);
   }
-  console.log('80-node track math sample (4 runs): cached '+optMs.toFixed(1)+
-    'ms vs prior '+oldMs.toFixed(1)+'ms; CI timing diagnostic only');
+  let optMs=0,oldMs=0;
+  for(let i=0;i<60;i++){
+    let t=performance.now();
+    if(i%2===0){
+      optimized.computeTrack(nodes);optMs+=performance.now()-t;
+      t=performance.now();previous.computeTrack(nodes);oldMs+=performance.now()-t;
+    } else {
+      previous.computeTrack(nodes);oldMs+=performance.now()-t;
+      t=performance.now();optimized.computeTrack(nodes);optMs+=performance.now()-t;
+    }
+  }
+  console.log('80-node track math warmed 60-run diagnostic: cached '+optMs.toFixed(1)+
+    'ms vs prior '+oldMs.toFixed(1)+'ms; machine timing is not a CI gate');
   console.log('PASS: exact closed/open spline and 901 fewer redundant mapping calls per rebuild');
 } finally {
   THREE.Curve.prototype.getUtoTmapping=originalMap;
