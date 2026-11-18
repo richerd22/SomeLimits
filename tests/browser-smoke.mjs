@@ -33,10 +33,14 @@ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const baseURL='http://127.0.0.1:'+server.address().port+'/play/';
 let browser;
 async function prepare(page){
+  const requests=[],failedRequests=[];
+  page.on('requestfailed',req=>failedRequests.push(req.url()+' : '+req.failure()?.errorText));
+  page.on('response',resp=>{if(resp.status()>=400)failedRequests.push(resp.status()+' '+resp.url());});
   // Importmap URLs still name the exact shipped CDN dependency, but the
   // browser test supplies the already-installed Three.js files locally.
   // Test reliability is not dependent on a third-party CDN being up.
   await page.route('https://unpkg.com/three@0.160.0/**',async route=>{
+    requests.push(route.request().url());
     const u=new URL(route.request().url());
     const rel=decodeURIComponent(u.pathname.replace(/^\/three@0\.160\.0\//,''));
     const filename=path.resolve(threeRoot,rel);
@@ -56,8 +60,20 @@ async function prepare(page){
   page.on('pageerror',err=>errors.push(err.message));
   page.on('console',msg=>{if(msg.type()==='error' && !msg.text().includes('favicon'))errors.push(msg.text());});
   await page.goto(baseURL,{waitUntil:'domcontentloaded',timeout:30000});
-  await page.waitForFunction(()=>window.__slBooted===true,null,{timeout:30000});
-  assert.deepEqual(errors,[],'uncaught errors during boot');
+  try {
+    await page.waitForFunction(()=>window.__slBooted===true,null,{timeout:14000});
+  } catch(err) {
+    const state=await page.evaluate(()=>({
+      booted:window.__slBooted,
+      toast:document.querySelector('#toast')?.textContent,
+      title:document.title,
+      canvas:!!document.querySelector('#app canvas'),
+      text:document.body?.innerText?.slice(0,350)
+    })).catch(e=>({evalError:e.message}));
+    throw new Error('WebGL game boot did not complete: '+
+      JSON.stringify({state,errors,failedRequests,servedThreeModules:requests.slice(0,16),count:requests.length}));
+  }
+  assert.deepEqual(errors,[],'uncaught errors during boot: '+JSON.stringify({failedRequests,requests}));
   return errors;
 }
 try {
