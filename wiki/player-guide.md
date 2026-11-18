@@ -22,7 +22,7 @@ If that took more than five minutes, try a preset instead and pull it apart: Cla
 
 The other way in, and the one the game is really about. **+ new coaster** clears the plot to bare grid - no track, no station, nothing.
 
-1. Click the ground to place the station. Everything leaves from there. **The orange height cap and blue bank grip appear immediately on this first point**—you don't have to add another node to shape its height or bank.
+1. Click the ground to place the station. Everything leaves from there. **The orange height cap and blue bank grip appear immediately on this first point**, with a floating number that shows height or live banking while you drag—you don't have to add another node to use those controls.
 2. Keep clicking to lay points out from it. Each click is the next point, and each point lands at ground level - the track runs flat until you raise something, and a drop is just what happens after a hill.
 3. Drag points sideways to shape the plan; drag one up/down to make a hill. The orange cap is still the precise height grip. A climb of 8 m or more grows its own lift chain, drawn as a bright strip on the track.
 4. Click the station (or the glowing ring around it) to close the circuit. Under 4 points it refuses, politely.
