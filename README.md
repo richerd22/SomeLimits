@@ -84,7 +84,8 @@ Start at [wiki/README.md](wiki/README.md):
 - [Code](wiki/code.md) - how the single file works: track maths, physics, save formats
 - [Dev](wiki/dev.md) - running locally, conventions, testing, contributing
 - [Admin](wiki/admin.md) - hosting, updates, trademark posture, imagery policy
-- [November 2026 playtest repair](playtest-2026-11-18.md) - lift/drag diagnosis and deliberate new classic fingerprint (27.5s / 88 km/h)
+- [November 2026 playtest repair](playtest-2026-11-18.md) - lift/drag diagnosis and deliberate fingerprints for all four presets, 47.5m hill and flat loop
+- [Main/branch and physics audit](wiki/branch-hygiene-physics-audit.md) - reconcile squash-merged PRs, cleanup plan and every preset's exact reference values
 - [Editor performance + save lifecycle](wiki/editor-runtime.md) - GPU cleanup, coalesced dragging, terrain release and compact library persistence
 - [Support clearance performance](wiki/support-clearance.md) - indexed support checks with brute-force equivalence proof
 - [Mobile and library rendering](wiki/mobile-performance.md) - phone pixel ratio cap and lazy, bounded blueprint previews
@@ -100,7 +101,7 @@ Start at [wiki/README.md](wiki/README.md):
 
 ## Quality checks
 
-The game itself remains a single HTML file and needs no build step. Maintainer-only tests run in GitHub Actions on PRs and pushes to main: editor resource/storage regression (zero dependencies) and the fixed 27.5s / 88 km/h classic physics fingerprint (pinned Three.js in CI). Run `node tests/editor-runtime-regression.mjs` and `node tests/direct-point-drag-regression.mjs` for fast local audits. See [Dev](wiki/dev.md).
+The game itself remains a single HTML file and needs no build step. Maintainer-only tests run in GitHub Actions on PRs and pushes to main: editor resource/storage regression (zero dependencies) and the explicit time and top-speed fingerprints for every preset and the user playtest circuit (pinned Three.js in CI). Run `node tests/editor-runtime-regression.mjs` and `node tests/direct-point-drag-regression.mjs` for fast local audits. See [Dev](wiki/dev.md).
 
 ## Design rules
 
