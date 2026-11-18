@@ -657,12 +657,17 @@ try {
     assert.equal(await mp.locator('[data-editor-view="'+view+'"]').getAttribute('aria-pressed'),'true',
       'view selector must report '+view);
   }
+  assert.equal(await mp.locator('#nodeIdx').textContent(),'#4 of 4',
+    'Redo must restore selection to the newly inserted DROP node');
   /* Precision after construction: TOP arrow nudges must touch only the
      selected point and only the visible axis. Inspector coordinate edits
      are undoable, and prev/next selection must not create document edits
      even if stacked nodes are impossible to distinguish by screen tap. */
   await mp.locator('[data-editor-view="top"]').tap();
   const preNudge=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  /* A soft-keyboard input must keep its own arrow keys; use the game
+     canvas/body as a real external keyboard target for editor nudges. */
+  await mp.evaluate(()=>document.activeElement?.blur());
   await mp.keyboard.press('ArrowLeft');
   await mp.waitForFunction(x=>{
     const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
