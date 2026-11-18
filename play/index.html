@@ -1242,6 +1242,69 @@ function cancelTrackPreview() {
   if (previewFrame) cancelAnimationFrame(previewFrame);
   previewFrame = 0;
 }
+/* One set of on-point editing handles for both the very first station
+   and the first completed spline. Previously buildLoneStation() drew
+   only the lime ball: the orange precision cap and blue roll grip
+   appeared *only after adding a second point*. Editing a first point
+   deserves exactly the same gestures as every later point.
+   One-node tangent falls back to +X in nodeRollFrame(), so the bank
+   grip still has a defined up/side plane before a track exists. */
+function buildSelectedEditHandles() {
+  /* the selected point's height kit: a pole tying it to the
+     ground (its height becomes visible instead of guessed), a
+     ring on its footprint, and an orange cap floating above it.
+     the cap is a handle - drag it up or down and the height
+     follows your hand, with the number floating beside it.
+     height stops living on a panel slider you have to remember;
+     the slider stays as the precision backup. */
+  if (nodes[selected]) {
+    const n = nodes[selected];
+    const gy = terrainHeightAt(n.x, n.z);
+    const poleGeo = new THREE.CylinderGeometry(0.06, 0.06, 1, 6); poleGeo.translate(0, 0.5, 0);
+    const pole = new THREE.Mesh(poleGeo, new THREE.MeshBasicMaterial({color: 0x8fa3b8, transparent: true, opacity: 0.55}));
+    pole.position.set(n.x, gy, n.z);
+    pole.scale.y = Math.max(0.1, n.h + 2.4 - gy);
+    handleGroup.add(pole);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(1.15, 1.45, 28),
+      new THREE.MeshBasicMaterial({color: 0xe8720c, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false}));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(n.x, gy + 0.07, n.z);
+    handleGroup.add(ring);
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.8, 14, 10),
+      new THREE.MeshStandardMaterial({color: 0xe8720c, emissive: 0x592c00, roughness: 0.4}));
+    cap.position.set(n.x, n.h + 2.4, n.z);
+    cap.userData.heightNode = selected;
+    handleGroup.add(cap);
+    addHitProxy(handleGroup, cap.position, 'cap', {heightNode: selected});
+    /* the bank grip: banking gets a handle too (round 10). a blue
+       ball on the end of a bar along the track's rolled side,
+       riding a faint ring around the point - grab it and pull it
+       around the ring and the track rolls with it, degrees
+       floating by the point. it sits wherever the current bank
+       has rolled it, so picking it up never jumps. shift-drag
+       and the slider stay as backups, like the height slider. */
+    const fr = nodeRollFrame(selected);
+    const rad = THREE.MathUtils.degToRad(n.bank);
+    const rolled = fr.side.clone().multiplyScalar(Math.cos(rad)).addScaledVector(fr.up, -Math.sin(rad));
+    const ringB = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.035, 8, 44),
+      new THREE.MeshBasicMaterial({color: 0x2b5aa6, transparent: true, opacity: 0.38, depthWrite: false}));
+    ringB.position.set(n.x, n.h, n.z);
+    ringB.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), fr.tan);
+    handleGroup.add(ringB);
+    const barGeo = new THREE.CylinderGeometry(0.05, 0.05, 2.6, 6); barGeo.translate(0, 1.3, 0);
+    const bar = new THREE.Mesh(barGeo, new THREE.MeshBasicMaterial({color: 0x2b5aa6, transparent: true, opacity: 0.7}));
+    bar.position.set(n.x, n.h, n.z);
+    bar.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), rolled);
+    handleGroup.add(bar);
+    const grip = new THREE.Mesh(new THREE.SphereGeometry(0.62, 14, 10),
+      new THREE.MeshStandardMaterial({color: 0x2b5aa6, emissive: 0x0d2144, roughness: 0.4}));
+    grip.position.set(n.x + rolled.x * 2.6, n.h + rolled.y * 2.6, n.z + rolled.z * 2.6);
+    grip.userData.bankNode = selected;
+    handleGroup.add(grip);
+    addHitProxy(handleGroup, grip.position, 'grip', {bankNode: selected});
+  }
+}
+
 function buildTrack() {
   cancelTrackPreview();
   if (building && nodes.length < 2) { buildLoneStation(); return; }
@@ -1613,59 +1676,7 @@ function buildTrack() {
     handleGroup.add(h);
     addHitProxy(handleGroup, h.position, 'node', {nodeIndex: i});
   });
-  /* the selected point's height kit: a pole tying it to the
-     ground (its height becomes visible instead of guessed), a
-     ring on its footprint, and an orange cap floating above it.
-     the cap is a handle - drag it up or down and the height
-     follows your hand, with the number floating beside it.
-     height stops living on a panel slider you have to remember;
-     the slider stays as the precision backup. */
-  if (nodes[selected]) {
-    const n = nodes[selected];
-    const gy = terrainHeightAt(n.x, n.z);
-    const poleGeo = new THREE.CylinderGeometry(0.06, 0.06, 1, 6); poleGeo.translate(0, 0.5, 0);
-    const pole = new THREE.Mesh(poleGeo, new THREE.MeshBasicMaterial({color: 0x8fa3b8, transparent: true, opacity: 0.55}));
-    pole.position.set(n.x, gy, n.z);
-    pole.scale.y = Math.max(0.1, n.h + 2.4 - gy);
-    handleGroup.add(pole);
-    const ring = new THREE.Mesh(new THREE.RingGeometry(1.15, 1.45, 28),
-      new THREE.MeshBasicMaterial({color: 0xe8720c, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false}));
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.set(n.x, gy + 0.07, n.z);
-    handleGroup.add(ring);
-    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.8, 14, 10),
-      new THREE.MeshStandardMaterial({color: 0xe8720c, emissive: 0x592c00, roughness: 0.4}));
-    cap.position.set(n.x, n.h + 2.4, n.z);
-    cap.userData.heightNode = selected;
-    handleGroup.add(cap);
-    addHitProxy(handleGroup, cap.position, 'cap', {heightNode: selected});
-    /* the bank grip: banking gets a handle too (round 10). a blue
-       ball on the end of a bar along the track's rolled side,
-       riding a faint ring around the point - grab it and pull it
-       around the ring and the track rolls with it, degrees
-       floating by the point. it sits wherever the current bank
-       has rolled it, so picking it up never jumps. shift-drag
-       and the slider stay as backups, like the height slider. */
-    const fr = nodeRollFrame(selected);
-    const rad = THREE.MathUtils.degToRad(n.bank);
-    const rolled = fr.side.clone().multiplyScalar(Math.cos(rad)).addScaledVector(fr.up, -Math.sin(rad));
-    const ringB = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.035, 8, 44),
-      new THREE.MeshBasicMaterial({color: 0x2b5aa6, transparent: true, opacity: 0.38, depthWrite: false}));
-    ringB.position.set(n.x, n.h, n.z);
-    ringB.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), fr.tan);
-    handleGroup.add(ringB);
-    const barGeo = new THREE.CylinderGeometry(0.05, 0.05, 2.6, 6); barGeo.translate(0, 1.3, 0);
-    const bar = new THREE.Mesh(barGeo, new THREE.MeshBasicMaterial({color: 0x2b5aa6, transparent: true, opacity: 0.7}));
-    bar.position.set(n.x, n.h, n.z);
-    bar.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), rolled);
-    handleGroup.add(bar);
-    const grip = new THREE.Mesh(new THREE.SphereGeometry(0.62, 14, 10),
-      new THREE.MeshStandardMaterial({color: 0x2b5aa6, emissive: 0x0d2144, roughness: 0.4}));
-    grip.position.set(n.x + rolled.x * 2.6, n.h + rolled.y * 2.6, n.z + rolled.z * 2.6);
-    grip.userData.bankNode = selected;
-    handleGroup.add(grip);
-    addHitProxy(handleGroup, grip.position, 'grip', {bankNode: selected});
-  }
+  buildSelectedEditHandles();
   handleGroup.visible = (mode === 'edit');
   scene.add(handleGroup);
   /* the terrain apron follows the track - but not mid-drag: the mesh
@@ -1807,6 +1818,9 @@ function buildLoneStation() {
     handleGroup.add(h);
     addHitProxy(handleGroup, h.position, 'node', {nodeIndex: i});
   });
+  /* The first station needs the same orange/blue precision controls
+     as a station in a finished circuit; no fake track is created. */
+  buildSelectedEditHandles();
   handleGroup.visible = (mode === 'edit');
   scene.add(handleGroup);
   if (dragging < 0 && banking < 0 && heightDrag < 0 && gripBank < 0) updateTerrain();
