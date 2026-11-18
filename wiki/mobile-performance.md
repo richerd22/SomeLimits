@@ -49,6 +49,10 @@ node tests/physics-regression.mjs
 
 The new library test extracts the actual `gamePixelRatio`, `libraryBlueprint`, observer helpers and cache from `play/index.html`. It tests a fake observer's visibility callback, no work for off-screen cards, a second appearance reusing the cached preview, detaching an old observer on library rerender, a 40-entry LRU, invalidation, immediate fallback without the API, and the DPR 3 -> DPR 2 cap. CI runs it on PRs and main pushes.
 
+## Automated browser integration follow-up
+
+A later test-only release adds [Browser smoke](browser-smoke.md) using headless Chromium. Beyond the helper regression here, it boots the real 3D game and verifies actual canvas backing dimensions at a simulated DPR 3, plus a visible code-generated library thumbnail and an emulated station placement. This is still not a real iOS Safari test.
+
 ## Manual acceptance checklist
 
 - [ ] Open a large library on desktop and iOS Safari: visible cards fill in, with no layout jumps; scroll to reveal more thumbnails.
