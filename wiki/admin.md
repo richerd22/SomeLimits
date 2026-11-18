@@ -74,6 +74,7 @@ Screenshots of the actual running app are fine - they are the code-rendered game
 - [ ] Browser smoke passes (headless WebGL boot, desktop edit + save + thumbnail, emulated mobile blank plot + station tap, real touch-height drag/undo/redo, blur rollback, two-finger cancellation, lost-pointer-capture, and a working subsequent gesture). Keep physical iOS Safari manual testing separate.
 - [ ] Interrupt a drag on a real touch device via a second finger or system gesture; confirm rollback, no ghost edit and working orbit after finger release.
 - [ ] Confirm real Chromium sideways-touch regression passes: x/z moves, height and bank unchanged, exact undo and redo. Recheck on physical iOS Safari.
+- [ ] A one-point station has the same orange precision-height cap and blue bank grip as the completed track. Real Chromium finger drags change only height or bank respectively, with exact Undo/Redo. Verify visibility and picking on physical iPhone Safari.
 - [ ] Direct point regression passes (no post-release neighbour shifts, no accidental bank edits, exact point position).
 - [ ] Draft rescue regression passes (unfinished JSON round-trip, unchanged finished exports, quota warning and recovery). Browser smoke exercises actual export/import controls.
 - [ ] Frame a lone distant station after importing a draft; Frame Track should center it even with no spline.
