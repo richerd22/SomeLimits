@@ -12,7 +12,7 @@ This is the preset path - a complete circuit first, pulled apart second. For the
 2. Drag a node. Drag a lime node sideways to move it across the plot, or straight up/down to raise/lower it. After the first clear movement, that drag stays on the chosen axis. No tool switch.
 3. For precise height, drag the orange cap floating above the selected point or use the height slider - same number, different grip. Raise it to make a hill, lower it to make a valley.
 4. Bank that node: drag the blue grip around it - it rides a ring around the point, and the track rolls as you pull it around. Banking runs from -180 to 180 degrees. Bank into turns so the ride does not throw you sideways.
-5. Let go. On drag release, auto-smooth gently tidies the moved node's neighbourhood - positions and banking. It is the built-in version of the old smoothing ritual. You do not need to do it by hand.
+5. Let go. The point stays exactly where you left it. Its neighbours and their banking values do not change behind your back. The spline between points is the smooth part.
 6. Want a lift? Just make a climb of 8 m or more between two nodes - the chain lift grows by itself, drawn as a bright strip on the track. (A checkbox on the node can force a chain onto a shorter climb; it is an override, not the way.) Your first hill cannot stall because you missed a menu.
 7. Press RIDE IT, or press R. You start at the station.
 
@@ -105,7 +105,7 @@ On small screens the panels stack. It still works, it is just taller.
 
 ### Smoothness
 
-- Drag, release, let auto-smooth do its pass. Drag again if you want more change.
+- Drag a point directly where it should be. The spline joins the points smoothly without moving your control points on release.
 - Fewer, well-placed nodes usually ride smoother than a node every metre.
 - If a section jerks, check the two nodes around it first - a sudden height or banking jump lives there.
 
@@ -171,8 +171,8 @@ In your browser, nowhere else. localStorage, on that device. No sync, no cloud, 
 **Why did my train get a lift I did not ask for?**
 Because the climb between two nodes is 8 m or more. Auto-lift. It stops first coasters stalling on their first hill. Lower the climb below 8 m if you truly do not want it.
 
-**Why did my track change a little when I let go?**
-Auto-smooth. On drag release, the moved node's neighbourhood gets a gentle smoothing pass on positions and banking. Small on purpose.
+**Will a drag move my other points?**
+No. A plan drag changes only the grabbed point's ground position. Its neighbours, their heights and their banking stay where you left them. The rendered curve follows the nodes.
 
 **Can I make a straight?**
 Drag nodes into a line. There is no strict-node system to learn in v1, and that omission is deliberate. Planned refinements are marked planned in the dev docs, not promised here.

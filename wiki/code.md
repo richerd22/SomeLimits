@@ -83,7 +83,7 @@ Track and selected-handle geometry is rebuilt while editing. Pointer and slider 
 
 - Direct node dragging is gesture-direction based: after a small dead zone, a screen-up/down drag changes height on a camera-facing vertical plane, while a predominantly sideways drag changes `x`/`z` on the horizontal plane. A press-relative offset prevents jumps. Orange cap and slider retain precise height control. Banking stays on the point with a roll grip, shift/right drag and slider.
 - Double-clicking the track raycasts to a track point and inserts a node there.
-- On drag release, auto-smooth runs: a gentle relaxation over the moved node's neighbourhood, covering positions and banking. It is the built-in equivalent of the NL1 community's AHG smoothing ritual - small, local, and automatic.
+- On drag release, no automatic neighbour relaxation runs. The original code moved the grabbed point 18% toward its neighbours and the four nearby nodes by up to 30%, including bank changes. That contradicted direct manipulation. `setNodePlanPosition()` now updates only the requested node's x/z, and the spline handles smoothness. See [Exact point drags](direct-point-drag.md) for the decision and regression.
 - Auto-lift is computed in the sample pass: a sample segment counts as lift if the source node has `lift` set, or if the climb between its two nodes is 8 m or more.
 - Undo and redo are snapshots of the node array on the undo and redo stacks.
 - The selected-node readout derives segment length, climb, and grade (climb over segment length) from the selected node to the next node. Pure display, no extra state.

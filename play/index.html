@@ -206,7 +206,7 @@
     or <b style="color:#dfe6ee">click empty ground</b> to drop a node where you click (while building from blank, ground clicks
     lay the track out from the station instead, one point at a time, each at ground level). <b style="color:#dfe6ee">drag the blue grip</b> around the selected node to bank it - it rides a ring around the point, the track rolls with it.
     <b style="color:#dfe6ee">drag the orange cap</b> above the selected node to set its height by hand - the number rides above it.
-    releasing a drag runs a gentle smoothing pass over positions and banking - heights stay exactly where you put them.
+    when you release a drag, the point stays where you put it - and so do its neighbours. the spline is the smooth part.
     climbs of 8m+ get a lift chain automatically. <b style="color:#dfe6ee">keys:</b> R ride, E edit, C camera, F frame track,
     N node, Del delete, ctrl+Z/Y undo/redo, ctrl+S save, H manual, L library.
     <b style="color:#dfe6ee">orbit</b> left-drag empty space, <b style="color:#dfe6ee">pan</b> right-drag, <b style="color:#dfe6ee">zoom</b> wheel.
@@ -323,7 +323,7 @@
       <li>make a hill taller than the rest - any climb of 8m or more grows a lift chain by itself, drawn as a bright strip on the track. nobody presses a lift button; there effectively isn't one.</li>
       <li><b>double-click</b> the track to add a node exactly there. <b>click empty ground</b> to drop a node where you click instead. banking past +/-90 degrees rolls the train over - rolls are banking, loops are shapes (next section). you are the loop menu.</li>
       <li><b>drag the blue grip</b> around the selected node to bank it - the grip rides a ring around the point on the end of a bar, sitting wherever the current bank has rolled it; pull it around and the track rolls with your hand, degrees floating by the point. <b>shift-drag</b> (or right-drag) a node sideways does the same thing the old way, and the slider drives the same number; all three stay in sync.</li>
-      <li>when you let go of a drag, a gentle smoothing pass runs over the neighbourhood. that's deliberate - it's the fix for kinked connections.</li>
+      <li>the point stays where you drag it. the neighbours and their banking do not shift when you let go. the track between points is smoothed by the spline, not by moving your points behind your back.</li>
       <li>press <b>RIDE IT</b> (or R). the train leaves the station, gravity does the rest, brakes bring it home.</li>
     </ul>
     <h3>loops and rolls (you will try these first)</h3>
@@ -2268,38 +2268,20 @@ $('btnUndo').addEventListener('click', undo);
 $('btnRedo').addEventListener('click', redo);
 $('btnFrame').addEventListener('click', frameTrack);
 
-/* gentle neighbourhood smoothing - the AHG kink fix, built in.
-   runs when a drag ends: the moved node and its neighbours ease
-   toward the average of their neighbours, banking included. */
-function smoothAround(idx) {
-  const N = nodes.length;
-  if (N < 7) return;
-  const orig = nodes.map(n => ({...n}));
-  const meanAngle = (a, b) => {
-    const x = Math.cos(THREE.MathUtils.degToRad(a)) + Math.cos(THREE.MathUtils.degToRad(b));
-    const y = Math.sin(THREE.MathUtils.degToRad(a)) + Math.sin(THREE.MathUtils.degToRad(b));
-    return THREE.MathUtils.radToDeg(Math.atan2(y, x));
-  };
-  for (let d = -2; d <= 2; d++) {
-    if (building && (idx + d < 0 || idx + d >= N)) continue;   // an open strip has no wrap to smooth across
-    const i = building ? idx + d : ((idx + d) % N + N) % N;
-    const pi = building ? Math.max(0, i - 1) : (i - 1 + N) % N;
-    const qi = building ? Math.min(N - 1, i + 1) : (i + 1) % N;
-    const p = orig[pi], c = orig[i], q = orig[qi];
-    const w = d === 0 ? 0.18 : 0.3;
-    nodes[i].x = c.x + ((p.x + q.x) / 2 - c.x) * w;
-    nodes[i].z = c.z + ((p.z + q.z) / 2 - c.z) * w;
-    /* heights are NOT smoothed. they used to be - and at a grade
-       break (the top of a lift, the foot of a drop) the pass
-       rewrote the crest and filled the drop every time a nearby
-       point was dragged: one plan-drag of the point at a cliff's
-       foot sagged the plateau above it by 3.6m and raised the
-       dragged point 2.1m (measured, round 9). the builder's
-       heights are the builder's word; the spline between them
-       is already the smooth part. this pass tidies plan position
-       and banking, nothing else. */
-    nodes[i].bank = Math.round(lerpAngleDeg(c.bank, meanAngle(p.bank, q.bank), w));
-  }
+/* The point is the contract. Dragging one lime point must NEVER move
+   the other points, adjust their bank, or pull the grabbed point away
+   from the cursor on release. Catmull-Rom smooths the track *between*
+   nodes. It is not permission to rewrite the user's control points.
+   Pure enough to regression-test without WebGL or pointer events. */
+function setNodePlanPosition(list, idx, x, z) {
+  const node = list[idx];
+  if (!node || !Number.isFinite(x) || !Number.isFinite(z)) return false;
+  const nx = THREE.MathUtils.clamp(x, -150, 150);
+  const nz = THREE.MathUtils.clamp(z, -150, 150);
+  if (node.x === nx && node.z === nz) return false;
+  node.x = nx;
+  node.z = nz;
+  return true;
 }
 
 /* presets are a document replace, same as New - so they get the
@@ -2713,10 +2695,9 @@ renderer.domElement.addEventListener('pointermove', e => {
       if (nh !== nodes[dragging].h) { nodes[dragging].h = nh; dragMoved = true; queueTrackPreview(); }
     }
   } else if (dragPressGround && ray.ray.intersectPlane(dragPlane, out)) {
-    const nx = THREE.MathUtils.clamp(grabSnap.x + out.x - dragPressGround.x, -150, 150);
-    const nz = THREE.MathUtils.clamp(grabSnap.z + out.z - dragPressGround.z, -150, 150);
-    if (nx !== nodes[dragging].x || nz !== nodes[dragging].z) {
-      nodes[dragging].x = nx; nodes[dragging].z = nz;
+    const nx = grabSnap.x + out.x - dragPressGround.x;
+    const nz = grabSnap.z + out.z - dragPressGround.z;
+    if (setNodePlanPosition(nodes, dragging, nx, nz)) {
       dragMoved = true; queueTrackPreview();
     }
   }
@@ -2726,8 +2707,7 @@ renderer.domElement.addEventListener('pointerup', e => {
   if (activePtr !== null && e.pointerId !== activePtr) return;
   activePtr = null;
   if (heightDrag >= 0) {
-    /* no smoothing pass on a height drag either - the height you
-       set is the height that stays (see smoothAround). */
+    /* The height you set is the height that stays. */
     const changed = heightMoved;
     heightDrag = -1; heightMoved = false;
     if (changed) { buildTrack(); commit(); }
@@ -2786,12 +2766,12 @@ renderer.domElement.addEventListener('pointerup', e => {
      settle only when dragging is -1. The old order rebuilt while
      the drag flag was still set, so the expensive settle was skipped. */
   const editedNode = dragging, changedNode = dragMoved;
-  const editedHeight = dragIntent === 'height';
   dragging = -1; dragIntent = null; dragPressGround = null; grabSnap = null;
   renderer.domElement.style.cursor = '';
   controls.enabled = mode === 'edit';
   if (editedNode >= 0 && changedNode) {
-    if (!editedHeight) smoothAround(editedNode);
+    /* The preview was the final geometry. Do not silently move this
+       point—or its neighbours—when the finger lets go. */
     buildTrack(); commit();
   }
   /* a press that started on empty canvas and barely moved was a
