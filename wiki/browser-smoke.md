@@ -37,7 +37,8 @@ The existing checks proved the sampled physics, library helper logic and collisi
 7. Start another actual touch drag and deliver a window blur before touchend. The half-finished drag must roll back and autosave must remain at the prior station.
 8. Start a third touch drag and add a second finger; assert the first uncommitted edit rolls back and subsequent finger moves do not modify the station.
 9. Force the rendering canvas to lose a captured pointer during a fourth drag; assert rollback even without pointercancel. Verify a fifth normal touch gesture still edits and saves, proving no stale pointer ownership.
-10. Frame the station again and perform a 95px **sideways** finger drag using actual CDP touch events. Assert that world x/z move significantly while its height, banking and station identity remain exactly unchanged. Undo must restore the old ground coordinates; Redo must restore the dragged coordinates. This protects the user's original screen-space dragging requirement beyond the pure helper test. See [Touch interruption decision](interruptions-and-touch-regression.md) and [Direct point drags](direct-point-drag.md).
+10. Frame the station again and perform a 95px **sideways** finger drag using actual CDP touch events. Assert that world x/z move significantly while its height, banking and station identity remain exactly unchanged. Undo must restore the old ground coordinates; Redo must restore the dragged coordinates.
+11. Frame the **single-point** station, project its orange cap and blue bank grip to screen space with pinned Three.js at the known camera offset, and perform genuine separate touch drags on each. The orange cap must change only height; the blue grip only bank. Both must round-trip exactly through Undo/Redo, with no fake spline added. See [First-station precision handles](first-station-precision-handles.md), [Touch interruption decision](interruptions-and-touch-regression.md) and [Direct point drags](direct-point-drag.md).
 
 This is still Chromium **mobile emulation**, not physical iOS Safari. It does not establish hardware FPS or multi-finger behavior.
 
@@ -82,7 +83,7 @@ All prior math/editor/library support regressions passed in the same CI job. Rea
 
 ## Next tests worth adding
 
-- Extend direct on-canvas gestures to the orange height cap and blue bank grip, plus a multi-node completed coaster. Both vertical **and sideways** lime-point touch drags, exact undo/redo, blur interruption, second-finger cancellation, capture-loss rollback and a successful subsequent drag now have browser coverage.
+- Extend direct on-canvas gesture tests to multi-node completed coasters and tricky extreme-bank handle overlaps. One-point orange cap, blue bank grip, vertical **and sideways** lime-point touch drags, exact undo/redo, blur interruption, second-finger cancellation, capture-loss rollback and a successful subsequent drag now have browser coverage.
 - Screenshot comparison only from actual deterministic game renders, if stable enough to avoid meaningless anti-aliasing noise.
 - Opening an existing share URL and importing an old JSON/CSV file through real DOM buttons.
 - Real iOS Safari interaction audit by a human or on-device browser automation.
