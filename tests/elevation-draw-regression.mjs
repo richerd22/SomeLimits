@@ -34,7 +34,7 @@ for(const token of [
   "function buildClickAtElevation(point) {",
   "function draftPointFromRay() {",
   "draftRayPlane.setFromNormalAndCoplanarPoint(normal,",
-  "if (building && (editorView === 'side' || editorView === 'front')) {",
+  "if (building && editorView !== '3d') {",
   "if (point && buildClickAtElevation(point)) lastGroundAdd = performance.now();",
   "const draftGuideGeo = new THREE.BufferGeometry();",
   "new THREE.BufferAttribute(new Float32Array(6), 3).setUsage(THREE.DynamicDrawUsage)",
