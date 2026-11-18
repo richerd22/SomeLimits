@@ -67,6 +67,10 @@ Built from the samples, rebuilt with the track. All code-rendered. No model file
 - **Ground.** A ground plane under the layout - the plane the nodes sit on.
 - **Node handles.** In edit mode, a draggable handle mesh per node, tagged with its node index for picking via raycast against a horizontal drag plane at the node's height.
 
+## Support clearance broad phase
+
+Centre-post keep-out checks now query an 8 m x/z spatial grid, then apply the *same* exact arc, height and horizontal-distance tests. This is a safe broad phase, not a relaxation of collision rules: any sample within sqrt(2.9) m horizontally lies inside the indexed query region. Side-frame beam clearance compares squared distances and performs one final square root, preserving its minimum and 1.15 m threshold. Diagnostics remain on `window.__slSupports`; see [support clearance](support-clearance.md) and `tests/support-clearance-regression.mjs` for the proof and brute-force reference.
+
 ## Scene resource lifecycle
 
 Track and selected-handle geometry is rebuilt while editing. Pointer and slider `input` events now call `queueTrackPreview()` rather than rebuilding immediately: only one preview is queued per display frame, using the latest node values. Every release or committed change still uses synchronous `buildTrack()` and cancels a pending preview, so undo and autosave see the finished geometry. `disposeEditGroup()` disposes temporary geometries and materials exactly once, exempting the shared touch halo proxy resources. The terrain and nearby trees settle after the drag flag is cleared, not during the interaction. See [Editor runtime](editor-runtime.md) for the full diagnosis and regression checks.

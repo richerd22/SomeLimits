@@ -65,8 +65,9 @@ const storeSrc = 'function storeLib(lib) {' +
 assert.ok(storeSrc?.includes('compact'), 'compact library store missing');
 let stored='', failed=false, warned=0;
 const localStorage = {setItem(_key,value){if(failed)throw Error('quota');stored=value;}};
-const storeLib = new Function('localStorage','LIB_KEY','toast',storeSrc+'\nreturn storeLib;')(
-  localStorage,'somelimits-library-v1',()=>{warned++;});
+const libraryCache = new Map([['orphan', {src:'old png'}], ['one', {src:'kept png'}]]);
+const storeLib = new Function('localStorage','LIB_KEY','toast','libraryBlueprints',storeSrc+'\nreturn storeLib;')(
+  localStorage,'somelimits-library-v1',()=>{warned++;},libraryCache);
 const sample=[{id:'one',name:'Coaster',nodes:[{x:0,h:3,z:0}],thumb:'data:image/png;base64,huge',
   stats:{len:100,maxH:3,count:1},custom:'keep me'}];
 assert.equal(storeLib(sample),true);
@@ -75,6 +76,8 @@ assert.equal(parsed[0].thumb,undefined);
 assert.equal(parsed[0].name,'Coaster');
 assert.equal(parsed[0].custom,'keep me');
 assert.ok(sample[0].thumb,'input should remain intact');
+assert.ok(libraryCache.has('one'), 'retained coaster keeps cached blueprint');
+assert.equal(libraryCache.has('orphan'),false, 'deleted coaster must evict its cached PNG');
 failed=true;
 assert.equal(storeLib(sample),false,'failed writes must report failure');
 assert.equal(warned,1,'quota failure needs a real warning');

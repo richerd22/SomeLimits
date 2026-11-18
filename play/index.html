@@ -1108,6 +1108,35 @@ scene.add(trainGroup);
    the mute window covers wholesale loads (presets, library,
    undo) where a lift arriving is not news. */
 let prevLiftSeen = null, liftToastMutedUntil = 0, gestureActive = false;
+/* A spatial hash for collision-support broad-phase queries. Only the
+   centre-post test uses it: if a different track pass is within
+   sqrt(2.9) metres in the x/z plane, its sample is GUARANTEED to
+   be in one of the intersecting grid cells. No false negatives.
+   The detailed arc and height checks below are unchanged. */
+function supportSpatialIndex(samples, cellSize = 8) {
+  const cells = new Map();
+  const key = (x, z) => x + ':' + z;
+  for (const sm of samples) {
+    const cx = Math.floor(sm.pos.x / cellSize), cz = Math.floor(sm.pos.z / cellSize);
+    const id = key(cx, cz);
+    if (!cells.has(id)) cells.set(id, []);
+    cells.get(id).push(sm);
+  }
+  return {
+    near(x, z, r) {
+      const candidates = [];
+      const minX = Math.floor((x - r) / cellSize), maxX = Math.floor((x + r) / cellSize);
+      const minZ = Math.floor((z - r) / cellSize), maxZ = Math.floor((z + r) / cellSize);
+      for (let ix = minX; ix <= maxX; ix++) {
+        for (let iz = minZ; iz <= maxZ; iz++) {
+          const bucket = cells.get(key(ix, iz));
+          if (bucket) candidates.push(...bucket);
+        }
+      }
+      return candidates;
+    }
+  };
+}
 /* Pointer events can arrive many times within one display frame. They
    update point data immediately, but only the latest shape needs a
    geometry rebuild. A committed edit calls buildTrack() directly, which
@@ -1272,8 +1301,14 @@ function buildTrack() {
      loops get side frames, but the honest v1 answer is no post
      rather than a post through the ride. a post is clear when
      no far-off sample passes low over the same ground. */
+  const supportIndex = supportSpatialIndex(samples);
+  let centreCandidatesTested = 0, centrePostProbes = 0;
   const spearsTrack = sm => {
-    for (const q of samples) {
+    centrePostProbes++;
+    /* Exact squared-distance test remains the authority. The index
+       only rejects cells too far away to contain a colliding pass. */
+    for (const q of supportIndex.near(sm.pos.x, sm.pos.z, Math.sqrt(2.9))) {
+      centreCandidatesTested++;
       let dArc = Math.abs(q.s - sm.s);
       if (!building) dArc = Math.min(dArc, track.totalLen - dArc);
       if (dArc < 8) continue;
@@ -1383,16 +1418,21 @@ function buildTrack() {
   };
   /* closest a far pass gets to the beam segment, end to end. */
   const beamClear = (far, beamC, sideU, halfLen) => {
-    let min = Infinity;
+    /* Collision decisions and reported minimum remain EXACT. The old
+       nine-times-per-sample Math.hypot() performed a square root for
+       every candidate, although only the final minimum needs one.
+       Squared distances preserve ordering and the 1.15m threshold. */
+    let minD2 = Infinity;
     for (let k = 0; k <= 8; k++) {
       const t = (k / 8 * 2 - 1) * halfLen;
       const px = beamC.x + sideU.x * t, py = beamC.y + sideU.y * t, pz = beamC.z + sideU.z * t;
       for (const q of far) {
-        const d = Math.hypot(q.pos.x - px, q.pos.y - py, q.pos.z - pz);
-        if (d < min) min = d;
+        const dx = q.pos.x - px, dy = q.pos.y - py, dz = q.pos.z - pz;
+        const d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 < minD2) minD2 = d2;
       }
     }
-    return min;
+    return Math.sqrt(minD2);
   };
   const frameReport = {placed: 0, skipped: 0, minLeg: Infinity, minBeam: Infinity};
   const frames = [];
@@ -1445,7 +1485,10 @@ function buildTrack() {
   window.__slSupports = {
     centreBents: nb, frames: frameReport.placed, framesSkipped: frameReport.skipped,
     minLegClear: isFinite(frameReport.minLeg) ? +frameReport.minLeg.toFixed(2) : null,
-    minBeamClear: isFinite(frameReport.minBeam) ? +frameReport.minBeam.toFixed(2) : null
+    minBeamClear: isFinite(frameReport.minBeam) ? +frameReport.minBeam.toFixed(2) : null,
+    centreProbes: centrePostProbes,
+    centreCandidatesTested,
+    centreBruteUpperBound: centrePostProbes * samples.length
   };
 
   const st = nodes.findIndex(n => n.station);
@@ -2826,6 +2869,10 @@ function storeLib(lib) {
        geometry is the recoverable source of truth. */
     const compact = lib.map(({thumb, ...entry}) => entry);
     localStorage.setItem(LIB_KEY, JSON.stringify(compact));
+    /* The PNG cache is page-local. Deleting a coaster should evict
+       its image too, rather than retaining it until next refresh. */
+    const keep = new Set(compact.map(entry => entry.id));
+    for (const id of libraryBlueprints.keys()) if (!keep.has(id)) libraryBlueprints.delete(id);
     return true;
   } catch {
     toast('library storage is full or blocked. export json instead.');

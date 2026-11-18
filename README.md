@@ -86,6 +86,7 @@ Start at [wiki/README.md](wiki/README.md):
 - [Admin](wiki/admin.md) - hosting, updates, trademark posture, imagery policy
 - [November 2026 playtest repair](playtest-2026-11-18.md) - lift/drag diagnosis and deliberate new classic fingerprint (27.5s / 88 km/h)
 - [Editor performance + save lifecycle](wiki/editor-runtime.md) - GPU cleanup, coalesced dragging, terrain release and compact library persistence
+- [Support clearance performance](wiki/support-clearance.md) - indexed support checks with brute-force equivalence proof
 
 ## Quality checks
 
