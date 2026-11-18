@@ -82,6 +82,7 @@ npm install --no-save --no-package-lock three@0.160.0
 node tests/physics-regression.mjs
 node tests/support-clearance-regression.mjs
 node tests/ride-insight-regression.mjs
+node tests/terrain-distance-regression.mjs
 node tests/touch-grip-camera-regression.mjs
 node tests/touch-halo-camera-regression.mjs
 ```
@@ -89,6 +90,8 @@ node tests/touch-halo-camera-regression.mjs
 The touch-halo regression runs the exact production `addHitProxy()`, shared radius and zoom-refresh code with pinned Three.js. It checks old radius constants, all three kinds, stable Mesh count/identity and position, zoom near/far, unchanged-camera and active-edit/desktop/ride guards. See [Mobile touch halo zoom continuity](mobile-touch-halo-camera.md).
 
 The camera-grip test uses the production `editGripRadius()` and `refreshTouchBankGizmo()` with pinned Three.js camera/vectors to check zoom out/in, viewport changes, stable mesh/proxy identity and no ride/desktop/drag side effects. See [Camera-continuous bank grip](mobile-bank-grip-camera-zoom.md).
+
+The terrain proximity regression compares the real indexed code to the old exact brute-force segment math across 0–120 nodes, checks consistent heights, and prints an 80-node work-reduction benchmark. The WebGL smoke also imports/edits/undoes a live 80-point coaster, asserting the other 79 points are unchanged. See [Large-coaster terrain performance](terrain-proximity-bvh.md). Timings in headless CI are diagnostic, not physical Safari FPS.
 
 **Explicit reference values:** the physics regression now pins the lap time and top speed of Classic (27.45s / 88km/h), Oval (22.22s / 77km/h), Wild (31.44s / 92km/h), and Looper (38.08s / 75km/h), plus the original 47.5m playtest lift/crest and flat tire-powered loop. A physics edit must justify old -> new fingerprints in a playtest report before updating assertions. See [Branch and physics audit](branch-hygiene-physics-audit.md).
 
