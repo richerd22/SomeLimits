@@ -45,4 +45,15 @@ for(const view of ['top','side','front','3d'])
   assert.ok(html.includes('data-editor-view="'+view+'"'),'missing visible '+view+' view');
 for(const id of ['btnContinue','btnTurnLeft','btnTurnRight','btnMakeDrop'])
   assert.ok(html.includes('id="'+id+'"'),'missing continuation control '+id);
+for(const token of [
+  'const elevationGrid = new THREE.GridHelper(260, 52,',
+  'elevationGrid.rotation.set(Math.PI / 2, 0, 0)',
+  'elevationGrid.rotation.set(0, 0, -Math.PI / 2)',
+  'function updateDraftingVisibility() {',
+  'terrain.visible = showWorld;',
+  'gridGroup.visible = (mode === \'edit\') && (building || editorView === \'top\')',
+  'elevationGrid.visible = drafting && (editorView === \'side\' || editorView === \'front\')',
+  "if (editorView === 'side' || editorView === 'front')"
+]) assert.ok(moduleScript.includes(token),'missing orthographic drafting contract '+token);
+console.log('PASS blueprint drafting grid and 3D world visibility contract');
 console.log('PASS blueprint/elevation input contract, exact crest continuation, left/right, drop and old physics untouched');

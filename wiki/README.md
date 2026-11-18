@@ -53,3 +53,4 @@ Run `node tests/editor-runtime-regression.mjs` for the editor lifecycle. The phy
 
 v1, shipped. Anything beyond the shipped list in these pages is marked planned.
 - [Classic blueprint/elevation editor — lift crest, turn, drop workflow](blueprint-elevation-editor.md) (Round 25)
+- [Orthographic drafting-paper clarity and physical SIDE/FRONT touch regression](drafting-views-round26.md) (Round 26)

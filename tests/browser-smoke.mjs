@@ -583,6 +583,61 @@ try {
     const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
     return d?.nodes?.[0]?.h===42.5;
   });
+  /* Physical interaction, not a static source assertion:
+     SIDE and FRONT must move the point in only the two displayed axes.
+     The first lone node is centered by Frame Track in each view.
+     Real touch-start/move/end and actual WebGL projection govern the edit. */
+  async function projectedLoneElevation(view) {
+    await mp.locator('[data-editor-view="'+view+'"]').tap();
+    return mp.evaluate(async which=>{
+      const THREE=await import('three');
+      const n=JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes[0];
+      const target=new THREE.Vector3(n.x,Math.max(2,n.h),n.z);
+      const mn=new THREE.Vector3(target.x-58,0,target.z-58);
+      const mx=new THREE.Vector3(target.x+58,Math.max(50,target.y+15),target.z+58);
+      const center=mn.clone().add(mx).multiplyScalar(.5);
+      const aspect=innerWidth/innerHeight;
+      const horizontal=116,vertical=mx.y-mn.y;
+      const halfHeight=Math.max(18,vertical*.66,horizontal/aspect*.66);
+      const eye=new THREE.OrthographicCamera(-halfHeight*aspect,halfHeight*aspect,halfHeight,-halfHeight,.1,1000);
+      eye.up.set(0,1,0);
+      if(which==='side')eye.position.set(center.x,center.y,center.z+190);
+      else eye.position.set(center.x+190,center.y,center.z);
+      eye.lookAt(center);eye.updateMatrixWorld();
+      const point=new THREE.Vector3(n.x,n.h,n.z).project(eye);
+      return {x:Math.round((point.x+1)*innerWidth/2),
+        y:Math.round((1-point.y)*innerHeight/2)};
+    },view);
+  }
+  for(const view of ['side','front']){
+    const before=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+    const pixel=await projectedLoneElevation(view);
+    const onCanvas=await mp.evaluate(point=>document.elementFromPoint(point.x,point.y)?.tagName,pixel);
+    assert.equal(onCanvas,'CANVAS',view+' station needs a tappable elevation node');
+    const id=view==='side'?491:492;
+    await send('touchStart',[finger(id,pixel.x,pixel.y)]);
+    await send('touchMove',[finger(id,pixel.x+42,pixel.y-54)]);
+    await send('touchEnd',[]);
+    await mp.waitForFunction(({h})=>{
+      const a=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+      return a?.nodes?.length===1 && a.nodes[0].h>h+4;
+    },{h:before.nodes[0].h},{timeout:12000});
+    const edited=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+    assert.notEqual(edited.nodes[0][view==='side'?'x':'z'],
+      before.nodes[0][view==='side'?'x':'z'],
+      view+' dragging horizontally changes the visible lateral coordinate');
+    assert.equal(edited.nodes[0][view==='side'?'z':'x'],
+      before.nodes[0][view==='side'?'z':'x'],
+      view+' must keep the hidden perpendicular coordinate');
+    assert.equal(edited.nodes[0].bank,before.nodes[0].bank,view+' should never change banking');
+    await mp.evaluate(()=>document.getElementById('btnUndo').click());
+    const undone2=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+    assert.deepEqual(undone2.nodes,before.nodes,view+' Undo should restore exact coordinates');
+    console.log('PASS '+view.toUpperCase()+' real touch elevation drag: visible plane only, bank preserved, exact Undo');
+  }
+  await mp.locator('[data-editor-view="top"]').tap();
+  assert.equal((await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes[0].h,
+    42.5,'return from elevation view must preserve the original lift crest');
   await mp.locator('#btnContinue').tap();
   await mp.locator('#btnTurnLeft').tap();
   await mp.locator('#btnMakeDrop').tap();
