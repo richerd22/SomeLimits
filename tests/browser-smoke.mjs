@@ -369,7 +369,83 @@ try {
       st.nodes[0].z===after.z;
   },afterSide.nodes[0],{timeout:8000});
   console.log('PASS sideways touch drag: x/z move, unchanged height/bank, undo/redo exactly restore coordinates');
-  assert.deepEqual(mobileErrors,[],'mobile errors after touch drag and interruption');
+
+  /* A newly placed station has ONE point and NO sampled track. It
+     used to lack its orange cap and blue grip entirely. Project the
+     documented 2.4m orange cap and 2.6m roll grip into the known
+     Frame Track camera, then exercise the *actual* grabbable meshes
+     with Chromium's real touch events. No test-only app hooks. */
+  async function loneHandlePixels(){
+    await mp.evaluate(()=>document.getElementById('btnFrame').click());
+    return mp.evaluate(async ()=>{
+      const THREE=await import('three');
+      const doc=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+      const n=doc.nodes[0];
+      const eye=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,0.1,1000);
+      eye.position.set(n.x+52,n.h+44,n.z+74);
+      eye.lookAt(n.x,n.h,n.z);
+      eye.updateMatrixWorld();
+      const screen=(x,y,z)=>{
+        const v=new THREE.Vector3(x,y,z).project(eye);
+        return {x:Math.round((v.x+1)*innerWidth/2),
+                y:Math.round((1-v.y)*innerHeight/2)};
+      };
+      /* A lone station's tangent is +X by definition. Its bank
+         starts at 0, so fr.side is world -Z; +90 banks to -Y. */
+      return {cap:screen(n.x,n.h+2.4,n.z),
+              grip:screen(n.x,n.h,n.z-2.6),
+              rollDown:screen(n.x,n.h-2.6,n.z),
+              node:{...n}};
+    });
+  }
+  const beforeCap=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  const capPix=await loneHandlePixels();
+  console.log('LONE HANDLE PIXELS '+JSON.stringify(capPix));
+  assert.equal(beforeCap.building,true);
+  assert.equal(beforeCap.nodes.length,1);
+  await send('touchStart',[finger(71,capPix.cap.x,capPix.cap.y)]);
+  await send('touchMove',[finger(71,capPix.cap.x,capPix.cap.y-76)]);
+  await send('touchEnd',[]);
+  await mp.waitForFunction(h=>{
+    const doc=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return doc?.nodes?.length===1&&doc.nodes[0].h>h+2;
+  },beforeCap.nodes[0].h,{timeout:11000});
+  const afterCap=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.equal(afterCap.nodes[0].x,beforeCap.nodes[0].x,'orange cap moved x');
+  assert.equal(afterCap.nodes[0].z,beforeCap.nodes[0].z,'orange cap moved z');
+  assert.equal(afterCap.nodes[0].bank,beforeCap.nodes[0].bank,'orange cap moved bank');
+  await mp.evaluate(()=>document.getElementById('btnUndo').click());
+  await mp.waitForFunction(h=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes[0].h===h,
+    beforeCap.nodes[0].h,{timeout:8000});
+  await mp.evaluate(()=>document.getElementById('btnRedo').click());
+  await mp.waitForFunction(h=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes[0].h===h,
+    afterCap.nodes[0].h,{timeout:8000});
+  console.log('PASS orange cap: first station precision touch drag, unchanged ground/bank, exact undo/redo');
+
+  /* Return to zero bank and frame the newly raised station. A touch
+     starting exactly on the blue grip, then moving to the -Y spoke,
+     should roll the same one point toward +90 degrees. */
+  const beforeGrip=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  const gripPix=await loneHandlePixels();
+  await send('touchStart',[finger(81,gripPix.grip.x,gripPix.grip.y)]);
+  await send('touchMove',[finger(81,gripPix.rollDown.x,gripPix.rollDown.y)]);
+  await send('touchEnd',[]);
+  await mp.waitForFunction(b=>{
+    const doc=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return doc?.nodes?.length===1&&Math.abs(doc.nodes[0].bank-b)>30;
+  },beforeGrip.nodes[0].bank,{timeout:11000});
+  const afterGrip=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.equal(afterGrip.nodes[0].h,beforeGrip.nodes[0].h,'blue grip moved height');
+  assert.equal(afterGrip.nodes[0].x,beforeGrip.nodes[0].x,'blue grip moved x');
+  assert.equal(afterGrip.nodes[0].z,beforeGrip.nodes[0].z,'blue grip moved z');
+  await mp.evaluate(()=>document.getElementById('btnUndo').click());
+  await mp.waitForFunction(b=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes[0].bank===b,
+    beforeGrip.nodes[0].bank,{timeout:8000});
+  await mp.evaluate(()=>document.getElementById('btnRedo').click());
+  await mp.waitForFunction(b=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes[0].bank===b,
+    afterGrip.nodes[0].bank,{timeout:8000});
+  console.log('PASS blue grip: first station bank touch drag, unchanged position/height, exact undo/redo');
+  assert.deepEqual(mobileErrors,[],'mobile errors after precision handle and touch tests');
 
   await mobile.close();
   console.log('PASS browser smoke: actual Three.js module + editor DOM in headless Chromium');
