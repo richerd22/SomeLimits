@@ -49,15 +49,34 @@ function near(actual, expected, tolerance, what) {
     what + ': expected ' + expected + ' +/- ' + tolerance + ', got ' + actual);
 }
 
-// A deliberate new fingerprint: the old classic was 47.84s / 86 km/h.
-// Changes: corrected segment mapping, 7.0 m/s chain, 6.5 m/s dispatch.
-const classic = lap(PRESETS.classic);
-near(classic.seconds, 27.45, 0.10, 'classic lap seconds');
-assert.equal(classic.maxKmh, 88, 'classic max km/h');
-
-for (const name of ['oval', 'wild', 'loop']) {
+/* The Nov 18 playtest deliberately changed dispatch, chain and
+   flat-drive physics. That changed EVERY preset fingerprint, not
+   just Classic. Lock each preset's time AND max speed to its
+   documented new value; a weak "finishes in < 50 seconds" check
+   would miss a future 20-second unintended shift. These are
+   fixed-step 1/60s CORE simulations using pinned Three.js r160,
+   NOT exact promises for browser-frame-paced lap UI timings.
+   If physics changes again, update all six expectations and write
+   down the intentional old -> new diff in the playtest changelog. */
+const EXPECTED = Object.freeze({
+  classic: {seconds: 27.45, maxKmh: 88},
+  oval:    {seconds: 22.22, maxKmh: 77},
+  wild:    {seconds: 31.44, maxKmh: 92},
+  loop:    {seconds: 38.08, maxKmh: 75}
+});
+assert.deepEqual(Object.keys(EXPECTED).sort(),Object.keys(PRESETS).sort(),
+  'every available preset must have a checked physics fingerprint');
+const presetLaps = {};
+for (const [name, expected] of Object.entries(EXPECTED)) {
   const result = lap(PRESETS[name]);
-  assert.ok(result.seconds < 50, name + ' should finish without crawling');
+  near(result.seconds, expected.seconds, 0.15, name + ' lap seconds');
+  assert.equal(result.maxKmh, expected.maxKmh, name + ' max km/h');
+  assert.ok(result.track.totalLen > 0, name + ' computed track length');
+  presetLaps[name] = result;
+}
+console.log('Physics fingerprint (game CORE @ 1/60s, Three.js r160):');
+for (const [name, result] of Object.entries(presetLaps)) {
+  console.log(' ', name, result.seconds.toFixed(2) + 's / ' + result.maxKmh + ' km/h');
 }
 const player = lap(userNodes);
 near(player.seconds, 61.62, 0.15, 'playtest circuit seconds');
@@ -79,6 +98,5 @@ assert.equal(computeTrack(overrideFlat).poweredFlat, true,
 const encoded = encodeCoaster('playtest', userNodes);
 assert.deepEqual(decodeCoaster(encoded).nodes, userNodes.map(n =>
   ({x:n.x,z:n.z,h:n.h,bank:n.bank,lift:!!n.lift,station:!!n.station})));
-console.log('PASS: four presets, custom 47.5m hill, flat drive, chain segment and share round-trip');
-console.log('New classic fingerprint:', classic.seconds.toFixed(2)+'s / '+classic.maxKmh+' km/h');
+console.log('PASS: all four preset time+speed fingerprints, custom 47.5m hill, flat drive, lift/crest, share round-trip');
 console.log('Playtest lift:', player.firstLift.toFixed(2)+'s, crest:',player.crest.toFixed(2)+'s');

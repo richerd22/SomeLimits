@@ -84,6 +84,8 @@ node tests/support-clearance-regression.mjs
 node tests/ride-insight-regression.mjs
 ```
 
+**Explicit reference values:** the physics regression now pins the lap time and top speed of Classic (27.45s / 88km/h), Oval (22.22s / 77km/h), Wild (31.44s / 92km/h), and Looper (38.08s / 75km/h), plus the original 47.5m playtest lift/crest and flat tire-powered loop. A physics edit must justify old -> new fingerprints in a playtest report before updating assertions. See [Branch and physics audit](branch-hygiene-physics-audit.md).
+
 The new ride-insight test uses the exact integrator: an unpowered low-speed case must report its minimum-speed assist, flat-tire sections must not be mislabeled, and the known classic lap fingerprint must remain unchanged. It also checks restart clears the prior G trace. See [Ride insight](ride-insight.md).
 
 The support clearance regression checks all 900+ spline samples against the full-scan reference on every preset, the playtest coaster, a crossing and a flat track. See [Support clearance](support-clearance.md).
