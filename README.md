@@ -87,6 +87,7 @@ Start at [wiki/README.md](wiki/README.md):
 - [November 2026 playtest repair](playtest-2026-11-18.md) - lift/drag diagnosis and deliberate fingerprints for all four presets, 47.5m hill and flat loop
 - [Main/branch and physics audit](wiki/branch-hygiene-physics-audit.md) - reconcile squash-merged PRs, cleanup plan and every preset's exact reference values
 - [Editor performance + save lifecycle](wiki/editor-runtime.md) - GPU cleanup, coalesced dragging, terrain release and compact library persistence
+- [Large-coaster terrain performance](wiki/terrain-proximity-bvh.md) - exact indexed nearest-segment search, 97% fewer terrain point-to-segment projections on an 80-node loop, real browser import/edit test
 - [Support clearance performance](wiki/support-clearance.md) - indexed support checks with brute-force equivalence proof
 - [Mobile and library rendering](wiki/mobile-performance.md) - phone pixel ratio cap and lazy, bounded blueprint previews
 - [Browser smoke tests](wiki/browser-smoke.md) - verified full WebGL startup, desktop edit/save, simulated mobile station placement, and the mobile hint-overflow fix
