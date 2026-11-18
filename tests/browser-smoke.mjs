@@ -88,7 +88,7 @@ try {
   ]});
 
   // Desktop: real game boot, editing, autosave, library save and lazy PNG.
-  const desktop=await browser.newContext({viewport:{width:1440,height:900},deviceScaleFactor:1});
+  const desktop=await browser.newContext({viewport:{width:1440,height:900},deviceScaleFactor:1,acceptDownloads:true});
   const p=await desktop.newPage();
   const deskErrors=await prepare(p);
   const supports=await p.evaluate(()=>window.__slSupports);
@@ -118,6 +118,43 @@ try {
   assert.ok(image.complete && image.w>0,'visible library thumbnail did not load');
   assert.deepEqual(deskErrors,[],'desktop page errors after editing');
   console.log('PASS desktop WebGL: boot, supports, station, height edit, autosave, library, visible blueprint (from '+firstHeight+'m)');
+
+  // Browser-level recovery: download a 1-node open draft and import
+  // the same real JSON file without accidentally closing the track.
+  await p.locator('#btnLibClose').click();
+  await p.locator('#btnNew').click();
+  await p.locator('#btnNew').click(); // two-click guard when edits exist
+  await p.waitForFunction(() => {
+    const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return st?.building === true && st.nodes?.length === 0;
+  });
+  await p.mouse.click(850,480); // free canvas area, not the side panel
+  await p.waitForFunction(() => {
+    const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return st?.building === true && st.nodes?.length === 1 && st.nodes[0].station === true;
+  });
+  const downloadPending=p.waitForEvent('download');
+  await p.locator('#btnExportJson').click();
+  const downloaded=await downloadPending;
+  assert.ok(downloaded.suggestedFilename().endsWith('.somelimits-draft.json'));
+  const readStream=await downloaded.createReadStream(),chunks=[];
+  for await(const chunk of readStream) chunks.push(chunk);
+  const exported=Buffer.concat(chunks),draft=JSON.parse(exported.toString('utf8'));
+  assert.equal(draft.app,'somelimits');
+  assert.equal(draft.building,true);
+  assert.equal(draft.nodes.length,1);
+  const stationBefore=draft.nodes[0];
+  await p.locator('#fileImp').setInputFiles([{
+    name:'restored.somelimits-draft.json',mimeType:'application/json',buffer:exported
+  }]);
+  await p.waitForFunction((expected) => {
+    const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return st?.building === true && st.nodes?.length === 1 &&
+      st.nodes[0].x === expected.x && st.nodes[0].z === expected.z &&
+      st.nodes[0].station === true;
+  },stationBefore,{timeout:10000});
+  assert.deepEqual(deskErrors,[], 'desktop errors after exporting/importing open draft');
+  console.log('PASS desktop draft rescue: 1-node open build exported and restored without closing the circuit');
   /* A continuous desktop software-WebGL render loop can starve the
      second Chromium page on GitHub's shared CPU runner. The two user
      journeys are independent, so retire desktop before mobile boots. */

@@ -24,6 +24,7 @@ The existing checks proved the sampled physics, library helper logic and collisi
 4. Change the station point's height with the actual `#rngH` DOM slider; send normal `input` and `change` events and verify the new height is in localStorage autosave while banking is unchanged.
 5. Save to the actual library through `#btnSaveLib`. Assert node data is present and PNG previews are **not** persisted in localStorage.
 6. Open the Library and wait for the code-generated PNG thumbnail to appear from the `IntersectionObserver` path. Validate it loads.
+7. Use the actual New button to return to an empty plot and place a station on the canvas. Download its open-draft JSON via the existing Export JSON control, reimport that downloaded file through the hidden file input, and verify it restores one station and `building:true` rather than prematurely closing the circuit.
 
 ### Simulated high-DPI phone
 

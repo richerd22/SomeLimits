@@ -341,7 +341,7 @@
     <h3>saving + sharing</h3>
     <ul>
       <li><b>save to library</b> keeps named coasters in this browser. the library shows a top-down blueprint of each one.</li>
-      <li><b>json</b> downloads the coaster as a file - the real backup. <b>import</b> reads json or NL2-style csv.</li>
+      <li><b>json</b> downloads your coaster - even a half-built open draft. <b>import</b> restores that draft to keep building or reads a completed coaster or NL2-style csv.</li>
       <li><b>nl2 csv</b> exports the track spline (position + up vectors) for NoLimits 2-style importers.</li>
       <li><b>copy share link</b> hides the whole coaster inside the page URL. send the link, they get your coaster.</li>
     </ul>
@@ -449,6 +449,21 @@ function sanitizeNodes(arr) {
   }));
   if (out.length < 4) return null;
   if (!out.some(n => n.station)) out[0].station = true;
+  return out;
+}
+
+/* Drafts may contain zero, one or two points; finished coasters still
+   require >=4. Keep the same numeric limits as full-coaster imports. */
+function sanitizeDraftNodes(arr) {
+  if (!Array.isArray(arr)) return null;
+  const out = arr.filter(n => n && isFinite(n.x) && isFinite(n.z) && isFinite(n.h)).map(n => ({
+    x: THREE.MathUtils.clamp(+n.x, -200, 200),
+    z: THREE.MathUtils.clamp(+n.z, -200, 200),
+    h: THREE.MathUtils.clamp(+n.h, 0.5, 120),
+    bank: THREE.MathUtils.clamp(isFinite(n.bank) ? +n.bank : 0, -180, 180),
+    lift: !!n.lift, station: false
+  }));
+  if (out.length) out[0].station = true;
   return out;
 }
 
@@ -712,8 +727,19 @@ function serializeCoaster(name, nodes) {
   const clean = sanitizeNodes(nodes);
   return JSON.stringify({app: 'somelimits', version: 1, name, nodes: clean || nodes}, null, 1);
 }
+function serializeDraft(name, nodes) {
+  return JSON.stringify({
+    app: 'somelimits', version: 1, name: String(name || 'new coaster').slice(0, 60),
+    building: true, nodes: sanitizeDraftNodes(nodes)
+  }, null, 1);
+}
 function parseCoasterJSON(text) {
   const data = JSON.parse(text);
+  /* An open draft with four or more nodes must still import as open. */
+  if (data && data.app === 'somelimits' && data.building === true) {
+    const draft = sanitizeDraftNodes(data.nodes);
+    return draft && {name: String(data.name || 'new coaster').slice(0, 60), nodes: draft, building: true};
+  }
   if (Array.isArray(data)) { const n = sanitizeNodes(data); return n && {name: 'imported coaster', nodes: n}; }
   if (data && Array.isArray(data.nodes)) {
     const n = sanitizeNodes(data.nodes);
@@ -2165,8 +2191,26 @@ function syncHistoryButtons() {
     ? hIndex + (hIndex === 1 ? ' step' : ' steps') + ' back - undo stays inside this coaster.'
     : 'nothing to undo - this is the coaster you started with.';
 }
+/* Local storage is not guaranteed. If quota or permissions block
+   autosave, say so ONCE and offer a working draft JSON export rather
+   than quietly pretending future reloads can restore the coaster. */
+const AUTOSAVE_WARNING = 'autosave failed - export JSON before closing this tab.';
+let autosaveFailed = false;
 function autosave() {
-  try { localStorage.setItem('somelimits-autosave-v1', JSON.stringify({name: trackName, nodes, building})); } catch {}
+  try {
+    localStorage.setItem('somelimits-autosave-v1', JSON.stringify({name: trackName, nodes, building}));
+    if (autosaveFailed) {
+      autosaveFailed = false;
+      if (els.saveMsg.textContent === AUTOSAVE_WARNING) els.saveMsg.textContent = 'autosave working again.';
+      toast('autosave is working again.');
+    }
+    return true;
+  } catch {
+    if (!autosaveFailed) toast(AUTOSAVE_WARNING, 6500);
+    autosaveFailed = true;
+    els.saveMsg.textContent = AUTOSAVE_WARNING;
+    return false;
+  }
 }
 
 function syncPanel() {
@@ -3017,7 +3061,13 @@ function download(filename, content, type) {
 }
 const fileSlug = () => trackName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'coaster';
 $('btnExportJson').addEventListener('click', () => {
-  if (building) { toast('that exports a finished circuit - close the loop first.'); return; }
+  if (building) {
+    /* Unfinished work is still worth backing up. This is the
+       rescue route when localStorage cannot accept another edit. */
+    download(fileSlug() + '.somelimits-draft.json', serializeDraft(trackName, nodes), 'application/json');
+    toast('open draft exported. you can import it and keep building.');
+    return;
+  }
   download(fileSlug() + '.somelimits.json', serializeCoaster(trackName, nodes), 'application/json');
 });
 $('btnExportCsv').addEventListener('click', () => {
@@ -3054,8 +3104,12 @@ $('fileImp').addEventListener('change', e => {
       else parsed = parseCoasterJSON(t);
     } catch {}
     if (parsed) {
-      trackName = parsed.name; nodes = parsed.nodes; building = false; selected = Math.max(0, nodes.findIndex(n => n.station));
-      buildTrack(); resetHistory(); frameTrack(); toast('imported "' + trackName + '".');
+      trackName = parsed.name; nodes = parsed.nodes; building = !!parsed.building;
+      selected = Math.max(0, nodes.findIndex(n => n.station));
+      buildTrack(); resetHistory();
+      if (building && nodes.length < 2) framePlot();
+      else frameTrack();
+      toast('imported "' + trackName + '"' + (building ? ' as an open draft. keep building.' : '.'));
     } else toast('that file did not parse as a coaster. some limits are file formats.');
     e.target.value = '';
   });
@@ -3133,14 +3187,7 @@ setInterval(() => {
            the lenient parse is only for this branch - a building
            document may legitimately hold 0-3 points, which the
            closed-document sanitizer would refuse. */
-        nodes = auto.nodes.filter(n => n && isFinite(n.x) && isFinite(n.z) && isFinite(n.h)).map(n => ({
-          x: THREE.MathUtils.clamp(+n.x, -200, 200),
-          z: THREE.MathUtils.clamp(+n.z, -200, 200),
-          h: THREE.MathUtils.clamp(+n.h, 0.5, 120),
-          bank: THREE.MathUtils.clamp(isFinite(n.bank) ? +n.bank : 0, -180, 180),
-          lift: !!n.lift, station: false
-        }));
-        if (nodes.length) nodes[0].station = true;
+        nodes = sanitizeDraftNodes(auto.nodes);
         building = true;
         trackName = String(auto.name || 'untitled coaster');
       } else if (auto && sanitizeNodes(auto.nodes)) { trackName = String(auto.name || 'untitled coaster'); nodes = sanitizeNodes(auto.nodes); }

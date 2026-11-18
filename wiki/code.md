@@ -137,12 +137,13 @@ The simulator is energy-based, integrated per frame.
 - `version` - format version, `1` in v1.
 - `nodes` - the full node array, in loop order. Node fields as in the state model; optional flags may be omitted when false.
 
-Import accepts two shapes:
+Import accepts three shapes:
 
-1. The v1 object above.
+1. The v1 finished-coaster object above (at least 4 nodes).
 2. The v0 raw format: a bare JSON array of nodes, no wrapper. Accepted so prototype-era files still load.
+3. A branded **open draft** with `app: "somelimits"`, `version: 1`, `building: true`, `name` and `nodes`. Drafts may have zero or more nodes; importing them preserves the open-building state. The first node, if any, is the station. The dedicated export filename ends in `.somelimits-draft.json`.
 
-Anything else fails import rather than loading half a coaster.
+Other malformed or too-short completed coasters fail import rather than being converted into fake loops. Drafts use `sanitizeDraftNodes()`, while finished circuits keep the strict existing `sanitizeNodes()`.
 
 ## CSV bridge
 
@@ -178,7 +179,7 @@ The hash is never sent to a server by the browser as part of a page request, and
 All in the browser's localStorage. No network storage anywhere in v1.
 
 - Library key: `somelimits-library-v1` - an array of saved coasters, each an entry holding the coaster data plus library metadata: name, saved date, and the derived stats shown on the card (node count, track length, max height - these can also be recomputed from the nodes on load).
-- Autosave: the current work in progress is written to localStorage on change, and restored on load if no share link overrides it.
+- Autosave: the current work in progress is *attempted* in localStorage on change, and restored on load if no share link overrides it. Browser storage can fail. Failures warn once with persistent editor copy and a working **draft JSON export**; later successful writes clear the warning. See [Draft rescue](draft-rescue.md).
 - Blueprint thumbnails are not stored as images. They are drawn on a 2D canvas from the node layout, top-down, when the library renders. The nodes are the storage; the picture is a redraw.
 
 Clearing site data deletes the library and the autosave. There is no backup copy. The code docs say this plainly because the player guide does too.

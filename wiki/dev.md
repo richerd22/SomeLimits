@@ -57,7 +57,10 @@ Use the zero-dependency editor regression first. It tests the actual game's tran
 node tests/editor-runtime-regression.mjs
 node tests/library-render-regression.mjs
 node tests/direct-point-drag-regression.mjs
+node tests/draft-rescue-regression.mjs
 ```
+
+The draft rescue regression covers branded open JSON round-trips with 0/1/2/3/5 points, normal completed-format compatibility, and storage quota warning/recovery with the actual autosave helper. See [Draft rescue](draft-rescue.md).
 
 The point-drag test extracts the actual editor helper and verifies exact x/z placement, unchanged neighbouring nodes and banking, bounds, invalid inputs and station identity. See [Exact point drags](direct-point-drag.md).
 
@@ -85,7 +88,7 @@ The original harness approach still applies:
   - parallel transport around a closed loop returns close to its starting frame
   - a lift-flagged climb holds chain speed, an 8 m-plus climb is auto-lift
   - an energy run with no drag loses no height it did not spend
-- **By hand, in the browser.** No automated browser WebGL or iOS Safari interaction test is claimed. Load each preset, ride each one start to finish, check the lap summary appears, save and reload from the library, round-trip JSON out and back in, round-trip CSV out and back in, and open a share link in a private window.
+- **By hand, in the browser.** Headless Chromium now tests real WebGL boot and editor, draft backup and mobile-emulated station placement; real iOS Safari remains a separate hardware test. Load each preset, ride each one start to finish, check the lap summary appears, save and reload from the library, round-trip JSON out and back in, round-trip CSV out and back in, and open a share link in a private window.
 - **Round-trip rule.** Any change to the save format, CSV layout, or share encoding is not done until export, import in a fresh page, and ride all still work on an old file.
 
 If you add a harness, keep it in a scratch or tools folder, dependency-free, and say how to run it at the top of the file.
