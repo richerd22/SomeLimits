@@ -88,6 +88,7 @@ Start at [wiki/README.md](wiki/README.md):
 - [Editor performance + save lifecycle](wiki/editor-runtime.md) - GPU cleanup, coalesced dragging, terrain release and compact library persistence
 - [Support clearance performance](wiki/support-clearance.md) - indexed support checks with brute-force equivalence proof
 - [Mobile and library rendering](wiki/mobile-performance.md) - phone pixel ratio cap and lazy, bounded blueprint previews
+- [Browser smoke tests](wiki/browser-smoke.md) - real WebGL startup, desktop edit/save, and simulated mobile station placement
 
 ## Quality checks
 
