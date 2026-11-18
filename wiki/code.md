@@ -49,7 +49,7 @@ Rebuilt whenever the nodes change.
 
    Why not Frenet frames: Frenet normals flip 180 degrees at inflection points and are undefined on straights. Parallel transport does not. The research notes in `research/SUMMARY.md` cover this.
 
-4. **Bank roll.** Banking is applied on top of the transported frame as a roll about the tangent.
+4. **Bank roll.** Each distance-spaced sample maps back to its true Catmull-Rom parameter through `getUtoTmapping` before selecting its source node segment. This keeps lift flags and bank blend anchored to the actual node on uneven tracks. Banking is applied on top of the transported frame as a roll about the tangent.
    - Node bank angles are interpolated between nodes with cosine easing.
    - Interpolation takes the shortest angular path, with wrapping - so going from 110 to -110 travels through 180, the inversion, not back through 0.
    - Result per sample: position, tangent, up vector (banked), side vector, arc length, and a lift flag (see Physics).
@@ -69,7 +69,7 @@ Built from the samples, rebuilt with the track. All code-rendered. No model file
 
 ## Editor interactions
 
-- Dragging moves a node in `x` and `z` on the ground plane. Height and banking come from the per-node sliders.
+- Direct node dragging is gesture-direction based: after a small dead zone, a screen-up/down drag changes height on a camera-facing vertical plane, while a predominantly sideways drag changes `x`/`z` on the horizontal plane. A press-relative offset prevents jumps. Orange cap and slider retain precise height control. Banking stays on the point with a roll grip, shift/right drag and slider.
 - Double-clicking the track raycasts to a track point and inserts a node there.
 - On drag release, auto-smooth runs: a gentle relaxation over the moved node's neighbourhood, covering positions and banking. It is the built-in equivalent of the NL1 community's AHG smoothing ritual - small, local, and automatic.
 - Auto-lift is computed in the sample pass: a sample segment counts as lift if the source node has `lift` set, or if the climb between its two nodes is 8 m or more.
@@ -84,9 +84,10 @@ The simulator is energy-based, integrated per frame.
 - **State.** Arc position `s` and scalar speed `v` along the track. The train's world position and orientation come from `sampleAt(s)`.
 - **Gravity.** From track slope: acceleration is `-g * dh/ds`, where `dh/ds` is estimated by comparing height at `s` with height a short look-ahead ahead.
 - **Drag.** Quadratic drag, proportional to `v * |v|`, plus a small constant rolling friction term.
-- **Lift constraint.** On lift samples, if the train is climbing and slower than chain speed, speed is held at about 5.2 m/s.
+- **Lift constraint.** On uphill lift samples, if the train is slower than 7.0 m/s, chain speed holds it at 7.0 m/s. Lift samples are assigned by true curve parameter, not uniform node index.
 - **Brake run.** In the final approach to the station, braking decelerates the train so it arrives back at the station at a stop. Reaching the station stopped ends the lap and triggers the summary.
-- **Start.** A ride starts at the station sample, at a low rolling speed.
+- **Start.** A ride starts at the station sample at a 6.5 m/s tire dispatch. Flat-only circuits (under 2 m height difference) maintain 6.5 m/s away from the brake zone, since gravity cannot propel a level loop. Hills remain gravity driven after the lift.
+- **Reference.** The classic preset now runs about **27.5s / 88 km/h** at 1/60s physics steps (previously **47.8s / 86 km/h**). This is a deliberate physics change documented in [the playtest report](../playtest-2026-11-18.md).
 
 ### G-force
 

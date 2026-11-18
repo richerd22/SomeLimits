@@ -51,9 +51,18 @@ Either way you need internet once, for the Three.js CDN (`three@0.160.0` via unp
 
 ## Testing
 
-There is no test suite in the repo and no test runner to install. What exists is a harness approach:
+There's now a small standalone physics regression in `tests/physics-regression.mjs`. Install the pinned Three.js version temporarily and run it with Node (no build step and no tracked dependencies):
 
-- **Node harness for the core maths.** Extract the CORE section into a small Node script, stub or supply the vector maths it needs, and assert on the pure parts:
+```sh
+npm install --no-save --no-package-lock three@0.160.0
+node tests/physics-regression.mjs
+```
+
+It checks all presets, the November 2026 shared 47.5m climb, a completely flat circuit, correct auto-chain ownership, the share round-trip, and the deliberate classic baseline of **27.5s / 88 km/h**. See [the playtest report](../playtest-2026-11-18.md) for before/after timing.
+
+The original harness approach still applies:
+
+- **Node harness for the core maths.** The new regression extracts the CORE section automatically; extend it to assert on other pure parts:
   - bank interpolation takes the shortest path and wraps past 180 correctly
   - a flat, unbanked loop holds about 1 G at rest speed
   - parallel transport around a closed loop returns close to its starting frame
