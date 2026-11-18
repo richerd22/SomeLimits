@@ -71,6 +71,10 @@ Built from the samples, rebuilt with the track. All code-rendered. No model file
 
 Centre-post keep-out checks now query an 8 m x/z spatial grid, then apply the *same* exact arc, height and horizontal-distance tests. This is a safe broad phase, not a relaxation of collision rules: any sample within sqrt(2.9) m horizontally lies inside the indexed query region. Side-frame beam clearance compares squared distances and performs one final square root, preserving its minimum and 1.15 m threshold. Diagnostics remain on `window.__slSupports`; see [support clearance](support-clearance.md) and `tests/support-clearance-regression.mjs` for the proof and brute-force reference.
 
+## Blank node controls and station ownership
+
+`syncPanel()` now clears and disables node-specific controls when no point exists, rather than retaining values from a previous coaster. A single point reports its actual height and node count without inventing track length, drop or speed. In completed circuits, the station checkbox reassigns the unique station via `assignStation()`; it does not permit removing the last station. The finished-coaster `sanitizeNodes()` likewise normalizes missing/duplicate station flags on import/export and share decode to a single station, preserving the first marked node or falling back to node 0. See [Empty draft and station ownership](empty-node-station.md), including source-backed and actual Chromium DOM checks.
+
 ## Framing an unfinished document
 
 With an empty plot or just one station, there is no sampled track and `frameTrack()` falls back to `framePlot()`. The default empty grid retains its original camera eye; `plotFrameTarget(nodes)` focuses a single imported/restored station at its actual x/z/height instead of world origin. Two-plus-node open tracks and completed circuits still use the existing bounds-based track framing. This is why the **Frame Track** button works even before a second point exists. See [Station framing](station-framing.md) and its source-backed regression test.
