@@ -71,7 +71,7 @@ Screenshots of the actual running app are fine - they are the code-rendered game
 - [ ] Docs updated in the same push if behaviour changed.
 - [ ] Editor regression passes (GPU disposal, pointer preview coalescing, library persistence and quota feedback).
 - [ ] Mobile/library regression passes (DPR cap, lazy thumbnails, LRU eviction, older-browser fallback).
-- [ ] Browser smoke passes (headless WebGL boot, desktop edit + save + thumbnail, emulated mobile blank plot + station tap, real touch-height drag/undo/redo, interruption rollback). Keep physical iOS Safari manual testing separate.
+- [ ] Browser smoke passes (headless WebGL boot, desktop edit + save + thumbnail, emulated mobile blank plot + station tap, real touch-height drag/undo/redo, blur rollback, two-finger cancellation, lost-pointer-capture, and a working subsequent gesture). Keep physical iOS Safari manual testing separate.
 - [ ] Interrupt a drag on a real touch device via a second finger or system gesture; confirm rollback, no ghost edit and working orbit after finger release.
 - [ ] Direct point regression passes (no post-release neighbour shifts, no accidental bank edits, exact point position).
 - [ ] Draft rescue regression passes (unfinished JSON round-trip, unchanged finished exports, quota warning and recovery). Browser smoke exercises actual export/import controls.
