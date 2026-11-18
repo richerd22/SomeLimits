@@ -3378,7 +3378,11 @@ function loop() {
      label shows the bank instead, in the grip's blue - the
      number you are changing is the number you see. */
   const hl = $('hLabel');
-  if (mode === 'edit' && track && nodes[selected] && !document.querySelector('.overlay.open')) {
+  /* A station exists before any spline does. Its orange/blue handles
+     are now available on the first point, so the floating height/bank
+     number must not require `track !== null`. The selected node is
+     the real prerequisite; an empty plot still hides the label. */
+  if (mode === 'edit' && nodes[selected] && !document.querySelector('.overlay.open')) {
     const bi = gripBank >= 0 ? gripBank : banking;
     const n = bi >= 0 ? nodes[bi] : nodes[selected];
     if (n) {
