@@ -80,6 +80,8 @@ Screenshots of the actual running app are fine - they are the code-rendered game
 - [ ] Draft rescue regression passes (unfinished JSON round-trip, unchanged finished exports, quota warning and recovery). Browser smoke exercises actual export/import controls.
 - [ ] Frame a lone distant station after importing a draft; Frame Track should center it even with no spline.
 - [ ] Ride insights regression passes (recorded speed rescues, flat drive exclusion, fixed classic timing, fresh G graph on restart).
+- [ ] **Every preset's time + max-speed fingerprint is exact** against pinned 1/60s physics: Classic 27.45/88, Oval 22.22/77, Wild 31.44/92, Looper 38.08/75. Confirm user 47.5m lift/crest and flat course as before.
+- [ ] After PR squash merge and green post-merge CI, delete its remote head branch (if no other agent is using it). Avoid stale branch refs; check [branch/physics audit](branch-hygiene-physics-audit.md).
 - [ ] Lap Complete note renders legibly at mobile widths and never describes game physics as a real-world safety certification.
 - [ ] Blank plot clears/disables old node inputs, one station shows honest partial stats, and unchecking the only station never removes it.
 - [ ] If drag or rendering changed, validate pointercancel and iOS Safari on hardware; headless tests do not prove WebGL responsiveness.
