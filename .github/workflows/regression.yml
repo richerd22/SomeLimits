@@ -25,6 +25,9 @@ jobs:
       - name: Physics and share regression tests
         run: node tests/physics-regression.mjs
       - name: Install test-only Chromium
-        run: npx playwright install --with-deps chromium
+        # GitHub's Ubuntu 24.04 image already ships the runtime libraries.
+        # Only the headless shell is used; avoid a full apt transaction on
+        # every PR, which can stall for minutes on transient package mirrors.
+        run: npx playwright install chromium --only-shell
       - name: Desktop and mobile WebGL browser smoke
         run: node tests/browser-smoke.mjs
