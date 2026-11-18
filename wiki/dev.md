@@ -55,7 +55,10 @@ Use the zero-dependency editor regression first. It tests the actual game's tran
 
 ```sh
 node tests/editor-runtime-regression.mjs
+node tests/library-render-regression.mjs
 ```
+
+The library test checks the source-backed iOS pixel-ratio cap, lazy previews and 40-card LRU without a browser or network. See [Mobile performance](mobile-performance.md).
 
 Then run the standalone physics regression in `tests/physics-regression.mjs`. Install the pinned Three.js version temporarily and run it with Node (no game build step and no tracked dependencies):
 

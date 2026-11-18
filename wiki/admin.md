@@ -70,4 +70,5 @@ Screenshots of the actual running app are fine - they are the code-rendered game
 - [ ] Any new visual is SVG by hand, code-rendered, or type. No exceptions, no placeholders that quietly stay.
 - [ ] Docs updated in the same push if behaviour changed.
 - [ ] Editor regression passes (GPU disposal, pointer preview coalescing, library persistence and quota feedback).
+- [ ] Mobile/library regression passes (DPR cap, lazy thumbnails, LRU eviction, older-browser fallback).
 - [ ] If drag or rendering changed, validate pointercancel and iOS Safari on hardware; headless tests do not prove WebGL responsiveness.

@@ -34,7 +34,7 @@ The name is a dry joke: there always were some limits. We are owning them.
   - Auto-smooth on drag release tidies positions and banking, gently and locally - never heights. The heights you set are the heights that stay.
 - Ride mode with POV, chase, and orbit cameras, a live G-force HUD, and an honest lap summary. Station tires dispatch the train and keep truly flat circuits moving; chain lifts run at 7 m/s.
 - Presets that are rideable as loaded, including a vertical loop you can pull apart to see how it is built.
-- A library in your browser (localStorage), plus JSON export/import, share links that encode the coaster in the URL, a NoLimits 2-style CSV spline bridge both ways, and PNG screenshots. Blueprints are drawn when needed, not stored as base64 ballast.
+- A library in your browser (localStorage), plus JSON export/import, share links that encode the coaster in the URL, a NoLimits 2-style CSV spline bridge both ways, and PNG screenshots. Blueprints are drawn only when their cards come into view, not stored as base64 ballast.
 
 ## Quick start
 
@@ -87,6 +87,7 @@ Start at [wiki/README.md](wiki/README.md):
 - [November 2026 playtest repair](playtest-2026-11-18.md) - lift/drag diagnosis and deliberate new classic fingerprint (27.5s / 88 km/h)
 - [Editor performance + save lifecycle](wiki/editor-runtime.md) - GPU cleanup, coalesced dragging, terrain release and compact library persistence
 - [Support clearance performance](wiki/support-clearance.md) - indexed support checks with brute-force equivalence proof
+- [Mobile and library rendering](wiki/mobile-performance.md) - phone pixel ratio cap and lazy, bounded blueprint previews
 
 ## Quality checks
 

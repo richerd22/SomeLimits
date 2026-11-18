@@ -71,6 +71,10 @@ Built from the samples, rebuilt with the track. All code-rendered. No model file
 
 Centre-post keep-out checks now query an 8 m x/z spatial grid, then apply the *same* exact arc, height and horizontal-distance tests. This is a safe broad phase, not a relaxation of collision rules: any sample within sqrt(2.9) m horizontally lies inside the indexed query region. Side-frame beam clearance compares squared distances and performs one final square root, preserving its minimum and 1.15 m threshold. Diagnostics remain on `window.__slSupports`; see [support clearance](support-clearance.md) and `tests/support-clearance-regression.mjs` for the proof and brute-force reference.
 
+## Mobile pixels and library preview lifecycle
+
+The Three.js renderer caps device pixel ratio at 2; it preserves DPR 1 and DPR 2 displays but avoids nine backing pixels per CSS pixel on DPR 3 phones. The library builds cards immediately and generates node-derived canvas blueprints through `IntersectionObserver` when cards enter a 180px prefetch margin. Derived thumbnails live in an in-memory 40-entry LRU; the persistent library stores only nodes and metadata. An eager fallback works if the browser lacks `IntersectionObserver`. See [Mobile performance](mobile-performance.md) for numerical reasoning and tests.
+
 ## Scene resource lifecycle
 
 Track and selected-handle geometry is rebuilt while editing. Pointer and slider `input` events now call `queueTrackPreview()` rather than rebuilding immediately: only one preview is queued per display frame, using the latest node values. Every release or committed change still uses synchronous `buildTrack()` and cancels a pending preview, so undo and autosave see the finished geometry. `disposeEditGroup()` disposes temporary geometries and materials exactly once, exempting the shared touch halo proxy resources. The terrain and nearby trees settle after the drag flag is cleared, not during the interaction. See [Editor runtime](editor-runtime.md) for the full diagnosis and regression checks.
