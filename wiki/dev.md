@@ -62,7 +62,10 @@ Then run the standalone physics regression in `tests/physics-regression.mjs`. In
 ```sh
 npm install --no-save --no-package-lock three@0.160.0
 node tests/physics-regression.mjs
+node tests/support-clearance-regression.mjs
 ```
+
+The support clearance regression checks all 900+ spline samples against the full-scan reference on every preset, the playtest coaster, a crossing and a flat track. See [Support clearance](support-clearance.md).
 
 It checks all presets, the November 2026 shared 47.5m climb, a completely flat circuit, correct auto-chain ownership, the share round-trip, and the deliberate classic baseline of **27.5s / 88 km/h**. See [the playtest report](../playtest-2026-11-18.md) for before/after timing.
 
