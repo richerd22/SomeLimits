@@ -71,6 +71,10 @@ Built from the samples, rebuilt with the track. All code-rendered. No model file
 
 Centre-post keep-out checks now query an 8 m x/z spatial grid, then apply the *same* exact arc, height and horizontal-distance tests. This is a safe broad phase, not a relaxation of collision rules: any sample within sqrt(2.9) m horizontally lies inside the indexed query region. Side-frame beam clearance compares squared distances and performs one final square root, preserving its minimum and 1.15 m threshold. Diagnostics remain on `window.__slSupports`; see [support clearance](support-clearance.md) and `tests/support-clearance-regression.mjs` for the proof and brute-force reference.
 
+## Framing an unfinished document
+
+With an empty plot or just one station, there is no sampled track and `frameTrack()` falls back to `framePlot()`. The default empty grid retains its original camera eye; `plotFrameTarget(nodes)` focuses a single imported/restored station at its actual x/z/height instead of world origin. Two-plus-node open tracks and completed circuits still use the existing bounds-based track framing. This is why the **Frame Track** button works even before a second point exists. See [Station framing](station-framing.md) and its source-backed regression test.
+
 ## Mobile pixels and library preview lifecycle
 
 The Three.js renderer caps device pixel ratio at 2; it preserves DPR 1 and DPR 2 displays but avoids nine backing pixels per CSS pixel on DPR 3 phones. The library builds cards immediately and generates node-derived canvas blueprints through `IntersectionObserver` when cards enter a 180px prefetch margin. Derived thumbnails live in an in-memory 40-entry LRU; the persistent library stores only nodes and metadata. An eager fallback works if the browser lacks `IntersectionObserver`. See [Mobile performance](mobile-performance.md) for numerical reasoning and tests.
