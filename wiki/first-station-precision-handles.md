@@ -45,6 +45,10 @@ This is integration coverage, not just a source-extracted math test; if either p
 - [ ] Add a second point: the same cap/grip kit remains and continues to behave identically.
 - [ ] Check actual iPhone/iPad Safari: the grips are tappable at normal portrait distance and do not accidentally trigger OrbitControls.
 
+## Extreme bank halo overlap: measured browser follow-up
+
+The orange cap and blue grip can lie in overlapping touch halos when banking approaches -90 degrees. A later [real browser overlap regression](extreme-bank-touch-arbitration.md) sets bank to -90, -80 and +90 through the actual slider, taps the projected orange cap, blue grip and lime node separately, and proves the intended input ownership at all angles, with no false saved edit. At the tested 390x844 phone frame, the cap-grip separation was roughly 26, 28 and 54 CSS pixels respectively. This is a **tested camera pose**, not a guarantee for all device angles or physical Safari hardware.
+
 ## Limits / next steps
 
 - A lone station can bank before it has a track, but a **ride** still requires a circuit with at least four points. There is no physics/ride requirement for the roll grip to render.
