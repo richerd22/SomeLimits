@@ -2160,7 +2160,7 @@ function plotFrameTarget(list) {
 }
 function framePlot() {
   const target = plotFrameTarget(nodes);
-  if (editorView !== '3d') {
+  if (typeof editorView !== 'undefined' && editorView !== '3d') {
     const min = new THREE.Vector3(target.x - 58, 0, target.z - 58);
     const max = new THREE.Vector3(target.x + 58, Math.max(50, target.y + 15), target.z + 58);
     frameEditorBounds(min, max);
