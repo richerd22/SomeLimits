@@ -59,7 +59,10 @@ node tests/library-render-regression.mjs
 node tests/direct-point-drag-regression.mjs
 node tests/draft-rescue-regression.mjs
 node tests/station-framing-regression.mjs
+node tests/empty-panel-station-regression.mjs
 ```
+
+The empty-panel test exercises the actual station-assignment and panel state helpers: zero-node disabled controls, one-node editable controls, invalid station uncheck, and exact unique ownership. Browser smoke verifies these states in the real DOM. See [Empty draft and station ownership](empty-node-station.md).
 
 The station-framing regression extracts the actual camera target and fallback functions, checks empty-plot coordinates are unchanged, then checks a distant lone station becomes the orbit target without mutating data. See [Station framing](station-framing.md).
 
