@@ -407,12 +407,17 @@ try {
         return {x:Math.round((v.x+1)*innerWidth/2),
                 y:Math.round((1-v.y)*innerHeight/2)};
       };
-      /* A lone station's tangent is +X by definition. Its bank
-         starts at 0, so fr.side is world -Z; +90 banks to -Y. */
+      /* A lone station's tangent is +X by definition; its side is
+         world -Z and up is +Y. This works at ANY banking angle, so
+         the browser can probe grip/cap overlap around +/-90 degrees
+         instead of assuming the original zero-bank state. */
+      const rad=THREE.MathUtils.degToRad(n.bank);
       return {cap:screen(n.x,n.h+2.4,n.z),
-              grip:screen(n.x,n.h,n.z-gripRadius),
+              grip:screen(n.x,n.h-Math.sin(rad)*gripRadius,
+                n.z-Math.cos(rad)*gripRadius),
               rollDown:screen(n.x,n.h-gripRadius,n.z),
-              gripRadius,node:{...n}};
+              node:screen(n.x,n.h,n.z),
+              gripRadius,nodeData:{...n}};
     },gripSrc);
   }
   const beforeCap=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
@@ -489,7 +494,47 @@ try {
     return label.style.display==='block'&&label.textContent===h.toFixed(1)+' m';
   },afterGrip.nodes[0].h,{timeout:8000});
   console.log('PASS first-point floating readout: height visible without spline; live cap height and grip bank; reset after release');
-  assert.deepEqual(mobileErrors,[],'mobile errors after precision handle and touch tests');
+
+  /* The rolled blue grip comes closest to the orange cap near
+     -90 degrees (the up-pointing bank orientation). Both have
+     thumb-sized hit proxies, so a ray can hit BOTH. The aimed
+     screen centre must pick the intended handle. Run each case
+     in the actual WebGL page, not as a fake handler call. */
+  for (const angle of [-90,-80,90]) {
+    await mp.evaluate(bank=>{
+      const slider=document.getElementById('rngB');
+      slider.value=String(bank);
+      slider.dispatchEvent(new Event('input',{bubbles:true}));
+      slider.dispatchEvent(new Event('change',{bubbles:true}));
+    },angle);
+    await mp.waitForFunction(bank=>{
+      const st=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+      return st?.nodes?.length===1&&st.nodes[0].bank===bank;
+    },angle,{timeout:9000});
+    const centers=await loneHandlePixels();
+    const separation=Math.hypot(centers.cap.x-centers.grip.x,
+      centers.cap.y-centers.grip.y);
+    console.log('EXTREME BANK HANDLE CENTERS '+JSON.stringify({
+      angle,cap:centers.cap,grip:centers.grip,node:centers.node,
+      separation,gripRadius:centers.gripRadius
+    }));
+    assert.ok(separation>=8,'bank '+angle+' leaves cap and grip visually inseparable in mobile frame');
+    const stored=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+    for(const [kind,expected] of [['cap','ns-resize'],['grip','grabbing']]){
+      const pt=centers[kind],id=220+angle+ (kind==='grip'?1:0);
+      await send('touchStart',[finger(id,pt.x,pt.y)]);
+      const actual=await mp.evaluate(()=>document.querySelector('#app canvas').style.cursor);
+      console.log('EXTREME HANDLE TOUCH '+JSON.stringify({angle,kind,actual,expected}));
+      assert.equal(actual,expected,
+        'touch exactly at '+kind+' center must select '+kind+' at bank '+angle);
+      await send('touchEnd',[]);
+    }
+    const afterTaps=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+    assert.deepEqual(afterTaps.nodes,stored.nodes,
+      'testing handles with touch taps must not commit a false edit');
+  }
+  console.log('PASS extreme bank screen-space picking: orange cap and blue grip remain distinct at -90, -80 and +90 degrees');
+  assert.deepEqual(mobileErrors,[],'mobile errors after precision handle and overlap touch tests');
 
   await mobile.close();
 
