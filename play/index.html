@@ -145,6 +145,9 @@
   #editorDock #buildTools{margin-top:10px;padding-top:8px;border-top:1px solid #2b3644}
   #editorDock #dockGuide{font-size:10.5px;color:#adc0d0;line-height:1.4;margin-top:7px}
   #editorDock #btnFocusPoint{display:block;width:100%;margin-top:6px}
+  #editorDock .snaprow{display:flex;align-items:center;gap:7px;margin-top:5px}
+  #editorDock #btnGridSnap{min-width:90px;text-align:center;flex:0 0 90px}
+  #editorDock #draftMeasure{font-size:10px;color:#bcd5a1;line-height:1.35;min-width:0;flex:1}
   #editorDock .viewnav{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;margin-top:6px;align-items:center}
   #editorDock #zoomReadout{font-size:10px;color:#a8bdcb;text-align:center;font-variant-numeric:tabular-nums}
   @media(max-width:760px){
@@ -280,6 +283,10 @@
     <button type="button" id="btnFrameView" title="Fit the whole coaster in this view">FIT</button>
     <button type="button" id="btnZoomIn" aria-label="Zoom in">+</button>
     <span id="zoomReadout">3D</span>
+  </div>
+  <div class="snaprow">
+    <button type="button" id="btnGridSnap" title="Cycle snapping off, 1m, or 5m; only affects 2D authoring">snap: off</button>
+    <span id="draftMeasure" aria-live="off"></span>
   </div>
   <button type="button" id="btnFocusPoint" title="Zoom toward the selected point">focus selected node</button>
   <div id="buildTools" style="display:none">
@@ -1013,6 +1020,13 @@ let camera = perspectiveCamera;
 let editorView = '3d'; // separate drawing projection, never part of save/physics
 let draftingCameraStates = Object.create(null); // UI-only; never saved with coaster
 let lastZoomReadout = '';
+/* Editor-only preference: never inserted into nodes, history snapshots,
+   URL shares, imports, physics or native JSON/CSV coaster exports. */
+let draftSnap = 0;
+try {
+  const value = Number(localStorage.getItem('somelimits-drawing-snap'));
+  if (value === 1 || value === 5) draftSnap = value;
+} catch {}
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(10, 8, 0);
 controls.enableDamping = true;
@@ -2342,33 +2356,49 @@ function syncBuildUI() {
    coordinate inherits from the previous end; only its visible
    horizontal coordinate and its height come from the click.
    Clamping/rounding uses exactly the existing node schema/limits. */
-function openElevationPoint(prev, hit, view) {
+function openElevationPoint(prev, hit, view, snap = 0) {
   if (!prev || !hit || (view !== 'side' && view !== 'front')) return null;
   const x = view === 'side' ? hit.x : prev.x;
   const z = view === 'front' ? hit.z : prev.z;
   if (![x, z, hit.y].every(Number.isFinite)) return null;
   const n = {
-    x: THREE.MathUtils.clamp(Math.round(x * 10) / 10, -150, 150),
-    z: THREE.MathUtils.clamp(Math.round(z * 10) / 10, -150, 150),
-    h: THREE.MathUtils.clamp(Math.round(hit.y * 10) / 10, 1, 80),
+    x: view === 'side' ? draftCoordinate(x, snap, -150, 150) : prev.x,
+    z: view === 'front' ? draftCoordinate(z, snap, -150, 150) : prev.z,
+    h: draftCoordinate(hit.y, snap, 1, 80),
     bank: prev.bank
   };
   if (Math.hypot(n.x - prev.x, n.z - prev.z, n.h - prev.h) < 1) return null;
   return n;
 }
+/* Pure quantizer. With snap OFF, newly placed nodes retain the
+   established 0.1m resolution; live dragging remains continuous.
+   A 1m/5m step is explicit and reversible via normal Undo. */
+function draftCoordinate(value, step, min, max) {
+  if (!Number.isFinite(value)) return null;
+  const rounded = step > 0 ? Math.round(value / step) * step : Math.round(value * 10) / 10;
+  return THREE.MathUtils.clamp(rounded, min, max);
+}
 const draftRayPlane = new THREE.Plane();
 function draftPointFromRay() {
-  if (mode !== 'edit' || !building || !nodes.length ||
-      (editorView !== 'side' && editorView !== 'front')) return null;
+  if (mode !== 'edit' || !building || !nodes.length || editorView === '3d') return null;
   const n = nodes[nodes.length - 1];
-  const normal = editorView === 'side' ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
+  const normal = editorView === 'side' ? new THREE.Vector3(0, 0, 1) :
+                 editorView === 'front' ? new THREE.Vector3(1, 0, 0) :
+                                          new THREE.Vector3(0, 1, 0);
   draftRayPlane.setFromNormalAndCoplanarPoint(normal, new THREE.Vector3(n.x, n.h, n.z));
   const hit = new THREE.Vector3();
-  return ray.ray.intersectPlane(draftRayPlane, hit) ? openElevationPoint(n, hit, editorView) : null;
+  if (!ray.ray.intersectPlane(draftRayPlane, hit)) return null;
+  if (editorView !== 'top') return openElevationPoint(n, hit, editorView, draftSnap);
+  const x = draftCoordinate(hit.x, draftSnap, -150, 150);
+  const z = draftCoordinate(hit.z, draftSnap, -150, 150);
+  if (Math.hypot(x - n.x, z - n.z) < 1) return null;
+  return {x, z, h: n.h, bank: n.bank};
 }
 function hideDraftPreview() {
   draftGuide.visible = false;
   draftGhost.visible = false;
+  const label = $('draftMeasure');
+  if (label) label.textContent = '';
 }
 function updateDraftPreview(point) {
   if (!point || !nodes.length) { hideDraftPreview(); return; }
@@ -2380,6 +2410,10 @@ function updateDraftPreview(point) {
   draftGhost.position.set(point.x, point.h, point.z);
   draftGuide.visible = true;
   draftGhost.visible = true;
+  const d = Math.hypot(point.x - end.x, point.z - end.z, point.h - end.h);
+  const deltaH = point.h - end.h;
+  $('draftMeasure').textContent = d.toFixed(1) + 'm · ' +
+    (deltaH >= 0 ? '+' : '') + deltaH.toFixed(1) + 'm H';
 }
 function buildClickAtElevation(point) {
   if (!point || !building || !nodes.length) return false;
@@ -2396,8 +2430,11 @@ function buildClickAtElevation(point) {
   return true;
 }
 function buildClickAtGround(pt) {
+  const step = editorView === 'top' ? draftSnap : 0;
+  const x = draftCoordinate(pt.x, step, -150, 150);
+  const z = draftCoordinate(pt.z, step, -150, 150);
   if (nodes.length === 0) {
-    nodes = [{x: Math.round(pt.x * 10) / 10, z: Math.round(pt.z * 10) / 10, h: 3, bank: 0, station: true}];
+    nodes = [{x, z, h: 3, bank: 0, station: true}];
     selected = 0;
     buildTrack(); commit();
     /* the build-path teaching toasts get longer dwells than the
@@ -2428,7 +2465,7 @@ function buildClickAtGround(pt) {
        height this click would inherit. (the old rule measured
        ground distance only, at 3m - it refused exactly the
        stacked points a loop is made of.) */
-    if (Math.hypot(pt.x - n.x, pt.z - n.z) < 1 && Math.abs(pointHeight - n.h) < 2) {
+    if (Math.hypot(x - n.x, z - n.z) < 1 && Math.abs(pointHeight - n.h) < 2) {
       toast('that is already a point - stack it higher or lower, or nudge it sideways.');
       return;
     }
@@ -2436,7 +2473,7 @@ function buildClickAtGround(pt) {
   /* TOP retains the current elevation so a crest can become a turn.
      3D keeps its familiar ground-click placement at 3m. Both offer
      explicit DROP and SIDE editing; this never changes existing nodes. */
-  nodes.push({x: Math.round(pt.x * 10) / 10, z: Math.round(pt.z * 10) / 10, h: pointHeight, bank: prev.bank});
+  nodes.push({x, z, h: pointHeight, bank: prev.bank});
   selected = nodes.length - 1;
   buildTrack(); commit();
   if (nodes.length === 2) toast(editorView === 'top' ?
@@ -2987,6 +3024,19 @@ $('btnFocusPoint').addEventListener('click', focusSelectedNode);
 $('btnZoomIn').addEventListener('click', () => zoomEditor(1.25));
 $('btnZoomOut').addEventListener('click', () => zoomEditor(0.8));
 $('btnFrameView').addEventListener('click', frameTrack);
+/* Optional drawing precision; OFF by default to preserve existing free
+   gestures. A preference changes no nodes until the user places or
+   drags an actual point. 3D is intentionally unchanged. */
+function cycleDraftSnap() {
+  draftSnap = draftSnap === 0 ? 1 : draftSnap === 1 ? 5 : 0;
+  $('btnGridSnap').textContent = 'snap: ' + (draftSnap ? draftSnap + 'm' : 'off');
+  $('btnGridSnap').setAttribute('aria-pressed', String(draftSnap !== 0));
+  try { localStorage.setItem('somelimits-drawing-snap', String(draftSnap)); } catch {}
+  hideDraftPreview();
+}
+$('btnGridSnap').addEventListener('click', cycleDraftSnap);
+$('btnGridSnap').textContent = 'snap: ' + (draftSnap ? draftSnap + 'm' : 'off');
+$('btnGridSnap').setAttribute('aria-pressed', String(draftSnap !== 0));
 $('btnFocusSelected').addEventListener('click', focusSelectedNode);
 /* When vertical loops stack points on the same projected pixel, there
    must be an exact way to select every one, without fake geometry or
@@ -3438,13 +3488,18 @@ renderer.domElement.addEventListener('pointermove', e => {
   }
   if (mode === 'edit' && dragging < 0 && banking < 0) {
     castAt(e);
-    if (building && (editorView === 'side' || editorView === 'front')) {
-      updateDraftPreview(draftPointFromRay());
-      hoverPt = null;
+    if (building && editorView !== '3d') {
+      if (e.buttons === 0) updateDraftPreview(draftPointFromRay());
+      else hideDraftPreview(); // panning should never look like an insertion
+      if (editorView === 'top') {
+        /* keep the existing station snap ring while showing a ghost
+           along the endpoint height, not on the ground. */
+        dragPlane.constant = 0;
+        const hp = new THREE.Vector3();
+        hoverPt = ray.ray.intersectPlane(dragPlane, hp) ? hp : null;
+      } else hoverPt = null;
     } else if (building) {
       hideDraftPreview();
-      /* track the cursor's ground point so the snap ring can
-         light up when a closing click is on the table */
       dragPlane.constant = 0;
       const hp = new THREE.Vector3();
       hoverPt = ray.ray.intersectPlane(dragPlane, hp) ? hp : null;
@@ -3482,9 +3537,12 @@ renderer.domElement.addEventListener('pointermove', e => {
       const dx = hitPoint.x - elevationPress.x, dy = hitPoint.y - elevationPress.y;
       const dz = hitPoint.z - elevationPress.z;
       const movedPlan = editorView === 'side'
-        ? setNodePlanPosition(nodes, dragging, grabSnap.x + dx, grabSnap.z)
-        : setNodePlanPosition(nodes, dragging, grabSnap.x, grabSnap.z + dz);
-      const nh = THREE.MathUtils.clamp(Math.round((grabSnap.h + dy) * 10) / 10, 1, 80);
+        ? setNodePlanPosition(nodes, dragging,
+            draftSnap ? draftCoordinate(grabSnap.x + dx, draftSnap, -150, 150) : grabSnap.x + dx,
+            grabSnap.z)
+        : setNodePlanPosition(nodes, dragging, grabSnap.x,
+            draftSnap ? draftCoordinate(grabSnap.z + dz, draftSnap, -150, 150) : grabSnap.z + dz);
+      const nh = draftCoordinate(grabSnap.h + dy, draftSnap, 1, 80);
       const movedHeight = nodes[dragging].h !== nh;
       if (movedHeight) nodes[dragging].h = nh;
       if (movedPlan || movedHeight) { dragMoved = true; queueTrackPreview(); }
@@ -3507,8 +3565,12 @@ renderer.domElement.addEventListener('pointermove', e => {
       if (nh !== nodes[dragging].h) { nodes[dragging].h = nh; dragMoved = true; queueTrackPreview(); }
     }
   } else if (dragPressGround && ray.ray.intersectPlane(dragPlane, out)) {
-    const nx = grabSnap.x + out.x - dragPressGround.x;
-    const nz = grabSnap.z + out.z - dragPressGround.z;
+    let nx = grabSnap.x + out.x - dragPressGround.x;
+    let nz = grabSnap.z + out.z - dragPressGround.z;
+    if (editorView === 'top' && draftSnap) {
+      nx = draftCoordinate(nx, draftSnap, -150, 150);
+      nz = draftCoordinate(nz, draftSnap, -150, 150);
+    }
     if (setNodePlanPosition(nodes, dragging, nx, nz)) {
       dragMoved = true; queueTrackPreview();
     }
