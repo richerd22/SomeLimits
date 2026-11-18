@@ -222,7 +222,13 @@ try {
   assert.equal(blank.nodes.length,0,'new must begin with an empty plot');
   await mp.waitForFunction(()=>document.getElementById('hLabel').style.display==='none',
     null,{timeout:8000}); // no point = no floating number
-  // The plot center is clear of the folded mobile panel.
+  // The view/build dock may not steal the central build canvas.
+  const centerHit=await mp.evaluate(()=>({
+    tag:document.elementFromPoint(195,380)?.tagName,
+    dock:document.getElementById('editorDock').getBoundingClientRect().toJSON()
+  }));
+  console.log('MOBILE BLUEPRINT DOCK '+JSON.stringify(centerHit));
+  assert.equal(centerHit.tag,'CANVAS','editor view/build dock must not block central canvas');
   await mp.touchscreen.tap(195,380);
   await mp.waitForFunction(()=>{
     const doc=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
