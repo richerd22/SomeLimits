@@ -72,4 +72,5 @@ Screenshots of the actual running app are fine - they are the code-rendered game
 - [ ] Editor regression passes (GPU disposal, pointer preview coalescing, library persistence and quota feedback).
 - [ ] Mobile/library regression passes (DPR cap, lazy thumbnails, LRU eviction, older-browser fallback).
 - [ ] Browser smoke passes (headless WebGL boot, desktop edit + save + thumbnail, emulated mobile blank plot + station tap). Keep physical iOS Safari manual testing separate.
+- [ ] Direct point regression passes (no post-release neighbour shifts, no accidental bank edits, exact point position).
 - [ ] If drag or rendering changed, validate pointercancel and iOS Safari on hardware; headless tests do not prove WebGL responsiveness.
