@@ -18,6 +18,7 @@ North star, in one line: a returning NL1 builder lays a full closed-circuit coas
 - [Draft rescue](draft-rescue.md) - warnings when browser autosave fails and export/import for unfinished coasters.
 - [Station framing](station-framing.md) - Frame Track camera fallback for empty plots and lone imported stations.
 - [Ride insight](ride-insight.md) - actual speed-assist observations on the lap summary and clean G-force graph restarts.
+- [Empty draft and station ownership](empty-node-station.md) - no stale inputs when starting blank; station checkbox can move but never erase the one station.
 - [Lift/drag playtest repair](../playtest-2026-11-18.md) - physics before/after and the explicit classic fingerprint change.
 
 There is also an in-app Field Manual. Press H in the app for the short version of the player guide.
