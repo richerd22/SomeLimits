@@ -46,6 +46,26 @@ These are **test-time** dependencies. They do not alter `play/index.html` or cre
 
 The browser test is part of the same CI workflow as the editor lifecycle, lazy library/DPR, collision-clearance equivalence and physics/share regressions. On pull requests and pushes to `main`, these guard against accidental boot, edit, save, and mobile blank-plot regressions.
 
+## Verified CI result and mobile issue fixed
+
+[Successful browser run 44252156638](https://github.com/richerd22/SomeLimits/actions/runs/44252156638) completed in headless Chromium after the test harness was corrected for local server trailing-slash paths, and the software renderer tests were run sequentially so the desktop WebGL render loop did not compete with the mobile startup.
+
+**Measured mobile bug, found by the test:** the 390px simulated viewport had reported 509px. A desktop-style, `white-space:nowrap` hint sentence centred in the viewport overflowed its mobile bounds and enlarged the page's effective layout width. The game now wraps the hint inside 8px mobile margins and caps the toast width. This is not a workaround in the test; the game's responsive CSS was fixed.
+
+The successful test recorded:
+
+| Browser assertion | Verified value |
+| --- | --- |
+| Simulated phone CSS viewport | **390 x 844** |
+| Visual viewport width | **390px** |
+| Document client / body scroll width | **390px / 390px** |
+| Wrapped hint bounds | x=8px, width=374px |
+| WebGL canvas backing resolution | **780 x 1688**, DPR capped to 2 |
+| Desktop full-game flow | **PASS** |
+| Mobile empty plot + station tap | **PASS** |
+
+All prior math/editor/library support regressions passed in the same CI job. Real iOS Safari hardware remains a manual test.
+
 ## What this does not claim
 
 - Real iPhone/iPad Safari, actual multi-touch or GPU memory usage are not measured.
