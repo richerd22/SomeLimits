@@ -746,6 +746,11 @@ function lapInsight(ride) {
       ride.assistSeconds.toFixed(1) + ' s, starting about ' +
       Math.round(ride.firstAssistM) + ' m into the lap. check the next hill: lower it, or give its climb an 8 m+ rise between nodes for an automatic chain.';
   }
+  if (ride.assistSeconds > 0) {
+    return 'a brief minimum-speed assist occurred about ' +
+      Math.round(ride.firstAssistM) +
+      ' m into the lap (under 0.3 s). if the next hill feels slow, try lowering it.';
+  }
   if (ride.slowestCruiseV < 3) {
     return 'slow section: ' + Math.round(ride.slowestCruiseV * 3.6) +
       ' km/h about ' + Math.round(ride.slowestCruiseM) +
