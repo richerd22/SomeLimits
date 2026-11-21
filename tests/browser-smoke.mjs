@@ -863,6 +863,67 @@ try {
     afterRefine.nodes,'refine Redo restores exact on-rail insertion and both lift flags');
   assert.deepEqual(mobileErrors,[], 'curved preview and lift refinement produce no mobile WebGL errors');
   console.log('PASS real WebGL CURVE REFINE: midpoint on original rail, chain retained on both split halves, exact Undo/Redo');
+  /* Round 31: a real 390px phone editor accepts custom segment
+     dimensions while keeping the dock's one-tap actions. Verify the
+     button click results and exact defaults separately in the
+     source-level regression—never silently alter old coasters. */
+  await mp.evaluate(()=>{
+    document.getElementById('btnNew').click();
+    document.getElementById('btnNew').click();
+  });
+  await mp.waitForFunction(()=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.building && d.nodes.length===0;
+  });
+  await mp.touchscreen.tap(195,380);
+  await mp.waitForFunction(()=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.nodes.length===1 && d.nodes[0].station;
+  });
+  await mp.evaluate(()=>{
+    const h=document.getElementById('rngH');
+    h.value='42.5';h.dispatchEvent(new Event('input',{bubbles:true}));
+    h.dispatchEvent(new Event('change',{bubbles:true}));
+    for(const [id,value] of [
+      ['optSectionLength','30'],['optSectionTurn','30'],
+      ['optSectionDropRun','35'],['optSectionDropHeight','12']
+    ]) {
+      const input=document.getElementById(id);
+      input.value=value;input.dispatchEvent(new Event('change',{bubbles:true}));
+    }
+  });
+  await mp.waitForFunction(()=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.nodes[0].h===42.5 &&
+      JSON.parse(localStorage.getItem('somelimits-section-dimensions-v1'))?.turnDegrees===30;
+  });
+  assert.ok((await mp.locator('#btnTurnLeft').getAttribute('title')).includes('30°'),
+    'turn preview tooltip should reflect chosen angle');
+  const beforeCustom=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.ok(!('turnDegrees' in beforeCustom),'editor preferences must not leak into saved coaster');
+  await mp.locator('#btnContinue').tap();
+  await mp.locator('#btnTurnLeft').tap();
+  await mp.locator('#btnMakeDrop').tap();
+  await mp.waitForFunction(()=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.nodes.length===4;
+  },null,{timeout:12000});
+  const custom=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.equal(custom.nodes[1].h,42.5,'LEVEL stays on actual lift crest');
+  assert.equal(custom.nodes[2].h,42.5,'custom turn stays level');
+  assert.equal(custom.nodes[3].h,30.5,'custom DROP descends requested 12m');
+  const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
+  assert.ok(Math.abs(distance(custom.nodes[0],custom.nodes[1])-30)<.001,'custom level run =30m');
+  assert.ok(Math.abs(distance(custom.nodes[1],custom.nodes[2])-30)<.001,'custom turn run =30m');
+  assert.ok(Math.abs(distance(custom.nodes[2],custom.nodes[3])-35)<.001,'custom drop forward run =35m');
+  assert.ok(custom.nodes[2].x<custom.nodes[1].x-14,'custom LEFT direction turns by 30°');
+  await mp.evaluate(()=>document.getElementById('btnUndo').click());
+  const undoCustom=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.equal(undoCustom.nodes.length,3,'custom drop Undo removes only its section');
+  await mp.evaluate(()=>document.getElementById('btnRedo').click());
+  assert.deepEqual((await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
+    custom.nodes,'custom dimension Redo restores exact geometry');
+  console.log('PASS adjustable sections WebGL: 30m level, 30° turn, 35m forward /12m down drop, exact Undo/Redo and local preference isolation');
   assert.deepEqual(mobileErrors,[],'real blueprint continuation and camera views produced no WebGL errors');
   console.log('PASS blueprint WebGL: TOP new, 42.5m crest, LEVEL, LEFT, DROP, Undo/Redo, SIDE/FRONT/3D views');
   await mobile.close();

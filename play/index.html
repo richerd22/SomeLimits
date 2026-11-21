@@ -223,6 +223,19 @@
     <button id="btnAdd" title="At the end: extend. Between nodes: refine by inserting directly ON the existing spline.">+ node</button>
     <button id="btnDel" class="warn">delete node</button>
   </div>
+  <details id="sectionOptions" style="margin-top:9px;display:none">
+    <summary style="cursor:pointer;color:#bdd2e6">next section dimensions (advanced)</summary>
+    <div class="sub" style="margin-top:4px">LEVEL / LEFT / RIGHT / DROP still work in one tap. These settings only affect future sections.</div>
+    <div class="row" style="margin-top:7px">
+      <label style="flex:1;min-width:0">level / turn run (m)<input id="optSectionLength" type="number" min="4" max="45" step="1" value="14"></label>
+      <label style="flex:1;min-width:0">turn angle (°)<input id="optSectionTurn" type="number" min="5" max="135" step="5" value="45"></label>
+    </div>
+    <div class="row" style="margin-top:5px">
+      <label style="flex:1;min-width:0">drop forward run (m)<input id="optSectionDropRun" type="number" min="5" max="60" step="1" value="20"></label>
+      <label style="flex:1;min-width:0">drop height (m)<input id="optSectionDropHeight" type="number" min="1" max="70" step="1" value="20"></label>
+    </div>
+    <div class="sub" style="margin-top:5px">Defaults: 14m straight, 45° turns, 20m forward/down drop. Editor preference only; not saved to a coaster.</div>
+  </details>
   <label class="chk"><input type="checkbox" id="chkLift"> lift chain after this node (override)</label>
   <div class="sub" style="margin-top:2px">climbs of 8m+ grow a chain by themselves - watch for the bright strip on the track. this box only forces one onto a shorter climb.</div>
   <label class="chk"><input type="checkbox" id="chkStation"> station at this node</label>
@@ -2362,6 +2375,7 @@ function syncBuildUI() {
   $('btnRide').textContent = building ? 'RIDE IT - close the loop first' : 'RIDE IT';
   els.station.disabled = building;
   $('buildTools').style.display = mode === 'edit' && building ? 'block' : 'none';
+  $('sectionOptions').style.display = mode === 'edit' && building ? 'block' : 'none';
   for (const id of ['btnContinue', 'btnTurnLeft', 'btnTurnRight', 'btnMakeDrop'])
     $(id).disabled = !building || nodes.length === 0;
   const key = (building ? 'b' : '-') + nodes.length + ':' + editorView;
@@ -2723,6 +2737,7 @@ function setMode(m) {
   trainGroup.visible = m === 'ride';
   if (m === 'edit') { ride = null; camera.up.set(0, 1, 0); if (AC && windGain) windGain.gain.setTargetAtTime(0, AC.currentTime, 0.08); }
   $('buildTools').style.display = m === 'edit' && building ? 'block' : 'none';
+  $('sectionOptions').style.display = m === 'edit' && building ? 'block' : 'none';
   updateDraftingVisibility();
 }
 $('btnRide').addEventListener('click', startRide);
@@ -3003,23 +3018,69 @@ els.name.addEventListener('change', () => { trackName = els.name.value.trim() ||
 
 /* Extension is relative to the end, not the dirt below it.
    A lift crest needs a level continuation first; choose DROP intentionally. */
+/* Advanced preferences are separate from coaster nodes, Undo, JSON and
+   share URLs. A malformed or out-of-range stored setting cannot
+   corrupt future nodes. All controls are folded into the inspector. */
+const SECTION_PREF_KEY = 'somelimits-section-dimensions-v1';
+const SECTION_DEFAULTS = Object.freeze({length:14,turnDegrees:45,dropRun:20,dropHeight:20});
+const SECTION_FIELDS = [
+  ['length','optSectionLength',4,45],
+  ['turnDegrees','optSectionTurn',5,135],
+  ['dropRun','optSectionDropRun',5,60],
+  ['dropHeight','optSectionDropHeight',1,70]
+];
+let sectionPrefs={...SECTION_DEFAULTS};
+try {
+  const saved=JSON.parse(localStorage.getItem(SECTION_PREF_KEY)||'null');
+  if(saved && typeof saved==='object') for(const [key,,lo,hi] of SECTION_FIELDS)
+    if(Number.isFinite(saved[key])) sectionPrefs[key]=THREE.MathUtils.clamp(saved[key],lo,hi);
+} catch {}
+function updateSectionTooltips() {
+  $('btnContinue').title='Continue '+sectionPrefs.length+'m level at current height';
+  $('btnTurnLeft').title='Continue '+sectionPrefs.length+'m with '+sectionPrefs.turnDegrees+'° left turn';
+  $('btnTurnRight').title='Continue '+sectionPrefs.length+'m with '+sectionPrefs.turnDegrees+'° right turn';
+  $('btnMakeDrop').title='Continue '+sectionPrefs.dropRun+'m forward, descend '+sectionPrefs.dropHeight+'m';
+}
+for(const [key,id,lo,hi] of SECTION_FIELDS) {
+  const input=$(id);
+  input.value=sectionPrefs[key];
+  input.addEventListener('change',()=>{
+    const num=Number(input.value);
+    if(input.value.trim()!=='' && Number.isFinite(num))
+      sectionPrefs[key]=THREE.MathUtils.clamp(Math.round(num),lo,hi);
+    input.value=sectionPrefs[key];
+    try { localStorage.setItem(SECTION_PREF_KEY,JSON.stringify(sectionPrefs)); } catch {}
+    updateSectionTooltips();
+  });
+}
+updateSectionTooltips();
 function openExtension(a, b, kind) {
+  /* 4th argument optional: original 14m/45°/20m defaults are exact,
+     including in existing source-extracted physics/editor tests. */
+  const options = arguments[3] || {};
+  const safe = (v, fallback, min, max) =>
+    Number.isFinite(v) ? THREE.MathUtils.clamp(v,min,max) : fallback;
+  const run=safe(options.length,14,4,45);
+  const turnDegrees=safe(options.turnDegrees,45,5,135);
+  const dropRun=safe(options.dropRun,20,5,60);
+  const dropHeight=safe(options.dropHeight,20,1,70);
   const dx = b ? a.x - b.x : 0, dz = b ? a.z - b.z : -14;
   const length = Math.hypot(dx, dz) || 1;
-  const turn = kind === 'left' ? -Math.PI / 4 : kind === 'right' ? Math.PI / 4 : 0;
+  const angle = turnDegrees * Math.PI / 180;
+  const turn = kind === 'left' ? -angle : kind === 'right' ? angle : 0;
   const ux = dx / length, uz = dz / length;
   const vx = ux * Math.cos(turn) - uz * Math.sin(turn);
   const vz = ux * Math.sin(turn) + uz * Math.cos(turn);
-  const step = kind === 'drop' ? 20 : 14;
+  const step = kind === 'drop' ? dropRun : run;
   return {x: THREE.MathUtils.clamp(a.x + vx * step, -150, 150),
     z: THREE.MathUtils.clamp(a.z + vz * step, -150, 150),
-    h: kind === 'drop' ? Math.max(3, a.h - 20) : a.h, bank: a.bank};
+    h: kind === 'drop' ? Math.max(3, a.h - dropHeight) : a.h, bank: a.bank};
 }
 function extendOpenTrack(kind = 'level') {
   if (!building) { addNode(); return; }
   if (!nodes.length) { toast('place a station first - tap the TOP blueprint.'); return; }
   const a = nodes[nodes.length - 1], b = nodes[nodes.length - 2];
-  const next = openExtension(a, b, kind);
+  const next = openExtension(a, b, kind, sectionPrefs);
   if (Math.hypot(next.x - a.x, next.z - a.z) < 0.4) {
     toast('plot edge reached - turn toward open space or move the last node.'); return;
   }
@@ -3066,7 +3127,7 @@ function addNode() {
   }
   if (building && selected >= nodes.length - 1) {
     const a = nodes[nodes.length - 1], b = nodes[nodes.length - 2];
-    nodes.push(openExtension(a, b, 'level'));
+    nodes.push(openExtension(a, b, 'level', sectionPrefs));
     selected = nodes.length - 1;
   } else {
     const refined = refineNodeOnSpline(nodes, selected, !building, track && track.curve);

@@ -18,6 +18,8 @@ jobs:
         run: node tests/editor-runtime-regression.mjs
       - name: Classic blueprint, lift-crest continuation and elevation source regression (no dependencies)
         run: node tests/blueprint-editor-regression.mjs
+      - name: Adjustable level turn and drop construction, exact classic defaults
+        run: node tests/section-dimensions-regression.mjs
       - name: Precision node navigation, numeric coordinates and view-correct nudge axis
         run: node tests/precision-node-editor-regression.mjs
       - name: Draw track from SIDE/FRONT and preserve independent camera navigation (no dependencies)
