@@ -213,14 +213,14 @@
     <label>X (m)<input id="inpNodeX" aria-label="Selected node X in metres" type="number" min="-150" max="150" step="0.1"></label>
     <label>Z (m)<input id="inpNodeZ" aria-label="Selected node Z in metres" type="number" min="-150" max="150" step="0.1"></label>
   </div>
-  <div class="sub" style="margin-top:4px">2D precision: arrow keys nudge 1m, Shift+arrow 5m, Option/Alt+arrow 0.1m. [ and ] select overlapping nodes.</div>
+  <div class="sub" style="margin-top:4px">2D precision: arrow keys nudge 1m, Shift+arrow 5m, Option/Alt+arrow 0.1m. [ and ] select overlapping nodes. Select a segment's first point, then + node to refine along the real curve.</div>
   <label>height <span id="hVal" class="val"></span></label>
   <input id="rngH" type="range" min="1" max="80" step="0.5">
   <label>banking <span id="bVal" class="val"></span></label>
   <input id="rngB" type="range" min="-180" max="180" step="1">
   <div class="sub" id="segInfo" style="margin-top:4px"></div>
   <div class="row" style="margin-top:4px">
-    <button id="btnAdd">+ node</button>
+    <button id="btnAdd" title="At the end: extend. Between nodes: refine by inserting directly ON the existing spline.">+ node</button>
     <button id="btnDel" class="warn">delete node</button>
   </div>
   <label class="chk"><input type="checkbox" id="chkLift"> lift chain after this node (override)</label>
@@ -1198,7 +1198,25 @@ draftGuide.renderOrder = 99; draftGuide.frustumCulled = false; draftGuide.visibl
 const draftGhost = new THREE.Mesh(new THREE.SphereGeometry(0.9,12,8),
   new THREE.MeshBasicMaterial({color:0xC6FF00,transparent:true,opacity:0.8,depthTest:false}));
 draftGhost.renderOrder = 100; draftGhost.visible = false;
-scene.add(draftGuide,draftGhost);
+/* Existing lime chord remains a precise distance reference. The cyan
+   line is the actual centripetal Catmull-Rom last segment, sampled
+   from its local control points. One GPU buffer is reused forever,
+   including on hover: never ask computeOpenTrack to rebuild 900 rails. */
+const DRAFT_CURVE_STEPS = 24;
+const draftCurveGeo = new THREE.BufferGeometry();
+draftCurveGeo.setAttribute('position', new THREE.BufferAttribute(
+  new Float32Array((DRAFT_CURVE_STEPS + 1) * 3), 3).setUsage(THREE.DynamicDrawUsage));
+const draftCurveGuide = new THREE.Line(draftCurveGeo, new THREE.LineBasicMaterial({
+  color:0x79cfff, transparent:true, opacity:0.95, depthTest:false
+}));
+draftCurveGuide.renderOrder = 100;
+draftCurveGuide.frustumCulled = false;
+draftCurveGuide.visible = false;
+scene.add(draftGuide,draftCurveGuide,draftGhost);
+const draftCurvePoints = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+const draftCurvePair = [draftCurvePoints[1], draftCurvePoints[2]];
+const draftCurveSpline = new THREE.CatmullRomCurve3(draftCurvePoints, false, 'centripetal', 0.5);
+const draftCurveScratch = new THREE.Vector3();
 /* Drafting overlays: persistent axis grids for SIDE and FRONT views.
    Keep a single reusable GridHelper so switching views allocates no
    track meshes or materials. No grid in ride/perspective scenes. */
@@ -2398,8 +2416,42 @@ function draftPointFromRay() {
   if (Math.hypot(x - n.x, z - n.z) < 1) return null;
   return {x, z, h: n.h, bank: n.bank};
 }
+/* Write only the final spline span after a proposed point. For N>=2,
+   the last span's Catmull-Rom controls are [previous, end, candidate];
+   the spline extrapolates its end tangent exactly as the full open
+   coaster does. For N=1 use the actual TWO-point Catmull-Rom curve
+   (Three's parameterization is not a straight linear interpolation).
+   The same 1.5m segment-height guardrail as computeOpenTrack applies.
+   Geometry and return value are preview-only; zero node mutations. */
+function sampleDraftCurveSpan(list, candidate, out, steps, spline, scratch, fullPoints, pairPoints) {
+  if (!list.length || !candidate || steps < 1) return 0;
+  const end = list[list.length - 1], prev = list[list.length - 2];
+  if (prev) {
+    spline.points = fullPoints;
+    spline.points[0].set(prev.x, prev.h, prev.z);
+    spline.points[1].set(end.x, end.h, end.z);
+    spline.points[2].set(candidate.x, candidate.h, candidate.z);
+  } else {
+    spline.points = pairPoints;
+    spline.points[0].set(end.x, end.h, end.z);
+    spline.points[1].set(candidate.x, candidate.h, candidate.z);
+  }
+  const low = Math.min(end.h, candidate.h) - 1.5;
+  const high = Math.max(end.h, candidate.h) + 1.5;
+  let arc = 0, px = end.x, py = end.h, pz = end.z;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    spline.getPoint(prev ? 0.5 + t * 0.5 : t, scratch);
+    const y = THREE.MathUtils.clamp(scratch.y, low, high), j = i*3;
+    out[j] = scratch.x; out[j+1] = y; out[j+2] = scratch.z;
+    if (i) arc += Math.hypot(scratch.x-px, y-py, scratch.z-pz);
+    px = scratch.x; py = y; pz = scratch.z;
+  }
+  return arc;
+}
 function hideDraftPreview() {
   draftGuide.visible = false;
+  draftCurveGuide.visible = false;
   draftGhost.visible = false;
   const label = $('draftMeasure');
   if (label) label.textContent = '';
@@ -2411,12 +2463,16 @@ function updateDraftPreview(point) {
   a[0] = end.x; a[1] = end.h; a[2] = end.z;
   a[3] = point.x; a[4] = point.h; a[5] = point.z;
   draftGuideGeo.attributes.position.needsUpdate = true;
+  const arc = sampleDraftCurveSpan(nodes, point,
+    draftCurveGeo.attributes.position.array, DRAFT_CURVE_STEPS,
+    draftCurveSpline, draftCurveScratch, draftCurvePoints, draftCurvePair);
+  draftCurveGeo.attributes.position.needsUpdate = true;
   draftGhost.position.set(point.x, point.h, point.z);
   draftGuide.visible = true;
+  draftCurveGuide.visible = true;
   draftGhost.visible = true;
-  const d = Math.hypot(point.x - end.x, point.z - end.z, point.h - end.h);
   const deltaH = point.h - end.h;
-  $('draftMeasure').textContent = d.toFixed(1) + 'm · ' +
+  $('draftMeasure').textContent = arc.toFixed(1) + 'm curve · ' +
     (deltaH >= 0 ? '+' : '') + deltaH.toFixed(1) + 'm H';
 }
 function buildClickAtElevation(point) {
@@ -2975,26 +3031,51 @@ for (const [id, kind] of [['btnContinue','level'],['btnTurnLeft','left'],
   ['btnTurnRight','right'],['btnMakeDrop','drop']]) {
   $(id).addEventListener('click', () => extendOpenTrack(kind));
 }
+/* Inserting a control point should REFINE the piece of rail you are
+   looking at. The straight midpoint can be metres off a curved crest
+   or a vertical loop, making '+ node' distort the track immediately.
+   Pick the actual Catmull-Rom position at 50% of the chosen source
+   segment instead. Bank follows the engine's existing cosine-eased,
+   shortest-angle interpolation. An existing forced/automatic lift
+   must remain active on BOTH halves after splitting the climb. */
+function refineNodeOnSpline(list, segmentIndex, closed, spline) {
+  const n = list.length;
+  if (!spline || segmentIndex < 0 || segmentIndex >= n ||
+      (!closed && segmentIndex >= n-1)) return null;
+  const a = list[segmentIndex], b = list[(segmentIndex+1)%n];
+  const den = closed ? n : n-1;
+  const point = spline.getPoint((segmentIndex + 0.5)/den);
+  if (!Number.isFinite(point.x+point.y+point.z)) return null;
+  const bank = closed ? bankAt(list,segmentIndex+0.5) :
+                        bankAtOpen(list,segmentIndex+0.5);
+  const originalLift = !!a.lift || b.h-a.h >= 8;
+  const add = {
+    x: Math.round(point.x*10)/10,
+    z: Math.round(point.z*10)/10,
+    h: Math.round(THREE.MathUtils.clamp(point.y,
+      Math.min(a.h,b.h)-1.5, Math.max(a.h,b.h)+1.5)*10)/10,
+    bank: Math.round(THREE.MathUtils.clamp(bank,-180,180))
+  };
+  if (originalLift) add.lift = true;
+  return {add, originalLift};
+}
 function addNode() {
-  if (building) {
-    if (!nodes.length) { toast('place the station first - click the ground.'); return; }
-    if (selected >= nodes.length - 1) {
-      /* the button extends the line: one more point out past the
-         end, along the last stretch's direction */
-      const a = nodes[nodes.length - 1], b = nodes[nodes.length - 2];
-      nodes.push(openExtension(a, b, 'level'));
-      selected = nodes.length - 1;
-    } else {
-      const a = nodes[selected], b = nodes[selected + 1];
-      nodes.splice(selected + 1, 0, {x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, h: (a.h + b.h) / 2, bank: Math.round((a.bank + b.bank) / 2)});
-      selected++;
-    }
-    buildTrack(); commit();
+  if (building && !nodes.length) {
+    toast('place the station first - click the TOP drawing.');
     return;
   }
-  const a = nodes[selected], b = nodes[(selected + 1) % nodes.length];
-  nodes.splice(selected + 1, 0, {x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, h: (a.h + b.h) / 2, bank: Math.round((a.bank + b.bank) / 2)});
-  selected++; buildTrack(); commit();
+  if (building && selected >= nodes.length - 1) {
+    const a = nodes[nodes.length - 1], b = nodes[nodes.length - 2];
+    nodes.push(openExtension(a, b, 'level'));
+    selected = nodes.length - 1;
+  } else {
+    const refined = refineNodeOnSpline(nodes, selected, !building, track && track.curve);
+    if (!refined) { toast('need a rail segment to refine.'); return; }
+    if (refined.originalLift) nodes[selected].lift = true;
+    nodes.splice(selected + 1, 0, refined.add);
+    selected++;
+  }
+  buildTrack(); commit();
 }
 function deleteNode() {
   if (building) {

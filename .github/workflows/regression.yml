@@ -44,6 +44,8 @@ jobs:
         run: node tests/terrain-distance-regression.mjs
       - name: Large-coaster node material pooling and disposal
         run: node tests/node-handle-material-regression.mjs
+      - name: Curve-aware extension preview and on-rail point refinement
+        run: node tests/curve-preview-refinement-regression.mjs
       - name: Physics and share regression tests
         run: node tests/physics-regression.mjs
       - name: Sample arc parameter caching and exact previous-geometry parity

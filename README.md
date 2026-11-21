@@ -36,6 +36,8 @@ Round 28 makes elevation views proper builders: **tap SIDE to place the next X/h
 
 Drafting now offers optional **snap off / 1m / 5m** for placing and dragging nodes in 2D; TOP previews the next segment and shows its length/height change before you click. Snapping is off by default, does not affect 3D physics or existing nodes, and lives outside your coaster's save format. [Round 29 design](wiki/drafting-snap-round29.md).
 
+Round 30 shows a **cyan curved preview of the real next rail section** alongside the lime alignment chord, with curved length and height delta visible while drawing. Selecting an interior point and pressing **+ node** now inserts directly on the existing Catmull–Rom rail instead of a straight midpoint, while keeping chain lift continuity through the split. No changes to ride physics, existing track files or saved preset fingerprints. [Curve-truth and refinement design](wiki/curve-truth-round30.md).
+
 ## What you get
 
 - A complete closed-circuit coaster, end to end: station, lift hill, drops, banked turns, inversions if you build them, brake run back to the station.
