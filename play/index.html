@@ -3018,28 +3018,6 @@ els.name.addEventListener('change', () => { trackName = els.name.value.trim() ||
 
 /* Extension is relative to the end, not the dirt below it.
    A lift crest needs a level continuation first; choose DROP intentionally. */
-function openExtension(a, b, kind) {
-  /* 4th argument optional: original 14m/45°/20m defaults are exact,
-     including in existing source-extracted physics/editor tests. */
-  const options = arguments[3] || {};
-  const safe = (v, fallback, min, max) =>
-    Number.isFinite(v) ? THREE.MathUtils.clamp(v,min,max) : fallback;
-  const run=safe(options.length,14,4,45);
-  const turnDegrees=safe(options.turnDegrees,45,5,135);
-  const dropRun=safe(options.dropRun,20,5,60);
-  const dropHeight=safe(options.dropHeight,20,1,70);
-  const dx = b ? a.x - b.x : 0, dz = b ? a.z - b.z : -14;
-  const length = Math.hypot(dx, dz) || 1;
-  const angle = turnDegrees * Math.PI / 180;
-  const turn = kind === 'left' ? -angle : kind === 'right' ? angle : 0;
-  const ux = dx / length, uz = dz / length;
-  const vx = ux * Math.cos(turn) - uz * Math.sin(turn);
-  const vz = ux * Math.sin(turn) + uz * Math.cos(turn);
-  const step = kind === 'drop' ? dropRun : run;
-  return {x: THREE.MathUtils.clamp(a.x + vx * step, -150, 150),
-    z: THREE.MathUtils.clamp(a.z + vz * step, -150, 150),
-    h: kind === 'drop' ? Math.max(3, a.h - dropHeight) : a.h, bank: a.bank};
-}
 /* Advanced preferences are separate from coaster nodes, Undo, JSON and
    share URLs. A malformed or out-of-range stored setting cannot
    corrupt future nodes. All controls are folded into the inspector. */
@@ -3076,6 +3054,28 @@ for(const [key,id,lo,hi] of SECTION_FIELDS) {
   });
 }
 updateSectionTooltips();
+function openExtension(a, b, kind) {
+  /* 4th argument optional: original 14m/45°/20m defaults are exact,
+     including in existing source-extracted physics/editor tests. */
+  const options = arguments[3] || {};
+  const safe = (v, fallback, min, max) =>
+    Number.isFinite(v) ? THREE.MathUtils.clamp(v,min,max) : fallback;
+  const run=safe(options.length,14,4,45);
+  const turnDegrees=safe(options.turnDegrees,45,5,135);
+  const dropRun=safe(options.dropRun,20,5,60);
+  const dropHeight=safe(options.dropHeight,20,1,70);
+  const dx = b ? a.x - b.x : 0, dz = b ? a.z - b.z : -14;
+  const length = Math.hypot(dx, dz) || 1;
+  const angle = turnDegrees * Math.PI / 180;
+  const turn = kind === 'left' ? -angle : kind === 'right' ? angle : 0;
+  const ux = dx / length, uz = dz / length;
+  const vx = ux * Math.cos(turn) - uz * Math.sin(turn);
+  const vz = ux * Math.sin(turn) + uz * Math.cos(turn);
+  const step = kind === 'drop' ? dropRun : run;
+  return {x: THREE.MathUtils.clamp(a.x + vx * step, -150, 150),
+    z: THREE.MathUtils.clamp(a.z + vz * step, -150, 150),
+    h: kind === 'drop' ? Math.max(3, a.h - dropHeight) : a.h, bank: a.bank};
+}
 function extendOpenTrack(kind = 'level') {
   if (!building) { addNode(); return; }
   if (!nodes.length) { toast('place a station first - tap the TOP blueprint.'); return; }
