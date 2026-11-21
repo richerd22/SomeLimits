@@ -57,3 +57,4 @@ v1, shipped. Anything beyond the shipped list in these pages is marked planned.
 - [Precision editor: overlapping node navigation, coordinates and view-correct keyboard nudging](precision-node-authoring-round27.md) (Round 27)
 - [Draw new track directly in SIDE/FRONT with a ghost preview and view-stable zoom](elevation-drawing-round28.md) (Round 28)
 - [Optional 1m/5m drawing snap, TOP ghost preview and measured next segment](drafting-snap-round29.md) (Round 29)
+- [Honest curved ghost rail preview, actual-spline point refinement and lift continuity](curve-truth-round30.md) (Round 30)
