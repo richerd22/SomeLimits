@@ -28,10 +28,11 @@ const previewSpline=new THREE.CatmullRomCurve3([
   new THREE.Vector3(),new THREE.Vector3(),new THREE.Vector3()
 ],false,'centripetal',0.5);
 const scratch=new THREE.Vector3();
+const previewTriple=previewSpline.points,previewPair=[previewTriple[1],previewTriple[2]];
 function verifySpan(before,next) {
   const cloned=structuredClone(before);
   const candidate=structuredClone(next);
-  const length=sampleDraftCurveSpan(before,next,output,steps,previewSpline,scratch);
+  const length=sampleDraftCurveSpan(before,next,output,steps,previewSpline,scratch,previewTriple,previewPair);
   const all=[...before,next];
   const fullCurve=new THREE.CatmullRomCurve3(all.map(n=>new THREE.Vector3(n.x,n.h,n.z)),
     false,'centripetal',0.5);
