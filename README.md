@@ -38,6 +38,8 @@ Drafting now offers optional **snap off / 1m / 5m** for placing and dragging nod
 
 Round 30 shows a **cyan curved preview of the real next rail section** alongside the lime alignment chord, with curved length and height delta visible while drawing. Selecting an interior point and pressing **+ node** now inserts directly on the existing Catmull–Rom rail instead of a straight midpoint, while keeping chain lift continuity through the split. No changes to ride physics, existing track files or saved preset fingerprints. [Curve-truth and refinement design](wiki/curve-truth-round30.md).
 
+The one-tap **LEVEL / LEFT / RIGHT / DROP** actions now have optional section dimensions: inside the collapsible inspector, set straight/turn run, turn angle, drop run, or drop height. Defaults are unchanged and one tap is still enough; advanced preferences never enter coaster files or physics. See [Round 31 section controls](wiki/advanced-section-dimensions-round31.md).
+
 ## What you get
 
 - A complete closed-circuit coaster, end to end: station, lift hill, drops, banked turns, inversions if you build them, brake run back to the station.
