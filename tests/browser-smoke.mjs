@@ -803,7 +803,7 @@ try {
   await mp.mouse.move(110,510);
   await mp.waitForFunction(()=>{
     const label=document.getElementById('draftMeasure').textContent;
-    return label.includes('m · ')&&label.includes('m H');
+    return label.includes('m curve · ')&&label.includes('m H');
   },null,{timeout:7000});
   assert.deepEqual((await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
     snappedSide.nodes,'moving ghost preview never edits the coaster');
@@ -821,7 +821,48 @@ try {
   assert.equal(await mp.locator('#btnGridSnap').textContent(),'snap: off');
   assert.deepEqual((await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
     snappedTop.nodes,'toggling snap does not retroactively change any source point');
-  console.log('PASS real 5m SNAP WebGL: TOP station, SIDE uphill new node, TOP turn and ghost readout; snap OFF leaves geometry unchanged');
+  console.log('PASS real 5m SNAP WebGL: TOP station, SIDE uphill new node, TOP turn and curved ghost readout; snap OFF leaves geometry unchanged');
+  /* Round 30: pressing +node on a lift segment must place the control
+     point ON the actual Catmull-Rom rail, not at the X/Z/H chord
+     midpoint. This split must preserve auto lift on both halves.
+     A real Undo/Redo must restore the exact source document. */
+  const beforeRefine=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  const expectedRefine=await mp.evaluate(async()=>{
+    const THREE=await import('three');
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    const curve=new THREE.CatmullRomCurve3(d.nodes.map(n=>new THREE.Vector3(n.x,n.h,n.z)),
+      false,'centripetal',0.5);
+    const p=curve.getPoint(0.5/(d.nodes.length-1));
+    const a=d.nodes[0],b=d.nodes[1];
+    return {x:Math.round(p.x*10)/10,z:Math.round(p.z*10)/10,
+      h:Math.round(THREE.MathUtils.clamp(p.y,Math.min(a.h,b.h)-1.5,
+        Math.max(a.h,b.h)+1.5)*10)/10};
+  });
+  await mp.evaluate(()=>{
+    document.getElementById('btnPrevNode').click();
+    document.getElementById('btnPrevNode').click();
+    document.getElementById('btnAdd').click();
+  });
+  await mp.waitForFunction(()=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.building===true && d.nodes.length===4;
+  },null,{timeout:12000});
+  const afterRefine=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  for(const k of ['x','z','h'])assert.equal(afterRefine.nodes[1][k],expectedRefine[k],
+    'new control '+k+' matches exact spline, not chord midpoint');
+  assert.equal(afterRefine.nodes[0].station,true,'original station ownership remains');
+  assert.ok(afterRefine.nodes[0].lift && afterRefine.nodes[1].lift,
+    'splitting an automatic lift cannot silently disable either half');
+  assert.deepEqual(afterRefine.nodes.slice(2),beforeRefine.nodes.slice(1),
+    'refining a lift does not move subsequent source control points');
+  await mp.evaluate(()=>document.getElementById('btnUndo').click());
+  assert.deepEqual((await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
+    beforeRefine.nodes,'refine Undo restores original coordinates and automatic lift status');
+  await mp.evaluate(()=>document.getElementById('btnRedo').click());
+  assert.deepEqual((await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
+    afterRefine.nodes,'refine Redo restores exact on-rail insertion and both lift flags');
+  assert.deepEqual(mobileErrors,[], 'curved preview and lift refinement produce no mobile WebGL errors');
+  console.log('PASS real WebGL CURVE REFINE: midpoint on original rail, chain retained on both split halves, exact Undo/Redo');
   assert.deepEqual(mobileErrors,[],'real blueprint continuation and camera views produced no WebGL errors');
   console.log('PASS blueprint WebGL: TOP new, 42.5m crest, LEVEL, LEFT, DROP, Undo/Redo, SIDE/FRONT/3D views');
   await mobile.close();
