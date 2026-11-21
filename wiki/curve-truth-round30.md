@@ -12,7 +12,7 @@ Another quiet UX defect: `+ node` on an interior segment inserted the numeric mi
 - **Cyan rail preview**: a second, clearly distinguished line shows the same *last* centripetal Catmull–Rom segment that the open-track generator would produce after adding the ghost point. The user can see how the track turns over a crest before committing.
 - The preview's readout now shows approximate **curved arc distance** (24 subdivisions) and exact change in endpoint elevation. It no longer claims the straight-line distance is the actual track length.
 - This costs one persistent Three.js line and **one reused 25-point Float32Array geometry**. On hover, the code reuses a three-point spline and scratch vector; it only overwrites the buffer attribute. No new rail/tie/support meshes, terrain geometry, source node writes or autosave changes.
-- A single previous point produces a straight line. With two or more existing points, the local control triple `[previous, end, candidate]` reproduces the full *final span*: open Catmull–Rom's endpoint-tangent rule is local. The physical track's existing ±1.5m spline-height guard is applied to the ghost too.
+- With a lone existing station, the ghost uses the **actual two-point** Catmull–Rom parameterization (which Three.js eases rather than drawing linearly). With two or more existing points, the local control triple `[previous, end, candidate]` reproduces the full *final span*: open Catmull–Rom's endpoint-tangent rule is local. The physical track's existing ±1.5m spline-height guard is applied to the ghost too.
 - Preview always hides on pointer/camera cancellation, view switch, invalid point, closed circuit and ride mode, preserving the existing mobile gestures.
 
 ## Safer refinement
