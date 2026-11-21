@@ -1214,6 +1214,7 @@ draftCurveGuide.frustumCulled = false;
 draftCurveGuide.visible = false;
 scene.add(draftGuide,draftCurveGuide,draftGhost);
 const draftCurvePoints = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+const draftCurvePair = [draftCurvePoints[1], draftCurvePoints[2]];
 const draftCurveSpline = new THREE.CatmullRomCurve3(draftCurvePoints, false, 'centripetal', 0.5);
 const draftCurveScratch = new THREE.Vector3();
 /* Drafting overlays: persistent axis grids for SIDE and FRONT views.
@@ -2418,26 +2419,29 @@ function draftPointFromRay() {
 /* Write only the final spline span after a proposed point. For N>=2,
    the last span's Catmull-Rom controls are [previous, end, candidate];
    the spline extrapolates its end tangent exactly as the full open
-   coaster does. N=1 is linear, matching a two-point open spline.
+   coaster does. For N=1 use the actual TWO-point Catmull-Rom curve
+   (Three's parameterization is not a straight linear interpolation).
    The same 1.5m segment-height guardrail as computeOpenTrack applies.
    Geometry and return value are preview-only; zero node mutations. */
 function sampleDraftCurveSpan(list, candidate, out, steps, spline, scratch) {
   if (!list.length || !candidate || steps < 1) return 0;
   const end = list[list.length - 1], prev = list[list.length - 2];
   if (prev) {
+    spline.points = draftCurvePoints;
     spline.points[0].set(prev.x, prev.h, prev.z);
     spline.points[1].set(end.x, end.h, end.z);
     spline.points[2].set(candidate.x, candidate.h, candidate.z);
+  } else {
+    spline.points = draftCurvePair;
+    spline.points[0].set(end.x, end.h, end.z);
+    spline.points[1].set(candidate.x, candidate.h, candidate.z);
   }
   const low = Math.min(end.h, candidate.h) - 1.5;
   const high = Math.max(end.h, candidate.h) + 1.5;
   let arc = 0, px = end.x, py = end.h, pz = end.z;
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
-    if (prev) spline.getPoint(0.5 + t * 0.5, scratch);
-    else scratch.set(end.x + (candidate.x-end.x)*t,
-                     end.h + (candidate.h-end.h)*t,
-                     end.z + (candidate.z-end.z)*t);
+    spline.getPoint(prev ? 0.5 + t * 0.5 : t, scratch);
     const y = THREE.MathUtils.clamp(scratch.y, low, high), j = i*3;
     out[j] = scratch.x; out[j+1] = y; out[j+2] = scratch.z;
     if (i) arc += Math.hypot(scratch.x-px, y-py, scratch.z-pz);
