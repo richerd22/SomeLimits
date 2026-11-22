@@ -51,6 +51,18 @@ export function fitLinkedView(view, nodes, samples, width, height) {
   return {u:(minU+maxU)/2,v:(minV+maxV)/2,
     scale:Math.max(.12,Math.min(30,w/spanU,h/spanV))};
 }
+/* Keep a movable/resizable secondary drawing fully onscreen. Pure
+   layout math: not a node, game camera, track sample or physics input. */
+export function clampLinkedRect(rect, windowWidth, windowHeight) {
+  const w=Math.max(1,windowWidth),h=Math.max(1,windowHeight);
+  const minW=Math.min(360,Math.max(100,w-16));
+  const minH=Math.min(200,Math.max(100,h-16));
+  const width=Math.max(minW,Math.min(Number.isFinite(rect?.width)?rect.width:390,w-16));
+  const height=Math.max(minH,Math.min(Number.isFinite(rect?.height)?rect.height:310,h-16));
+  const left=Math.max(8,Math.min(Number.isFinite(rect?.left)?rect.left:w-width-12,w-width-8));
+  const top=Math.max(8,Math.min(Number.isFinite(rect?.top)?rect.top:h-height-12,h-height-8));
+  return {left:Math.round(left),top:Math.round(top),width:Math.round(width),height:Math.round(height)};
+}
 export function canvasToPlane(viewport, x, y, width, height) {
   return {u:viewport.u+(x-width/2)/viewport.scale,
     v:viewport.v-(y-height/2)/viewport.scale};
@@ -72,6 +84,12 @@ export function createLinkedDrafter({
   let view='top',visible=false,active=null,lastWidth=0,lastHeight=0;
   let drawnNodeCount=-1;
   canvas.style.touchAction='none';canvas.tabIndex=0;
+  /* The pane can be resized without rebuilding rails or reallocating
+     WebGL resources. Canvas backing pixels follow CSS size at DPR≤2. */
+  if(typeof ResizeObserver!=='undefined'){
+    const sizeObserver=new ResizeObserver(()=>{if(visible)refresh()});
+    sizeObserver.observe(canvas);
+  }
   const dimensions=()=>{
     const rect=canvas.getBoundingClientRect();
     return {w:Math.max(1,rect.width),h:Math.max(1,rect.height)};
