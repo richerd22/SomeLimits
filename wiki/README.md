@@ -59,3 +59,4 @@ v1, shipped. Anything beyond the shipped list in these pages is marked planned.
 - [Optional 1m/5m drawing snap, TOP ghost preview and measured next segment](drafting-snap-round29.md) (Round 29)
 - [Honest curved ghost rail preview, actual-spline point refinement and lift continuity](curve-truth-round30.md) (Round 30)
 - [Adjustable next-section distance, turn angle and drop geometry behind the advanced inspector](advanced-section-dimensions-round31.md) (Round 31)
+- [Simultaneous linked 2D/3D editing, independent TOP/SIDE/FRONT paper and shared Undo history](linked-drafter-round32.md) (Round 32)
