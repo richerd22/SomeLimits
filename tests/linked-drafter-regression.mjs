@@ -2,7 +2,7 @@
 // the 3D physics renderer and edits only the visible source node axes.
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {planePoint,fromPlane,fitLinkedView,planeToCanvas,canvasToPlane} from '../play/linked-drafter.js';
+import {planePoint,fromPlane,fitLinkedView,planeToCanvas,canvasToPlane,clampLinkedRect} from '../play/linked-drafter.js';
 
 const base={x:17.3,z:-26.6,h:42.5,bank:-35,station:true,lift:true};
 const old=structuredClone(base);
@@ -53,6 +53,25 @@ for(const view of ['top','side','front']){
  const vp=fitLinkedView(view,many,[],380,220);
  assert.ok(vp.scale>=.12&&vp.scale<=30,'large coaster fits without invalid zoom');
 }
+for(const rect of [
+  {left:-400,top:-50,width:5000,height:3000},
+  {left:1400,top:900,width:480,height:340},
+  {left:100,top:120,width:390,height:310}
+]){
+ const b=clampLinkedRect(rect,1440,900);
+ assert.ok(b.width>=360&&b.width<=1424,'desktop resize keeps a viable paper width');
+ assert.ok(b.height>=200&&b.height<=884,'desktop resize keeps viable paper height');
+ assert.ok(b.left>=8&&b.left+b.width<=1432,'desktop pane cannot disappear horizontally');
+ assert.ok(b.top>=8&&b.top+b.height<=892,'desktop pane cannot disappear vertically');
+ assert.ok(Object.values(b).every(Number.isFinite),'restored coordinates must be finite');
+}
+assert.deepEqual(clampLinkedRect({left:100,top:120,width:390,height:310},1440,900),
+ {left:100,top:120,width:390,height:310},'normal layout is never silently moved');
+const tiny=clampLinkedRect({left:-2,top:900,width:900,height:600},390,844);
+assert.ok(tiny.left>=8&&tiny.top>=8&&tiny.left+tiny.width<=382);
+assert.ok(tiny.top+tiny.height<=836);
+const bad=clampLinkedRect({left:NaN,top:Infinity,width:0,height:NaN},1440,900);
+assert.ok(Object.values(bad).every(Number.isFinite),'corrupt stored layout cannot poison editor geometry');
 const html=readFileSync(new URL('../play/index.html',import.meta.url),'utf8');
 assert.ok(html.includes("import { createLinkedDrafter } from './linked-drafter.js';"));
 for(const name of ['linkedPane','linkedCanvas','btnLinkedPane','linkedFit','linkedZoomOut',
@@ -67,7 +86,15 @@ for(const code of [
  "queueTrackPreview(); // shared one-per-frame original spline",
  "buildTrack();commit(); // one Undo entry for the entire linked drag",
  "onRestore(index, original)",
- "if (e.key === 'j' || e.key === 'J') toggleLinkedPane();"
+ "if (e.key === 'j' || e.key === 'J') toggleLinkedPane();",
+ "function applyLinkedWindowRect(rect,persist=false){",
+ "linkedWindow.style.right='auto';",
+ "linkedWindow.style.bottom='auto';",
+ "localStorage.setItem(LINKED_LAYOUT_KEY,JSON.stringify(next));",
+ "grip.setPointerCapture(e.pointerId);",
+ "applyLinkedWindowRect(gesture.original); // no partial preferences",
+ "linkedResize.addEventListener('keydown',e=>{",
+ "addEventListener('resize',restoreLinkedWindowLayout);"
 ])assert.ok(html.includes(code),'source node/edit lifecycle missing '+code);
 const core=html.match(/\/\* === CORE START === \*\/([\s\S]*?)\/\* === CORE END === \*\//)?.[1];
 assert.ok(core&&!core.includes('linkedPane'),'physics core may not depend on second viewport');
