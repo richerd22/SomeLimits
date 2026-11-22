@@ -97,10 +97,11 @@ export function createLinkedDrafter({
   const ctx=canvas.getContext('2d',{alpha:false});
   if (!ctx) return {refresh(){},resetFraming(){},syncMode(){},setVisible(){},getView(){return 'top';}};
   const status=element.querySelector('#linkedStatus');
+  const tangentToggle=element.querySelector('#linkedTangent');
   const viewButtons=Array.from(element.querySelectorAll('[data-linked-view]'));
   const viewports={top:null,side:null,front:null};
   const chooser=element.querySelector('#linkedMode');
-  let view='top',visible=false,active=null,lastWidth=0,lastHeight=0;
+  let view='top',visible=false,active=null,lastWidth=0,lastHeight=0,tangentLocked=false;
   let drawnNodeCount=-1;
   canvas.style.touchAction='none';canvas.tabIndex=0;
   /* The pane can be resized without rebuilding rails or reallocating
@@ -128,6 +129,13 @@ export function createLinkedDrafter({
   }
   function setStatus(value) {
     if (status) status.textContent=value;
+  }
+  function setTangentLocked(value) {
+    tangentLocked=!!value;
+    tangentToggle?.setAttribute('aria-pressed',String(tangentLocked));
+    tangentToggle?.setAttribute('title',tangentLocked ?
+      'Tangent lock is on: drag follows the gold guide' :
+      'Lock linked node drags to the visible tangent');
   }
   function drawGrid(w,h,vp){
     const step=vp.scale>7?5:vp.scale>2.5?10:25;
@@ -255,11 +263,12 @@ export function createLinkedDrafter({
     const p=coordinates(e),s=state(),index=e.button===2?-1:pick(p,s);
     active={id:e.pointerId,index,original:index>=0?{...s.nodes[index]}:null,
       x:p.x,y:p.y,startU:viewport().u,startV:viewport().v,
-      moved:false,changed:false,panning:e.button===2,
+      moved:false,changed:false,panning:e.button===2,tangentLock:tangentLocked,
       tangent:index>=0?linkedTangent(view,s.nodes,index,!s.building):null};
     canvas.setPointerCapture(e.pointerId);
     if(index>=0&&index!==s.selected)onSelect(index);
-    setStatus(index<0?'tap to extend · drag to pan':'node '+(index+1)+' · drag to reshape · Shift locks tangent');
+    setStatus(index<0?'tap to extend · drag to pan':'node '+(index+1)+' · drag to reshape · '+
+      (tangentLocked?'tangent lock on':'Shift or TANGENT locks guide'));
     e.preventDefault();
   });
   canvas.addEventListener('pointermove',e=>{
@@ -281,7 +290,7 @@ export function createLinkedDrafter({
     if(active.index>=0&&!active.panning){
       const world=canvasToPlane(viewport(),p.x,p.y,w,h);
       const origin=planePoint(view,active.original);
-      const constrained=e.shiftKey ? constrainToTangent(origin,world,
+      const constrained=(e.shiftKey||active.tangentLock) ? constrainToTangent(origin,world,
         active.tangent) : world;
       const move=fromPlane(view,constrained,active.original,s.snap);
       if(move&&onMove(active.index,move))active.changed=true;
@@ -318,6 +327,10 @@ export function createLinkedDrafter({
   for(const b of viewButtons)b.addEventListener('click',()=>setView(b.dataset.linkedView));
   element.querySelector('#linkedFit').addEventListener('click',fit);
   element.querySelector('#linkedZoomIn').addEventListener('click',()=>zoom(1.25));
+  tangentToggle?.addEventListener('click',()=>{
+    setTangentLocked(!tangentLocked);
+    setStatus(tangentLocked?'tangent lock on · drag a node along the gold guide':'tangent lock off · Shift still locks one drag');
+  });
   element.querySelector('#linkedZoomOut').addEventListener('click',()=>zoom(.8));
   element.querySelector('#linkedClose').addEventListener('click',()=>{setVisible(false);onClose?.();});
   canvas.addEventListener('keydown',e=>{
@@ -351,6 +364,7 @@ export function createLinkedDrafter({
   }
   return {
     refresh,fit,setView,setVisible,syncMode,
+    setTangentLocked,isTangentLocked(){return tangentLocked;},
     resetFraming(){for(const v of LINKED_VIEWS)viewports[v]=null;drawnNodeCount=-1;refresh()},
     getView(){return view},
     isVisible(){return visible}

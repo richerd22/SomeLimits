@@ -46,6 +46,8 @@ The linked TOP/SIDE/FRONT drawing pane can now **move and resize** without cover
 
 Round 34 makes curve shaping more deliberate: the linked drawing pane now shows the selected node's **local tangent** as a gold dashed guide. Hold **Shift** while dragging a node to constrain that gesture along the guide—ideal for easing a crest or turn without accidentally pulling it sideways. This is an opt-in input constraint over the original control nodes, not a new curve or physics model; it never automatically rewrites neighbours, presets, or saved files. [Tangent shaping design](wiki/tangent-shaping-round34.md).
 
+Round 35 makes tangent shaping usable without a physical keyboard: the linked paper has an explicit **TANGENT** toggle. Turn it on to constrain node drags along the visible guide; keep using Shift for a one-drag shortcut. The switch is temporary editor chrome—not coaster data, a preset change, or a new simulation control. [Keyboard-free tangent lock](wiki/tangent-lock-round35.md).
+
 ## What you get
 
 - A complete closed-circuit coaster, end to end: station, lift hill, drops, banked turns, inversions if you build them, brake run back to the station.
