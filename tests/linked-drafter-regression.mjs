@@ -2,7 +2,7 @@
 // the 3D physics renderer and edits only the visible source node axes.
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {planePoint,fromPlane,fitLinkedView,planeToCanvas,canvasToPlane,clampLinkedRect} from '../play/linked-drafter.js';
+import {planePoint,fromPlane,fitLinkedView,planeToCanvas,canvasToPlane,clampLinkedRect,linkedTangent,constrainToTangent} from '../play/linked-drafter.js';
 
 const base={x:17.3,z:-26.6,h:42.5,bank:-35,station:true,lift:true};
 const old=structuredClone(base);
@@ -28,6 +28,17 @@ assert.deepEqual(fromPlane('side',{u:300,v:-400},base),
 assert.equal(fromPlane('side',{u:Infinity,v:0},base),null);
 assert.equal(fromPlane('front',{u:0,v:NaN},base),null);
 assert.deepEqual(base,old,'draw projections cannot mutate nodes or station/lift flags');
+const tangentNodes=[{x:0,z:0,h:3},{x:10,z:0,h:13},{x:30,z:10,h:23}];
+const sideTangent=linkedTangent('side',tangentNodes,1,false);
+assert.ok(sideTangent&&Math.abs(sideTangent.u-3/Math.sqrt(13))<1e-12&&
+  Math.abs(sideTangent.v-2/Math.sqrt(13))<1e-12,'interior SIDE tangent follows the true neighboring node direction');
+const tangentOrigin=planePoint('side',tangentNodes[1]);
+const tangentMove=constrainToTangent(tangentOrigin,{u:26,v:9},sideTangent);
+assert.ok(Math.abs((tangentMove.u-tangentOrigin.u)*sideTangent.v-
+  (tangentMove.v-tangentOrigin.v)*sideTangent.u)<1e-12,'tangent constraint removes only perpendicular drag motion');
+assert.equal(linkedTangent('top',[base],0,false),null,'one node has no invented tangent');
+assert.ok(linkedTangent('top',tangentNodes,0,false),'open endpoint uses its one real adjacent direction');
+assert.ok(linkedTangent('top',tangentNodes,0,true),'closed endpoint wraps to real final neighbor');
 
 for(const view of ['top','side','front']){
   const nodes=[base,{x:30,z:60,h:6,bank:40},{x:-45,z:-22,h:27,bank:80}];
@@ -73,6 +84,9 @@ assert.ok(tiny.top+tiny.height<=836);
 const bad=clampLinkedRect({left:NaN,top:Infinity,width:0,height:NaN},1440,900);
 assert.ok(Object.values(bad).every(Number.isFinite),'corrupt stored layout cannot poison editor geometry');
 const html=readFileSync(new URL('../play/index.html',import.meta.url),'utf8');
+const drafterSource=readFileSync(new URL('../play/linked-drafter.js',import.meta.url),'utf8');
+for(const code of ["linkedTangent(view,s.nodes,s.selected,!s.building)","e.shiftKey ? constrainToTangent"])
+  assert.ok(drafterSource.includes(code),'tangent interaction wiring missing '+code);
 assert.ok(html.includes("import { createLinkedDrafter, clampLinkedRect } from './linked-drafter.js';"));
 for(const name of ['linkedPane','linkedCanvas','btnLinkedPane','linkedFit','linkedZoomOut',
   'linkedZoomIn','linkedClose','linkedStatus','linkedResize'])

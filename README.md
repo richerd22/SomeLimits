@@ -44,6 +44,8 @@ Round 32 introduces a **simultaneous, editable linked 2D drawing pane** alongsid
 
 The linked TOP/SIDE/FRONT drawing pane can now **move and resize** without covering the same part of your coaster: drag its header to reposition, drag the lime corner to resize, and use arrow keys on the focused resize handle for keyboard precision. Its workspace layout survives reloads independently of saved coaster geometry and physics. [Round 33 workspace design](wiki/linked-workspace-round33.md).
 
+Round 34 makes curve shaping more deliberate: the linked drawing pane now shows the selected node's **local tangent** as a gold dashed guide. Hold **Shift** while dragging a node to constrain that gesture along the guide—ideal for easing a crest or turn without accidentally pulling it sideways. This is an opt-in input constraint over the original control nodes, not a new curve or physics model; it never automatically rewrites neighbours, presets, or saved files. [Tangent shaping design](wiki/tangent-shaping-round34.md).
+
 ## What you get
 
 - A complete closed-circuit coaster, end to end: station, lift hill, drops, banked turns, inversions if you build them, brake run back to the station.

@@ -252,6 +252,42 @@ try {
     'tapping SIDE linked paper adds next node while retaining hidden Z');
   assert.ok(addedLinked.nodes[1].h>afterLinkedSide.nodes[0].h+1,
     'SIDE linked paper can draw an uphill segment with 3D still visible');
+  /* Round 34: Shift is an explicit tangent-shaping constraint. It is
+     available on the desktop drawing paper, moves only the grabbed source
+     node, and must create no new curve controls or hidden node changes. */
+  await p.locator('#linkedFit').click();
+  const tangentBefore=await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  const tangentPixel=await p.evaluate(async()=>{
+    const lib=await import('/play/linked-drafter.js');
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    const rect=document.getElementById('linkedCanvas').getBoundingClientRect();
+    const vp=lib.fitLinkedView('side',d.nodes,[],rect.width,rect.height);
+    const px=lib.planeToCanvas(vp,lib.planePoint('side',d.nodes[0]),rect.width,rect.height);
+    return {x:rect.x+px.x,y:rect.y+px.y};
+  });
+  await p.mouse.move(tangentPixel.x,tangentPixel.y);
+  await p.mouse.down();
+  await p.keyboard.down('Shift');
+  await p.mouse.move(tangentPixel.x+44,tangentPixel.y-53,{steps:8});
+  await p.keyboard.up('Shift');
+  await p.mouse.up();
+  await p.waitForFunction(before=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.nodes?.length===2 && (d.nodes[0].x!==before.nodes[0].x || d.nodes[0].h!==before.nodes[0].h);
+  },tangentBefore,{timeout:15000});
+  const tangentAfter=await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  const dx=tangentAfter.nodes[0].x-tangentBefore.nodes[0].x;
+  const dh=tangentAfter.nodes[0].h-tangentBefore.nodes[0].h;
+  const tx=tangentBefore.nodes[1].x-tangentBefore.nodes[0].x;
+  const th=tangentBefore.nodes[1].h-tangentBefore.nodes[0].h;
+  assert.ok(Math.abs(dx*th-dh*tx)<0.15,
+    'desktop Shift-drag must constrain the linked SIDE node to its visible tangent');
+  assert.deepEqual(tangentAfter.nodes.slice(1),tangentBefore.nodes.slice(1),
+    'tangent shaping must not silently move neighboring source nodes');
+  await p.locator('#btnUndo').click();
+  await p.waitForFunction(before=>JSON.stringify(JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes)===JSON.stringify(before.nodes),
+    tangentBefore,{timeout:10000});
+  console.log('PASS desktop linked tangent: explicit Shift-drag follows guide, preserves neighbor, exact Undo');
   await p.locator('#btnUndo').click();
   assert.deepEqual((await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
     afterLinkedSide.nodes,'linked click-to-extend is a single undoable document edit');
