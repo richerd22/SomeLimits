@@ -257,8 +257,12 @@ try {
     afterLinkedSide.nodes,'linked click-to-extend is a single undoable document edit');
   await p.locator('#linkedClose').click();
   assert.equal(await p.locator('#linkedPane').isVisible(),false,'linked close hides the pane');
+  assert.equal(await p.locator('#btnLinkedPane').textContent(),'linked 2D pane: off',
+    'closing the linked canvas must synchronize the main inspector toggle');
   await p.locator('#btnLinkedPane').click();
   assert.equal(await p.locator('#linkedPane').isVisible(),true,'inspector toggle reopens linked pane');
+  assert.equal(await p.locator('#btnLinkedPane').textContent(),'linked 2D pane: on',
+    'main inspector and linked view stay synchronized after reopening');
   assert.deepEqual(deskErrors,[],'no errors in linked two-pane WebGL/Canvas2D workflow');
   console.log('PASS desktop LINKED 2D+3D: SIDE+FRONT actual drags, exact hidden axes, independent main 3D view, open-track placement, Undo/Redo and toggle');
   /* A continuous desktop software-WebGL render loop can starve the
