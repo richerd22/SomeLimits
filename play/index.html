@@ -2073,6 +2073,7 @@ function buildTrack() {
      release, like everything else. */
   if (dragging < 0 && banking < 0 && heightDrag < 0 && gripBank < 0) updateTerrain();
   syncPanel(); syncBuildUI();
+  linkedPane?.refresh();
 }
 
 /* fit the whole circuit in view - the first-screen framing fix.
@@ -2348,6 +2349,7 @@ function buildLoneStation() {
   $('dsH').textContent = nodes.length ? nodes[0].h.toFixed(1) + ' m' : '-';
   $('dsN').textContent = String(nodes.length);
   syncBuildUI();
+  linkedPane?.refresh();
 }
 
 /* frame the empty plot - there is no track to fit yet, just the
@@ -2785,6 +2787,7 @@ function setMode(m) {
   $('buildTools').style.display = m === 'edit' && building ? 'block' : 'none';
   $('sectionOptions').style.display = m === 'edit' && building ? 'block' : 'none';
   updateDraftingVisibility();
+  linkedPane?.syncMode();
 }
 $('btnRide').addEventListener('click', startRide);
 $('btnView').addEventListener('click', () => { if (mode === 'ride') cycleView(); });
@@ -2931,6 +2934,7 @@ function applyState(st) {
    loading a document (new / preset / library / import) is not an
    edit - undo must never walk back into a different coaster. */
 function resetHistory() {
+  linkedPane?.resetFraming();
   draftingCameraStates = Object.create(null); // new/imported document, never stale camera targets
   history = []; hIndex = -1; commit();
 }
@@ -4194,6 +4198,7 @@ addEventListener('keydown', e => {
     if (e.key === 'r' || e.key === 'R') startRide();
     if (e.key === 'f' || e.key === 'F') frameTrack();
     if (e.key === 'n' || e.key === 'N') addNode();
+    if (e.key === 'j' || e.key === 'J') toggleLinkedPane();
     if (e.key === '[' || e.key === ']') {
       if (!document.querySelector('.overlay.open')) {
         e.preventDefault(); stepSelectedNode(e.key === '[' ? -1 : 1);
@@ -4241,6 +4246,60 @@ setInterval(() => {
   hintIdx = (hintIdx + 1) % HINTS.length;
   $('hint').innerHTML = HINTS[hintIdx];
 }, 6500);
+
+/* ---------------- linked 2D/3D drafting panel ----------------
+   One Canvas2D projection of the SAME source track. Dragging a point
+   changes only its displayed axes; the established preview/commit
+   system owns 3D rebuilding, Undo and autosave. No second WebGL. */
+linkedPane = createLinkedDrafter({
+  element: $('linkedPane'), canvas: $('linkedCanvas'),
+  getState: () => ({nodes,track,selected,building,mode,snap:draftSnap}),
+  onSelect(index) {
+    if(mode!=='edit'||!nodes[index])return;
+    selected=index;
+    buildTrack(); // same selected node in 3D and both inspector views
+  },
+  onMove(index, next) {
+    if(mode!=='edit'||!nodes[index]||!next)return false;
+    const n=nodes[index];
+    if(n.x===next.x&&n.z===next.z&&n.h===next.h)return false;
+    n.x=next.x;n.z=next.z;n.h=next.h;
+    queueTrackPreview(); // shared one-per-frame original spline
+    return true;
+  },
+  onCommit() {
+    buildTrack();commit(); // one Undo entry for the entire linked drag
+  },
+  onRestore(index, original) {
+    if(!nodes[index]||!original)return;
+    Object.assign(nodes[index],original); // cancellation never autosaves
+    buildTrack();
+  },
+  onPlace(view,node) {
+    if(mode!=='edit'||!building)return;
+    if(!nodes.length||view==='top')
+      buildClickAtGround({x:node.x,z:node.z});
+    else buildClickAtElevation(node); // preserve hidden coordinate
+  }
+});
+const LINKED_VISIBLE_KEY='somelimits-linked-drafter-visible-v1';
+let linkedPaneVisible=innerWidth>=1200; // default visible desktop, closed phone
+try {
+  const saved=localStorage.getItem(LINKED_VISIBLE_KEY);
+  if(saved==='1'||saved==='0')linkedPaneVisible=saved==='1';
+} catch {}
+function setLinkedPaneVisible(open){
+  linkedPaneVisible=!!open;
+  linkedPane.setVisible(linkedPaneVisible);
+  $('btnLinkedPane').textContent='linked 2D pane: '+(linkedPaneVisible?'on':'off');
+  $('btnLinkedPane').setAttribute('aria-pressed',String(linkedPaneVisible));
+  try {localStorage.setItem(LINKED_VISIBLE_KEY,linkedPaneVisible?'1':'0')}catch{}
+}
+function toggleLinkedPane(){
+  if(mode==='edit')setLinkedPaneVisible(!linkedPaneVisible);
+}
+$('btnLinkedPane').addEventListener('click',toggleLinkedPane);
+setLinkedPaneVisible(linkedPaneVisible);
 
 /* ---------------- boot + main loop ---------------- */
 (function boot() {
