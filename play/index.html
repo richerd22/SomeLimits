@@ -4275,6 +4275,7 @@ linkedPane = createLinkedDrafter({
     Object.assign(nodes[index],original); // cancellation never autosaves
     buildTrack();
   },
+  onClose() { setLinkedPaneVisible(false); },
   onPlace(view,node) {
     if(mode!=='edit'||!building)return;
     if(!nodes.length||view==='top')
@@ -4296,7 +4297,7 @@ function setLinkedPaneVisible(open){
   try {localStorage.setItem(LINKED_VISIBLE_KEY,linkedPaneVisible?'1':'0')}catch{}
 }
 function toggleLinkedPane(){
-  if(mode==='edit')setLinkedPaneVisible(!linkedPaneVisible);
+  if(mode==='edit')setLinkedPaneVisible(!linkedPane.isVisible());
 }
 $('btnLinkedPane').addEventListener('click',toggleLinkedPane);
 setLinkedPaneVisible(linkedPaneVisible);
