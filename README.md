@@ -50,6 +50,8 @@ Round 35 makes tangent shaping usable without a physical keyboard: the linked pa
 
 Round 36 remembers that workspace choice: focus the linked paper and press **T** to toggle tangent lock, or use the visible button on touch. Its on/off state survives reloads alongside the workspace layout, while remaining strictly outside coaster files, autosaves, presets and physics. [Remembered tangent workspace control](wiki/tangent-workspace-round36.md).
 
+Round 37 makes the guide itself truthful: tangent lock now follows the actual **centripetal Catmull–Rom rail direction**, not just a shortcut through neighboring control points. Uneven crests and turns shape along the rail you see, with no change to the spline, saved coasters or ride physics. [Rail-accurate tangent guide](wiki/rail-tangent-round37.md).
+
 ## What you get
 
 - A complete closed-circuit coaster, end to end: station, lift hill, drops, banked turns, inversions if you build them, brake run back to the station.

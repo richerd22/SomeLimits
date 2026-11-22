@@ -73,17 +73,36 @@ export function planeToCanvas(viewport, point, width, height) {
     y:height/2-(point.v-viewport.v)*viewport.scale};
 }
 
-/* Catmull-Rom derives a node's direction from its neighbouring control
-   points. This is deliberately a guide/constraint, not another saved handle:
-   the same source nodes still define the rail, its physics and every preset. */
+/* Match the shipped centripetal Catmull-Rom rail at the control node itself.
+   This is deliberately a guide/constraint, not another saved handle: the
+   same source nodes still define the rail, its physics and every preset. */
 export function linkedTangent(view, nodes, index, closed = false) {
   if (!Array.isArray(nodes) || index < 0 || index >= nodes.length || nodes.length < 2)
     return null;
   const count=nodes.length;
-  const before=index>0 ? index-1 : (closed ? count-1 : index);
-  const after=index<count-1 ? index+1 : (closed ? 0 : index);
-  const a=planePoint(view,nodes[before]),b=planePoint(view,nodes[after]);
-  const u=b.u-a.u,v=b.v-a.v,length=Math.hypot(u,v);
+  const pointAt=i=>{
+    if(closed)return nodes[(i%count+count)%count];
+    if(i<0){const a=nodes[0],b=nodes[1];return {x:2*a.x-b.x,h:2*(a.h??a.y)- (b.h??b.y),z:2*a.z-b.z};}
+    if(i>=count){const a=nodes[count-1],b=nodes[count-2];return {x:2*a.x-b.x,h:2*(a.h??a.y)-(b.h??b.y),z:2*a.z-b.z};}
+    return nodes[i];
+  };
+  /* Three's nonuniform CubicPoly derivative at the segment endpoint.
+     `dt = distance^0.5` is its centripetal (alpha .5) parameterization. */
+  const segment=closed?index:Math.min(index,count-2),atEnd=!closed&&index===count-1;
+  const p0=pointAt(segment-1),p1=pointAt(segment),p2=pointAt(segment+1),p3=pointAt(segment+2);
+  const vec=p=>({x:p.x,y:p.h??p.y,z:p.z});
+  const a=vec(p0),b=vec(p1),c=vec(p2),d=vec(p3);
+  let dt0=Math.pow((a.x-b.x)**2+(a.y-b.y)**2+(a.z-b.z)**2,.25);
+  let dt1=Math.pow((b.x-c.x)**2+(b.y-c.y)**2+(b.z-c.z)**2,.25);
+  let dt2=Math.pow((c.x-d.x)**2+(c.y-d.y)**2+(c.z-d.z)**2,.25);
+  if(dt1<1e-4)dt1=1;
+  if(dt0<1e-4)dt0=dt1;
+  if(dt2<1e-4)dt2=dt1;
+  const tangent=(p,q,r,s,first)=>first ?
+    (q-p)/dt0-(r-p)/(dt0+dt1)+(r-q)/dt1 :
+    (r-q)/dt1-(s-q)/(dt1+dt2)+(s-r)/dt2;
+  const t={x:tangent(a.x,b.x,c.x,d.x,!atEnd),y:tangent(a.y,b.y,c.y,d.y,!atEnd),z:tangent(a.z,b.z,c.z,d.z,!atEnd)};
+  const u=view==='front'?-t.z:t.x,v=view==='top'?-t.z:t.y,length=Math.hypot(u,v);
   return length>1e-8 ? {u:u/length,v:v/length} : null;
 }
 export function constrainToTangent(origin, candidate, tangent) {
