@@ -4309,6 +4309,98 @@ function toggleLinkedPane(){
   if(mode==='edit')setLinkedPaneVisible(!linkedPane.isVisible());
 }
 $('btnLinkedPane').addEventListener('click',toggleLinkedPane);
+
+/* The second viewport is a workspace window: position and dimensions
+   belong to editor preferences, NEVER to coaster node documents.
+   Move by its empty header; resize by its lower-right lime grip. */
+const LINKED_LAYOUT_KEY='somelimits-linked-pane-layout-v1';
+const linkedWindow=$('linkedPane');
+const linkedHeader=linkedWindow.querySelector('header');
+const linkedResize=$('linkedResize');
+let linkedSavedRect=null;
+try {
+  const saved=JSON.parse(localStorage.getItem(LINKED_LAYOUT_KEY)||'null');
+  if(saved && ['left','top','width','height'].every(k=>Number.isFinite(saved[k])))
+    linkedSavedRect=saved;
+} catch {}
+function linkedCurrentRect(){
+  const r=linkedWindow.getBoundingClientRect();
+  return {left:r.left,top:r.top,width:r.width,height:r.height};
+}
+function applyLinkedWindowRect(rect,persist=false){
+  if(innerWidth<900)return;
+  const next=clampLinkedRect(rect,innerWidth,innerHeight);
+  linkedWindow.style.left=next.left+'px';
+  linkedWindow.style.top=next.top+'px';
+  linkedWindow.style.width=next.width+'px';
+  linkedWindow.style.height=next.height+'px';
+  linkedWindow.style.right='auto';
+  linkedWindow.style.bottom='auto';
+  linkedPane.refresh(); // CSS pixels and backing DPR update independently
+  if(persist){
+    linkedSavedRect=next;
+    try {localStorage.setItem(LINKED_LAYOUT_KEY,JSON.stringify(next));}catch{}
+  }
+}
+function restoreLinkedWindowLayout(){
+  if(innerWidth<900){
+    for(const key of ['left','top','width','height','right','bottom'])
+      linkedWindow.style[key]=''; // portrait CSS owns the small drawing
+    linkedPane.refresh();
+  }else if(linkedSavedRect){
+    applyLinkedWindowRect(linkedSavedRect);
+  }else {
+    linkedPane.refresh(); // original anchored desktop default
+  }
+}
+if(innerWidth>=900 && linkedSavedRect)applyLinkedWindowRect(linkedSavedRect);
+let linkedWindowGesture=null;
+for(const [kind,grip] of [['move',linkedHeader],['resize',linkedResize]]){
+  grip.addEventListener('pointerdown',e=>{
+    if(e.button!==0||innerWidth<900||linkedWindowGesture||
+       (kind==='move'&&e.target.closest('button')))return;
+    linkedWindowGesture={id:e.pointerId,kind,startX:e.clientX,startY:e.clientY,
+      original:linkedCurrentRect()};
+    grip.setPointerCapture(e.pointerId);
+    e.preventDefault();e.stopPropagation();
+  });
+  grip.addEventListener('pointermove',e=>{
+    const gesture=linkedWindowGesture;
+    if(!gesture||gesture.kind!==kind||gesture.id!==e.pointerId)return;
+    const dx=e.clientX-gesture.startX,dy=e.clientY-gesture.startY;
+    const rect=gesture.original;
+    applyLinkedWindowRect(kind==='move' ?
+      {...rect,left:rect.left+dx,top:rect.top+dy} :
+      {...rect,width:rect.width+dx,height:rect.height+dy});
+    e.preventDefault();e.stopPropagation();
+  });
+  grip.addEventListener('pointerup',e=>{
+    const gesture=linkedWindowGesture;
+    if(!gesture||gesture.kind!==kind||gesture.id!==e.pointerId)return;
+    linkedWindowGesture=null;
+    if(grip.hasPointerCapture(e.pointerId))grip.releasePointerCapture(e.pointerId);
+    applyLinkedWindowRect(linkedCurrentRect(),true);
+    e.preventDefault();e.stopPropagation();
+  });
+  grip.addEventListener('pointercancel',e=>{
+    const gesture=linkedWindowGesture;
+    if(!gesture||gesture.kind!==kind||gesture.id!==e.pointerId)return;
+    linkedWindowGesture=null;
+    applyLinkedWindowRect(gesture.original); // no partial preferences
+    e.stopPropagation();
+  });
+}
+linkedResize.addEventListener('keydown',e=>{
+  if(innerWidth<900||!['ArrowRight','ArrowLeft','ArrowUp','ArrowDown'].includes(e.key))return;
+  const r=linkedCurrentRect(),delta=e.shiftKey?40:20;
+  if(e.key==='ArrowRight')r.width+=delta;
+  if(e.key==='ArrowLeft')r.width-=delta;
+  if(e.key==='ArrowDown')r.height+=delta;
+  if(e.key==='ArrowUp')r.height-=delta;
+  applyLinkedWindowRect(r,true);
+  e.preventDefault();e.stopPropagation();
+});
+addEventListener('resize',restoreLinkedWindowLayout);
 setLinkedPaneVisible(linkedPaneVisible);
 
 /* ---------------- boot + main loop ---------------- */
