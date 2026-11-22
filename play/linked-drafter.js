@@ -61,7 +61,7 @@ export function planeToCanvas(viewport, point, width, height) {
 }
 
 export function createLinkedDrafter({
-  element,canvas,getState,onSelect,onMove,onCommit,onRestore,onPlace
+  element,canvas,getState,onSelect,onMove,onCommit,onRestore,onPlace,onClose
 }) {
   const ctx=canvas.getContext('2d',{alpha:false});
   if (!ctx) return {refresh(){},resetFraming(){},syncMode(){},setVisible(){},getView(){return 'top';}};
@@ -270,7 +270,7 @@ export function createLinkedDrafter({
   element.querySelector('#linkedFit').addEventListener('click',fit);
   element.querySelector('#linkedZoomIn').addEventListener('click',()=>zoom(1.25));
   element.querySelector('#linkedZoomOut').addEventListener('click',()=>zoom(.8));
-  element.querySelector('#linkedClose').addEventListener('click',()=>setVisible(false));
+  element.querySelector('#linkedClose').addEventListener('click',()=>{setVisible(false);onClose?.();});
   canvas.addEventListener('keydown',e=>{
     if(!e.key.startsWith('Arrow'))return;
     const s=state(),n=s.nodes[s.selected];if(!n)return;
