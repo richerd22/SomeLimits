@@ -42,6 +42,8 @@ The one-tap **LEVEL / LEFT / RIGHT / DROP** actions now have optional section di
 
 Round 32 introduces a **simultaneous, editable linked 2D drawing pane** alongside the 3D coaster. Switch the secondary pane among TOP/SIDE/FRONT, drag real control nodes to shape turns, lifts or drops while the main camera stays in 3D, or tap the paper to extend an open track. It shares the original Undo/Redo and track data, supports independent pan/zoom/FIT, and uses just one lightweight Canvas2D—**no second WebGL context or physics copy**. Visible by default on roomy desktops; toggle with J or the inspector. [Engineering notes and limitations](wiki/linked-drafter-round32.md).
 
+The linked TOP/SIDE/FRONT drawing pane can now **move and resize** without covering the same part of your coaster: drag its header to reposition, drag the lime corner to resize, and use arrow keys on the focused resize handle for keyboard precision. Its workspace layout survives reloads independently of saved coaster geometry and physics. [Round 33 workspace design](wiki/linked-workspace-round33.md).
+
 ## What you get
 
 - A complete closed-circuit coaster, end to end: station, lift hill, drops, banked turns, inversions if you build them, brake run back to the station.
