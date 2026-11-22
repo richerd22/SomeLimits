@@ -263,6 +263,43 @@ try {
   assert.equal(await p.locator('#linkedPane').isVisible(),true,'inspector toggle reopens linked pane');
   assert.equal(await p.locator('#btnLinkedPane').textContent(),'linked 2D pane: on',
     'main inspector and linked view stay synchronized after reopening');
+  /* Round 33: the linked window can move/resize without altering any
+     source node or creating a second WebGL renderer, and its layout
+     persists separately from the coaster document across reloads. */
+  const originalLayout=await p.locator('#linkedPane').boundingBox();
+  const nodesBeforeWindowMove=await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes);
+  await p.mouse.move(originalLayout.x+48,originalLayout.y+14);
+  await p.mouse.down();
+  await p.mouse.move(originalLayout.x+4,originalLayout.y-16,{steps:6});
+  await p.mouse.up();
+  const shiftedLayout=await p.locator('#linkedPane').boundingBox();
+  assert.ok(shiftedLayout.x<originalLayout.x-25 && shiftedLayout.y<originalLayout.y-15,
+    'dragging the empty pane header moves the entire linked window');
+  await p.mouse.move(shiftedLayout.x+shiftedLayout.width-9,
+    shiftedLayout.y+shiftedLayout.height-9);
+  await p.mouse.down();
+  await p.mouse.move(shiftedLayout.x+shiftedLayout.width+26,
+    shiftedLayout.y+shiftedLayout.height+16,{steps:6});
+  await p.mouse.up();
+  const resizedLayout=await p.locator('#linkedPane').boundingBox();
+  assert.ok(resizedLayout.width>=shiftedLayout.width+20 &&
+    resizedLayout.height>=shiftedLayout.height+15,
+    'lower-right lime grip resizes actual linked drawing canvas');
+  const savedLayout=await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-linked-pane-layout-v1')));
+  assert.ok(savedLayout&&savedLayout.left>=8&&savedLayout.width>=360,
+    'window coordinates are validated and stored as editor-only preference');
+  assert.deepEqual((await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes)),
+    nodesBeforeWindowMove,'moving/resizing paper never alters coaster nodes or autosave');
+  await p.reload({waitUntil:'commit',timeout:15000});
+  await p.waitForFunction(()=>window.__slBooted===true,null,{timeout:14000});
+  const reloadedLayout=await p.locator('#linkedPane').boundingBox();
+  assert.ok(Math.abs(reloadedLayout.x-resizedLayout.x)<2 &&
+    Math.abs(reloadedLayout.width-resizedLayout.width)<2 &&
+    Math.abs(reloadedLayout.height-resizedLayout.height)<2,
+    'linked paper size and position must survive reload without changing coaster');
+  assert.deepEqual((await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes)),
+    nodesBeforeWindowMove,'reload keeps source nodes identical after pane layout edits');
+  console.log('PASS linked workspace WINDOW: header move, corner resize, independent stored layout, and exact restored nodes after reload');
   assert.deepEqual(deskErrors,[],'no errors in linked two-pane WebGL/Canvas2D workflow');
   console.log('PASS desktop LINKED 2D+3D: SIDE+FRONT actual drags, exact hidden axes, independent main 3D view, open-track placement, Undo/Redo and toggle');
   /* A continuous desktop software-WebGL render loop can starve the
