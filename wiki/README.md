@@ -63,3 +63,4 @@ v1, shipped. Anything beyond the shipped list in these pages is marked planned.
 - [Movable, resizable linked drafting window with on-screen bounds and remembered layout](linked-workspace-round33.md) (Round 33)
 - [Explicit Shift-drag tangent constraint for deliberate linked curve shaping](tangent-shaping-round34.md) (Round 34)
 - [Keyboard-free tangent-lock toggle for linked curve shaping](tangent-lock-round35.md) (Round 35)
+- [Remembered tangent workspace preference and focused-paper T shortcut](tangent-workspace-round36.md) (Round 36)

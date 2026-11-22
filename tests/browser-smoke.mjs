@@ -314,7 +314,16 @@ try {
   await p.locator('#linkedTangent').click();
   assert.equal(await p.locator('#linkedTangent').getAttribute('aria-pressed'),'false',
     'tangent control can be released before ordinary editing resumes');
-  console.log('PASS desktop linked tangent: Shift and TANGENT toggle follow guide, preserve neighbor, exact Undo');
+  assert.equal(await p.evaluate(()=>localStorage.getItem('somelimits-linked-tangent-lock-v1')),'0',
+    'turning tangent lock off persists only a workspace preference');
+  await p.locator('#linkedCanvas').press('t');
+  assert.equal(await p.locator('#linkedTangent').getAttribute('aria-pressed'),'true',
+    'focused linked paper accepts T as a keyboard alternative to the visible toggle');
+  assert.equal(await p.evaluate(()=>localStorage.getItem('somelimits-linked-tangent-lock-v1')),'1',
+    'T shortcut persists the editor preference without touching the coaster');
+  assert.deepEqual((await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
+    tangentBefore.nodes,'tangent preference cannot mutate a saved coaster');
+  console.log('PASS desktop linked tangent: Shift, toggle and T shortcut follow guide without node side effects');
   await p.locator('#btnUndo').click();
   assert.deepEqual((await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
     afterLinkedSide.nodes,'linked click-to-extend is a single undoable document edit');
@@ -362,6 +371,8 @@ try {
     'linked paper size and position must survive reload without changing coaster');
   assert.deepEqual((await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes)),
     nodesBeforeWindowMove,'reload keeps source nodes identical after pane layout edits');
+  assert.equal(await p.locator('#linkedTangent').getAttribute('aria-pressed'),'true',
+    'saved tangent workspace preference restores independently of coaster nodes');
   console.log('PASS linked workspace WINDOW: header move, corner resize, independent stored layout, and exact restored nodes after reload');
   assert.deepEqual(deskErrors,[],'no errors in linked two-pane WebGL/Canvas2D workflow');
   console.log('PASS desktop LINKED 2D+3D: SIDE+FRONT actual drags, exact hidden axes, independent main 3D view, open-track placement, Undo/Redo and toggle');

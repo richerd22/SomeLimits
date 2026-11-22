@@ -48,6 +48,8 @@ Round 34 makes curve shaping more deliberate: the linked drawing pane now shows 
 
 Round 35 makes tangent shaping usable without a physical keyboard: the linked paper has an explicit **TANGENT** toggle. Turn it on to constrain node drags along the visible guide; keep using Shift for a one-drag shortcut. The switch is temporary editor chrome—not coaster data, a preset change, or a new simulation control. [Keyboard-free tangent lock](wiki/tangent-lock-round35.md).
 
+Round 36 remembers that workspace choice: focus the linked paper and press **T** to toggle tangent lock, or use the visible button on touch. Its on/off state survives reloads alongside the workspace layout, while remaining strictly outside coaster files, autosaves, presets and physics. [Remembered tangent workspace control](wiki/tangent-workspace-round36.md).
+
 ## What you get
 
 - A complete closed-circuit coaster, end to end: station, lift hill, drops, banked turns, inversions if you build them, brake run back to the station.
