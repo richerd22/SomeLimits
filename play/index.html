@@ -150,6 +150,27 @@
   #editorDock #draftMeasure{font-size:10px;color:#bcd5a1;line-height:1.35;min-width:0;flex:1}
   #editorDock .viewnav{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;margin-top:6px;align-items:center}
   #editorDock #zoomReadout{font-size:10px;color:#a8bdcb;text-align:center;font-variant-numeric:tabular-nums}
+  /* A second linked 2D drawing surface on a cheap Canvas2D, no second WebGL. */
+  #linkedPane{display:none;position:absolute;right:12px;bottom:12px;
+    width:390px;padding:8px;box-sizing:border-box;z-index:6;
+    border:1px solid #405364;border-radius:6px;
+    background:rgba(11,17,23,.97);box-shadow:0 6px 22px rgba(0,0,0,.45)}
+  #linkedPane button{font-size:10px;padding:5px 7px;margin:0;min-width:0}
+  #linkedPane button[aria-pressed=true]{background:#C6FF00;color:#121911;border-color:#C6FF00;font-weight:700}
+  #linkedPane header{display:flex;justify-content:space-between;align-items:center;gap:5px;margin-bottom:6px}
+  #linkedPane header strong{font-size:11px;color:#b9e68b;letter-spacing:.07em}
+  #linkedPane header .linkedTools{display:flex;align-items:center;gap:3px}
+  #linkedCanvas{display:block;width:100%;height:226px;border:1px solid #294052;
+    background:#0c141c;box-sizing:border-box;cursor:crosshair;touch-action:none}
+  #linkedStatus{font-size:10px;color:#a5b8ca;margin-top:6px;height:15px;
+    white-space:nowrap;text-overflow:ellipsis;overflow:hidden;font-variant-numeric:tabular-nums}
+  @media(max-width:900px){
+    #linkedPane{right:8px;bottom:70px;width:258px;padding:6px}
+    #linkedCanvas{height:156px}
+    #linkedPane header strong{display:none}
+    #linkedPane button{min-height:34px;padding:7px 5px}
+    #linkedStatus{font-size:9px}
+  }
   @media(max-width:760px){
     /* Keep every precision gizmo below the dock's bottom edge, even
        the grip at ±80°/±90° near the top of the projected station.
@@ -202,6 +223,10 @@
     <div>nodes<b id="dsN">-</b></div>
   </div>
   <hr>
+  <div class="row" style="margin-bottom:9px">
+    <button id="btnLinkedPane" type="button" title="Show an editable TOP/SIDE/FRONT pane while keeping the 3D camera open">linked 2D pane: off</button>
+    <span class="sub">dual-view drafting · J</span>
+  </div>
   <div class="sub">NODE <span id="nodeIdx" class="val">-</span></div>
   <div class="row" style="margin-top:5px">
     <button id="btnPrevNode" type="button" title="Select previous node, including overlapping points">← prev</button>
@@ -317,6 +342,25 @@
   </div>
   <div id="dockGuide">3D: drag empty space to orbit, right-drag to pan, scroll to zoom.</div>
 </div>
+<section id="linkedPane" role="region" aria-label="Linked editable two dimensional coaster view">
+  <header>
+    <strong>LINKED DRAWING</strong>
+    <div class="linkedTools" role="group" aria-label="Secondary view projection">
+      <button type="button" data-linked-view="top" aria-pressed="true">TOP</button>
+      <button type="button" data-linked-view="side" aria-pressed="false">SIDE</button>
+      <button type="button" data-linked-view="front" aria-pressed="false">FRONT</button>
+    </div>
+    <div class="linkedTools" role="group" aria-label="Secondary view framing">
+      <button id="linkedZoomOut" type="button" aria-label="Linked view zoom out">−</button>
+      <button id="linkedFit" type="button">FIT</button>
+      <button id="linkedZoomIn" type="button" aria-label="Linked view zoom in">+</button>
+      <button id="linkedClose" type="button" aria-label="Hide linked drawing pane">×</button>
+    </div>
+  </header>
+  <canvas id="linkedCanvas" aria-label="Interactive linked 2D drawing; drag points to edit; tap empty paper to extend an open track"></canvas>
+  <div id="linkedStatus">drag a node to edit · drag empty paper to pan · wheel zoom</div>
+  <span id="linkedMode" style="display:none">TOP</span>
+</section>
 <div id="hint" class="panel"><b>drag up</b> on a lime point to raise it &middot; <b>drag sideways</b> to move it &middot; <b>RIDE IT</b> when ready</div>
 <div id="toast"></div>
 <div id="hLabel"></div>
@@ -475,6 +519,7 @@
 })();
 </script>
 <script type="module">
+import { createLinkedDrafter } from './linked-drafter.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
@@ -958,6 +1003,7 @@ let track = null;            // result of computeTrack(nodes)
    and RIDE IT stays locked. closing the loop turns it off and
    the normal game takes over completely. */
 let building = false;
+let linkedPane = null;
 let hoverPt = null;          // ground point under the cursor (snap-ring hover)
 const CLOSE_R = 9;           // snap radius (m) around the station entry.
                              // was 13 until the round-5 playtest caught it
