@@ -280,14 +280,41 @@ try {
   const dh=tangentAfter.nodes[0].h-tangentBefore.nodes[0].h;
   const tx=tangentBefore.nodes[1].x-tangentBefore.nodes[0].x;
   const th=tangentBefore.nodes[1].h-tangentBefore.nodes[0].h;
-  assert.ok(Math.abs(dx*th-dh*tx)<0.15,
+  assert.ok(Math.abs(dx*th-dh*tx)/Math.hypot(tx,th)<0.2,
     'desktop Shift-drag must constrain the linked SIDE node to its visible tangent');
   assert.deepEqual(tangentAfter.nodes.slice(1),tangentBefore.nodes.slice(1),
     'tangent shaping must not silently move neighboring source nodes');
   await p.locator('#btnUndo').click();
   await p.waitForFunction(before=>JSON.stringify(JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes)===JSON.stringify(before.nodes),
     tangentBefore,{timeout:10000});
-  console.log('PASS desktop linked tangent: explicit Shift-drag follows guide, preserves neighbor, exact Undo');
+  /* The same constraint must be usable without a physical keyboard. The
+     TANGENT toggle is intentionally editor-session-only: its only effect is
+     to constrain this next drag, never to add document data. */
+  await p.locator('#linkedTangent').click();
+  assert.equal(await p.locator('#linkedTangent').getAttribute('aria-pressed'),'true',
+    'tangent control must expose its locked state to keyboard and touch users');
+  await p.mouse.move(tangentPixel.x,tangentPixel.y);
+  await p.mouse.down();
+  await p.mouse.move(tangentPixel.x+44,tangentPixel.y-53,{steps:8});
+  await p.mouse.up();
+  await p.waitForFunction(before=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.nodes?.length===2 && (d.nodes[0].x!==before.nodes[0].x || d.nodes[0].h!==before.nodes[0].h);
+  },tangentBefore,{timeout:15000});
+  const toggledTangent=await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  const toggleDx=toggledTangent.nodes[0].x-tangentBefore.nodes[0].x;
+  const toggleDh=toggledTangent.nodes[0].h-tangentBefore.nodes[0].h;
+  assert.ok(Math.abs(toggleDx*th-toggleDh*tx)/Math.hypot(tx,th)<0.2,
+    'TANGENT toggle constrains a pointer drag without a Shift key');
+  assert.deepEqual(toggledTangent.nodes.slice(1),tangentBefore.nodes.slice(1),
+    'TANGENT toggle must not move a neighboring source node');
+  await p.locator('#btnUndo').click();
+  await p.waitForFunction(before=>JSON.stringify(JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes)===JSON.stringify(before.nodes),
+    tangentBefore,{timeout:10000});
+  await p.locator('#linkedTangent').click();
+  assert.equal(await p.locator('#linkedTangent').getAttribute('aria-pressed'),'false',
+    'tangent control can be released before ordinary editing resumes');
+  console.log('PASS desktop linked tangent: Shift and TANGENT toggle follow guide, preserve neighbor, exact Undo');
   await p.locator('#btnUndo').click();
   assert.deepEqual((await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
     afterLinkedSide.nodes,'linked click-to-extend is a single undoable document edit');

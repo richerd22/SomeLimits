@@ -163,17 +163,18 @@
   #linkedPane header button{cursor:pointer;touch-action:manipulation}
   #linkedPane header strong{font-size:11px;color:#b9e68b;letter-spacing:.07em}
   #linkedPane header .linkedTools{display:flex;align-items:center;gap:3px}
-  #linkedCanvas{display:block;width:100%;height:calc(100% - 55px);border:1px solid #294052;
+  #linkedCanvas{display:block;width:100%;height:calc(100% - 75px);border:1px solid #294052;
     background:#0c141c;box-sizing:border-box;cursor:crosshair;touch-action:none}
-  #linkedStatus{font-size:10px;color:#a5b8ca;margin-top:6px;height:15px;
+  #linkedStatus{font-size:10px;color:#a5b8ca;margin:6px 0 0 66px;height:15px;
     white-space:nowrap;text-overflow:ellipsis;overflow:hidden;font-variant-numeric:tabular-nums}
+  #linkedTangent{position:absolute;left:8px;bottom:5px}
   #linkedResize{position:absolute;right:1px;bottom:1px;width:22px;height:22px;z-index:2;
     cursor:nwse-resize;touch-action:none;border-right:3px solid #C6FF00;border-bottom:3px solid #C6FF00;
     box-sizing:border-box;opacity:.7;border-radius:0 0 4px 0}
   #linkedResize:hover,#linkedResize:focus{opacity:1;outline:1px solid #C6FF00}
   @media(max-width:900px){
     #linkedPane{right:8px;bottom:70px;width:258px;height:235px;min-width:0;min-height:0;padding:6px}
-    #linkedCanvas{height:calc(100% - 61px)}
+    #linkedCanvas{height:calc(100% - 81px)}
     #linkedResize{display:none}
     #linkedPane header strong{display:none}
     #linkedPane button{min-height:34px;padding:7px 5px}
@@ -366,6 +367,7 @@
     </div>
   </header>
   <canvas id="linkedCanvas" aria-label="Interactive linked 2D drawing; drag points to edit; tap empty paper to extend an open track"></canvas>
+  <button id="linkedTangent" type="button" aria-pressed="false" title="Lock linked node drags to the visible tangent">TANGENT</button>
   <div id="linkedStatus">drag a node to edit · Shift-drag locks tangent · drag empty paper to pan</div>
   <span id="linkedMode" style="display:none">TOP</span>
   <div id="linkedResize" role="separator" tabindex="0" aria-label="Resize linked drawing pane" title="Drag to resize the linked drawing"></div>

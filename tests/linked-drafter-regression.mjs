@@ -85,10 +85,10 @@ const bad=clampLinkedRect({left:NaN,top:Infinity,width:0,height:NaN},1440,900);
 assert.ok(Object.values(bad).every(Number.isFinite),'corrupt stored layout cannot poison editor geometry');
 const html=readFileSync(new URL('../play/index.html',import.meta.url),'utf8');
 const drafterSource=readFileSync(new URL('../play/linked-drafter.js',import.meta.url),'utf8');
-for(const code of ["linkedTangent(view,s.nodes,s.selected,!s.building)","e.shiftKey ? constrainToTangent"])
+for(const code of ["linkedTangent(view,s.nodes,s.selected,!s.building)","(e.shiftKey||active.tangentLock) ? constrainToTangent","setTangentLocked(!tangentLocked)"])
   assert.ok(drafterSource.includes(code),'tangent interaction wiring missing '+code);
 assert.ok(html.includes("import { createLinkedDrafter, clampLinkedRect } from './linked-drafter.js';"));
-for(const name of ['linkedPane','linkedCanvas','btnLinkedPane','linkedFit','linkedZoomOut',
+for(const name of ['linkedPane','linkedCanvas','btnLinkedPane','linkedFit','linkedZoomOut','linkedTangent',
   'linkedZoomIn','linkedClose','linkedStatus','linkedResize'])
   assert.ok(html.includes('id="'+name+'"'),'linked pane control missing '+name);
 for(const code of [
