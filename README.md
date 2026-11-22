@@ -40,6 +40,8 @@ Round 30 shows a **cyan curved preview of the real next rail section** alongside
 
 The one-tap **LEVEL / LEFT / RIGHT / DROP** actions now have optional section dimensions: inside the collapsible inspector, set straight/turn run, turn angle, drop run, or drop height. Defaults are unchanged and one tap is still enough; advanced preferences never enter coaster files or physics. See [Round 31 section controls](wiki/advanced-section-dimensions-round31.md).
 
+Round 32 introduces a **simultaneous, editable linked 2D drawing pane** alongside the 3D coaster. Switch the secondary pane among TOP/SIDE/FRONT, drag real control nodes to shape turns, lifts or drops while the main camera stays in 3D, or tap the paper to extend an open track. It shares the original Undo/Redo and track data, supports independent pan/zoom/FIT, and uses just one lightweight Canvas2D—**no second WebGL context or physics copy**. Visible by default on roomy desktops; toggle with J or the inspector. [Engineering notes and limitations](wiki/linked-drafter-round32.md).
+
 ## What you get
 
 - A complete closed-circuit coaster, end to end: station, lift hill, drops, banked turns, inversions if you build them, brake run back to the station.
