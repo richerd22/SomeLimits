@@ -72,6 +72,25 @@ export function planeToCanvas(viewport, point, width, height) {
     y:height/2-(point.v-viewport.v)*viewport.scale};
 }
 
+/* Catmull-Rom derives a node's direction from its neighbouring control
+   points. This is deliberately a guide/constraint, not another saved handle:
+   the same source nodes still define the rail, its physics and every preset. */
+export function linkedTangent(view, nodes, index, closed = false) {
+  if (!Array.isArray(nodes) || index < 0 || index >= nodes.length || nodes.length < 2)
+    return null;
+  const count=nodes.length;
+  const before=index>0 ? index-1 : (closed ? count-1 : index);
+  const after=index<count-1 ? index+1 : (closed ? 0 : index);
+  const a=planePoint(view,nodes[before]),b=planePoint(view,nodes[after]);
+  const u=b.u-a.u,v=b.v-a.v,length=Math.hypot(u,v);
+  return length>1e-8 ? {u:u/length,v:v/length} : null;
+}
+export function constrainToTangent(origin, candidate, tangent) {
+  if (!origin || !candidate || !tangent) return candidate;
+  const distance=(candidate.u-origin.u)*tangent.u+(candidate.v-origin.v)*tangent.v;
+  return {u:origin.u+distance*tangent.u,v:origin.v+distance*tangent.v};
+}
+
 export function createLinkedDrafter({
   element,canvas,getState,onSelect,onMove,onCommit,onRestore,onPlace,onClose
 }) {
@@ -160,6 +179,14 @@ export function createLinkedDrafter({
       s.nodes.forEach((n,i)=>{const p=map(n);if(!i)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y)});
       ctx.stroke();
     }
+    const tangent=linkedTangent(view,s.nodes,s.selected,!s.building);
+    if(tangent){
+      const center=map(s.nodes[s.selected]);
+      const radius=Math.max(w,h);
+      ctx.save();ctx.setLineDash([5,4]);ctx.lineWidth=1.25;ctx.strokeStyle='#f1c96b';
+      ctx.beginPath();ctx.moveTo(center.x-tangent.u*radius,center.y+tangent.v*radius);
+      ctx.lineTo(center.x+tangent.u*radius,center.y-tangent.v*radius);ctx.stroke();ctx.restore();
+    }
     s.nodes.forEach((n,i)=>{
       const p=map(n);
       if(p.x < -15 || p.y < -15 || p.x > w+15 || p.y > h+15)return;
@@ -228,10 +255,11 @@ export function createLinkedDrafter({
     const p=coordinates(e),s=state(),index=e.button===2?-1:pick(p,s);
     active={id:e.pointerId,index,original:index>=0?{...s.nodes[index]}:null,
       x:p.x,y:p.y,startU:viewport().u,startV:viewport().v,
-      moved:false,changed:false,panning:e.button===2};
+      moved:false,changed:false,panning:e.button===2,
+      tangent:index>=0?linkedTangent(view,s.nodes,index,!s.building):null};
     canvas.setPointerCapture(e.pointerId);
     if(index>=0&&index!==s.selected)onSelect(index);
-    setStatus(index<0?'tap to extend · drag to pan':'node '+(index+1)+' · drag to reshape');
+    setStatus(index<0?'tap to extend · drag to pan':'node '+(index+1)+' · drag to reshape · Shift locks tangent');
     e.preventDefault();
   });
   canvas.addEventListener('pointermove',e=>{
@@ -252,7 +280,10 @@ export function createLinkedDrafter({
     const {w,h}=dimensions();
     if(active.index>=0&&!active.panning){
       const world=canvasToPlane(viewport(),p.x,p.y,w,h);
-      const move=fromPlane(view,world,active.original,s.snap);
+      const origin=planePoint(view,active.original);
+      const constrained=e.shiftKey ? constrainToTangent(origin,world,
+        active.tangent) : world;
+      const move=fromPlane(view,constrained,active.original,s.snap);
       if(move&&onMove(active.index,move))active.changed=true;
     } else {
       const vp=viewport();

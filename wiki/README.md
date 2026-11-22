@@ -61,3 +61,4 @@ v1, shipped. Anything beyond the shipped list in these pages is marked planned.
 - [Adjustable next-section distance, turn angle and drop geometry behind the advanced inspector](advanced-section-dimensions-round31.md) (Round 31)
 - [Simultaneous linked 2D/3D editing, independent TOP/SIDE/FRONT paper and shared Undo history](linked-drafter-round32.md) (Round 32)
 - [Movable, resizable linked drafting window with on-screen bounds and remembered layout](linked-workspace-round33.md) (Round 33)
+- [Explicit Shift-drag tangent constraint for deliberate linked curve shaping](tangent-shaping-round34.md) (Round 34)
