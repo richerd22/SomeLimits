@@ -6,8 +6,8 @@ export const LINKED_VIEWS = Object.freeze(['top','side','front']);
 
 export function planePoint(view, node) {
   if (view === 'top') return {u: node.x, v: -node.z};
-  if (view === 'side') return {u: node.x, v: node.h};
-  if (view === 'front') return {u: -node.z, v: node.h};
+  if (view === 'side') return {u: node.x, v: node.h ?? node.y};
+  if (view === 'front') return {u: -node.z, v: node.h ?? node.y};
   throw new RangeError('invalid drawing plane');
 }
 
@@ -293,11 +293,12 @@ export function createLinkedDrafter({
   function setVisible(value){
     if(active)cancel();
     visible=!!value;
-    if(visible){
+    syncMode(); // measure only AFTER showing the canvas; display:none has a 0px rect
+    if(visible && state().mode==='edit' && !viewports[view]){
       const {w,h}=dimensions();
-      if(!viewports[view])viewports[view]=fitLinkedView(view,state().nodes,state().track?.samples,w,h);
+      viewports[view]=fitLinkedView(view,state().nodes,state().track?.samples,w,h);
+      refresh();
     }
-    syncMode();
   }
   return {
     refresh,fit,setView,setVisible,syncMode,
