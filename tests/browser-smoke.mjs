@@ -184,6 +184,87 @@ try {
   },stationBefore,{timeout:10000});
   assert.deepEqual(deskErrors,[], 'desktop errors after exporting/importing open draft');
   console.log('PASS desktop draft rescue: 1-node open build exported and restored without closing the circuit');
+  /* Round 32: actual simultaneous 3D + independently editable SIDE/FRONT
+     drafting canvas, no second WebGL renderer, same points and history. */
+  assert.equal(await p.locator('#linkedPane').isVisible(),true,
+    'roomy desktop should show linked drawing by default');
+  await p.locator('[data-editor-view="3d"]').click();
+  await p.locator('[data-linked-view="side"]').click();
+  await p.locator('#linkedFit').click();
+  const linkedPixel=async projection=>p.evaluate(async v=>{
+    const lib=await import('/play/linked-drafter.js');
+    const n=JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes[0];
+    const rect=document.getElementById('linkedCanvas').getBoundingClientRect();
+    const vp=lib.fitLinkedView(v,[n],[],rect.width,rect.height);
+    const pixel=lib.planeToCanvas(vp,lib.planePoint(v,n),rect.width,rect.height);
+    return {x:rect.x+pixel.x,y:rect.y+pixel.y};
+  },projection);
+  const initialLinked=await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  const sidePixel=await linkedPixel('side');
+  await p.mouse.move(sidePixel.x,sidePixel.y);
+  await p.mouse.down();
+  await p.mouse.move(sidePixel.x+42,sidePixel.y-33,{steps:8});
+  await p.mouse.up();
+  await p.waitForFunction(before=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.nodes?.length===1&&d.nodes[0].h>before.nodes[0].h+1&&
+      d.nodes[0].x>before.nodes[0].x+2;
+  },initialLinked,{timeout:15000});
+  const afterLinkedSide=await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.equal(afterLinkedSide.nodes[0].z,initialLinked.nodes[0].z,'SIDE linked drag preserves hidden Z exactly');
+  assert.equal(afterLinkedSide.nodes[0].bank,initialLinked.nodes[0].bank,'SIDE linked drag never changes banking');
+  assert.equal(afterLinkedSide.nodes[0].station,true,'SIDE linked drag preserves station');
+  assert.equal(await p.locator('[data-editor-view="3d"]').getAttribute('aria-pressed'),'true',
+    'secondary 2D editing cannot hijack the main 3D camera');
+  await p.locator('#btnUndo').click();
+  assert.deepEqual((await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
+    initialLinked.nodes,'one linked drag should Undo as exactly one track edit');
+  await p.locator('#btnRedo').click();
+  assert.deepEqual((await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
+    afterLinkedSide.nodes,'Redo restores the original linked drag');
+  await p.locator('[data-linked-view="front"]').click();
+  await p.locator('#linkedFit').click();
+  const frontPixel=await linkedPixel('front');
+  await p.mouse.move(frontPixel.x,frontPixel.y);
+  await p.mouse.down();
+  await p.mouse.move(frontPixel.x+36,frontPixel.y,{steps:7});
+  await p.mouse.up();
+  await p.waitForFunction(before=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.nodes?.length===1 && d.nodes[0].z<before.z-1;
+  },afterLinkedSide.nodes[0],{timeout:15000});
+  const afterLinkedFront=await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.equal(afterLinkedFront.nodes[0].x,afterLinkedSide.nodes[0].x,'FRONT linked drag preserves hidden X');
+  assert.equal(afterLinkedFront.nodes[0].h,afterLinkedSide.nodes[0].h,'horizontal FRONT drag preserves height');
+  await p.locator('#btnUndo').click();
+  assert.deepEqual((await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
+    afterLinkedSide.nodes,'FRONT drag Undo returns preceding drawing');
+  await p.locator('[data-linked-view="side"]').click();
+  await p.locator('#linkedFit').click();
+  const endPoint=await linkedPixel('side');
+  await p.mouse.click(endPoint.x+72,endPoint.y-32);
+  await p.waitForFunction(()=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.building && d.nodes.length===2;
+  },null,{timeout:15000});
+  const addedLinked=await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  assert.equal(addedLinked.nodes[1].z,afterLinkedSide.nodes[0].z,
+    'tapping SIDE linked paper adds next node while retaining hidden Z');
+  assert.ok(addedLinked.nodes[1].h>afterLinkedSide.nodes[0].h+1,
+    'SIDE linked paper can draw an uphill segment with 3D still visible');
+  await p.locator('#btnUndo').click();
+  assert.deepEqual((await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
+    afterLinkedSide.nodes,'linked click-to-extend is a single undoable document edit');
+  await p.locator('#linkedClose').click();
+  assert.equal(await p.locator('#linkedPane').isVisible(),false,'linked close hides the pane');
+  assert.equal(await p.locator('#btnLinkedPane').textContent(),'linked 2D pane: off',
+    'closing the linked canvas must synchronize the main inspector toggle');
+  await p.locator('#btnLinkedPane').click();
+  assert.equal(await p.locator('#linkedPane').isVisible(),true,'inspector toggle reopens linked pane');
+  assert.equal(await p.locator('#btnLinkedPane').textContent(),'linked 2D pane: on',
+    'main inspector and linked view stay synchronized after reopening');
+  assert.deepEqual(deskErrors,[],'no errors in linked two-pane WebGL/Canvas2D workflow');
+  console.log('PASS desktop LINKED 2D+3D: SIDE+FRONT actual drags, exact hidden axes, independent main 3D view, open-track placement, Undo/Redo and toggle');
   /* A continuous desktop software-WebGL render loop can starve the
      second Chromium page on GitHub's shared CPU runner. The two user
      journeys are independent, so retire desktop before mobile boots. */
@@ -197,6 +278,8 @@ try {
   });
   const mp=await mobile.newPage();
   const mobileErrors=await prepare(mp);
+  assert.equal(await mp.locator('#linkedPane').isVisible(),false,
+    'the secondary drafting canvas must never steal default 390px phone touch area');
   const dims=await mp.evaluate(()=>{
     const canvas=document.querySelector('#app canvas');
     const hint=document.querySelector('#hint');
