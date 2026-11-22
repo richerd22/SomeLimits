@@ -747,6 +747,12 @@ try {
      Real touch-start/move/end and actual WebGL projection govern the edit. */
   async function projectedLoneElevation(view) {
     await mp.locator('[data-editor-view="'+view+'"]').tap();
+    await mp.waitForFunction(which=>
+      document.querySelector('[data-editor-view="'+which+'"]')?.getAttribute('aria-pressed')==='true',view);
+    /* A real mobile tap immediately after changing projection can land while
+       OrbitControls has not rendered its new drawing plane on a busy CI
+       worker. Wait one presented frame before deriving the physical pixel. */
+    await mp.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
     return mp.evaluate(async which=>{
       const THREE=await import('three');
       const n=JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes[0];
