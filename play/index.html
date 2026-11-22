@@ -152,21 +152,29 @@
   #editorDock #zoomReadout{font-size:10px;color:#a8bdcb;text-align:center;font-variant-numeric:tabular-nums}
   /* A second linked 2D drawing surface on a cheap Canvas2D, no second WebGL. */
   #linkedPane{display:none;position:absolute;right:12px;bottom:12px;
-    width:390px;padding:8px;box-sizing:border-box;z-index:6;
+    width:390px;height:310px;min-width:360px;min-height:200px;
+    padding:8px;box-sizing:border-box;z-index:6;
     border:1px solid #405364;border-radius:6px;
     background:rgba(11,17,23,.97);box-shadow:0 6px 22px rgba(0,0,0,.45)}
   #linkedPane button{font-size:10px;padding:5px 7px;margin:0;min-width:0}
   #linkedPane button[aria-pressed=true]{background:#C6FF00;color:#121911;border-color:#C6FF00;font-weight:700}
-  #linkedPane header{display:flex;justify-content:space-between;align-items:center;gap:5px;margin-bottom:6px}
+  #linkedPane header{display:flex;justify-content:space-between;align-items:center;gap:5px;
+    margin-bottom:6px;cursor:move;touch-action:none;user-select:none}
+  #linkedPane header button{cursor:pointer;touch-action:manipulation}
   #linkedPane header strong{font-size:11px;color:#b9e68b;letter-spacing:.07em}
   #linkedPane header .linkedTools{display:flex;align-items:center;gap:3px}
-  #linkedCanvas{display:block;width:100%;height:226px;border:1px solid #294052;
+  #linkedCanvas{display:block;width:100%;height:calc(100% - 55px);border:1px solid #294052;
     background:#0c141c;box-sizing:border-box;cursor:crosshair;touch-action:none}
   #linkedStatus{font-size:10px;color:#a5b8ca;margin-top:6px;height:15px;
     white-space:nowrap;text-overflow:ellipsis;overflow:hidden;font-variant-numeric:tabular-nums}
+  #linkedResize{position:absolute;right:1px;bottom:1px;width:22px;height:22px;z-index:2;
+    cursor:nwse-resize;touch-action:none;border-right:3px solid #C6FF00;border-bottom:3px solid #C6FF00;
+    box-sizing:border-box;opacity:.7;border-radius:0 0 4px 0}
+  #linkedResize:hover,#linkedResize:focus{opacity:1;outline:1px solid #C6FF00}
   @media(max-width:900px){
-    #linkedPane{right:8px;bottom:70px;width:258px;padding:6px}
-    #linkedCanvas{height:156px}
+    #linkedPane{right:8px;bottom:70px;width:258px;height:235px;min-width:0;min-height:0;padding:6px}
+    #linkedCanvas{height:calc(100% - 61px)}
+    #linkedResize{display:none}
     #linkedPane header strong{display:none}
     #linkedPane button{min-height:34px;padding:7px 5px}
     #linkedStatus{font-size:9px}
@@ -360,6 +368,7 @@
   <canvas id="linkedCanvas" aria-label="Interactive linked 2D drawing; drag points to edit; tap empty paper to extend an open track"></canvas>
   <div id="linkedStatus">drag a node to edit · drag empty paper to pan · wheel zoom</div>
   <span id="linkedMode" style="display:none">TOP</span>
+  <div id="linkedResize" role="separator" tabindex="0" aria-label="Resize linked drawing pane" title="Drag to resize the linked drawing"></div>
 </section>
 <div id="hint" class="panel"><b>drag up</b> on a lime point to raise it &middot; <b>drag sideways</b> to move it &middot; <b>RIDE IT</b> when ready</div>
 <div id="toast"></div>
@@ -519,7 +528,7 @@
 })();
 </script>
 <script type="module">
-import { createLinkedDrafter } from './linked-drafter.js';
+import { createLinkedDrafter, clampLinkedRect } from './linked-drafter.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
