@@ -152,21 +152,29 @@
   #editorDock #zoomReadout{font-size:10px;color:#a8bdcb;text-align:center;font-variant-numeric:tabular-nums}
   /* A second linked 2D drawing surface on a cheap Canvas2D, no second WebGL. */
   #linkedPane{display:none;position:absolute;right:12px;bottom:12px;
-    width:390px;padding:8px;box-sizing:border-box;z-index:6;
+    width:390px;height:310px;min-width:360px;min-height:200px;
+    padding:8px;box-sizing:border-box;z-index:6;
     border:1px solid #405364;border-radius:6px;
     background:rgba(11,17,23,.97);box-shadow:0 6px 22px rgba(0,0,0,.45)}
   #linkedPane button{font-size:10px;padding:5px 7px;margin:0;min-width:0}
   #linkedPane button[aria-pressed=true]{background:#C6FF00;color:#121911;border-color:#C6FF00;font-weight:700}
-  #linkedPane header{display:flex;justify-content:space-between;align-items:center;gap:5px;margin-bottom:6px}
+  #linkedPane header{display:flex;justify-content:space-between;align-items:center;gap:5px;
+    margin-bottom:6px;cursor:move;touch-action:none;user-select:none}
+  #linkedPane header button{cursor:pointer;touch-action:manipulation}
   #linkedPane header strong{font-size:11px;color:#b9e68b;letter-spacing:.07em}
   #linkedPane header .linkedTools{display:flex;align-items:center;gap:3px}
-  #linkedCanvas{display:block;width:100%;height:226px;border:1px solid #294052;
+  #linkedCanvas{display:block;width:100%;height:calc(100% - 55px);border:1px solid #294052;
     background:#0c141c;box-sizing:border-box;cursor:crosshair;touch-action:none}
   #linkedStatus{font-size:10px;color:#a5b8ca;margin-top:6px;height:15px;
     white-space:nowrap;text-overflow:ellipsis;overflow:hidden;font-variant-numeric:tabular-nums}
+  #linkedResize{position:absolute;right:1px;bottom:1px;width:22px;height:22px;z-index:2;
+    cursor:nwse-resize;touch-action:none;border-right:3px solid #C6FF00;border-bottom:3px solid #C6FF00;
+    box-sizing:border-box;opacity:.7;border-radius:0 0 4px 0}
+  #linkedResize:hover,#linkedResize:focus{opacity:1;outline:1px solid #C6FF00}
   @media(max-width:900px){
-    #linkedPane{right:8px;bottom:70px;width:258px;padding:6px}
-    #linkedCanvas{height:156px}
+    #linkedPane{right:8px;bottom:70px;width:258px;height:235px;min-width:0;min-height:0;padding:6px}
+    #linkedCanvas{height:calc(100% - 61px)}
+    #linkedResize{display:none}
     #linkedPane header strong{display:none}
     #linkedPane button{min-height:34px;padding:7px 5px}
     #linkedStatus{font-size:9px}
@@ -360,6 +368,7 @@
   <canvas id="linkedCanvas" aria-label="Interactive linked 2D drawing; drag points to edit; tap empty paper to extend an open track"></canvas>
   <div id="linkedStatus">drag a node to edit · drag empty paper to pan · wheel zoom</div>
   <span id="linkedMode" style="display:none">TOP</span>
+  <div id="linkedResize" role="separator" tabindex="0" aria-label="Resize linked drawing pane" title="Drag to resize the linked drawing"></div>
 </section>
 <div id="hint" class="panel"><b>drag up</b> on a lime point to raise it &middot; <b>drag sideways</b> to move it &middot; <b>RIDE IT</b> when ready</div>
 <div id="toast"></div>
@@ -519,7 +528,7 @@
 })();
 </script>
 <script type="module">
-import { createLinkedDrafter } from './linked-drafter.js';
+import { createLinkedDrafter, clampLinkedRect } from './linked-drafter.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
@@ -4300,6 +4309,98 @@ function toggleLinkedPane(){
   if(mode==='edit')setLinkedPaneVisible(!linkedPane.isVisible());
 }
 $('btnLinkedPane').addEventListener('click',toggleLinkedPane);
+
+/* The second viewport is a workspace window: position and dimensions
+   belong to editor preferences, NEVER to coaster node documents.
+   Move by its empty header; resize by its lower-right lime grip. */
+const LINKED_LAYOUT_KEY='somelimits-linked-pane-layout-v1';
+const linkedWindow=$('linkedPane');
+const linkedHeader=linkedWindow.querySelector('header');
+const linkedResize=$('linkedResize');
+let linkedSavedRect=null;
+try {
+  const saved=JSON.parse(localStorage.getItem(LINKED_LAYOUT_KEY)||'null');
+  if(saved && ['left','top','width','height'].every(k=>Number.isFinite(saved[k])))
+    linkedSavedRect=saved;
+} catch {}
+function linkedCurrentRect(){
+  const r=linkedWindow.getBoundingClientRect();
+  return {left:r.left,top:r.top,width:r.width,height:r.height};
+}
+function applyLinkedWindowRect(rect,persist=false){
+  if(innerWidth<900)return;
+  const next=clampLinkedRect(rect,innerWidth,innerHeight);
+  linkedWindow.style.left=next.left+'px';
+  linkedWindow.style.top=next.top+'px';
+  linkedWindow.style.width=next.width+'px';
+  linkedWindow.style.height=next.height+'px';
+  linkedWindow.style.right='auto';
+  linkedWindow.style.bottom='auto';
+  linkedPane.refresh(); // CSS pixels and backing DPR update independently
+  if(persist){
+    linkedSavedRect=next;
+    try {localStorage.setItem(LINKED_LAYOUT_KEY,JSON.stringify(next));}catch{}
+  }
+}
+function restoreLinkedWindowLayout(){
+  if(innerWidth<900){
+    for(const key of ['left','top','width','height','right','bottom'])
+      linkedWindow.style[key]=''; // portrait CSS owns the small drawing
+    linkedPane.refresh();
+  }else if(linkedSavedRect){
+    applyLinkedWindowRect(linkedSavedRect);
+  }else {
+    linkedPane.refresh(); // original anchored desktop default
+  }
+}
+if(innerWidth>=900 && linkedSavedRect)applyLinkedWindowRect(linkedSavedRect);
+let linkedWindowGesture=null;
+for(const [kind,grip] of [['move',linkedHeader],['resize',linkedResize]]){
+  grip.addEventListener('pointerdown',e=>{
+    if(e.button!==0||innerWidth<900||linkedWindowGesture||
+       (kind==='move'&&e.target.closest('button')))return;
+    linkedWindowGesture={id:e.pointerId,kind,startX:e.clientX,startY:e.clientY,
+      original:linkedCurrentRect()};
+    grip.setPointerCapture(e.pointerId);
+    e.preventDefault();e.stopPropagation();
+  });
+  grip.addEventListener('pointermove',e=>{
+    const gesture=linkedWindowGesture;
+    if(!gesture||gesture.kind!==kind||gesture.id!==e.pointerId)return;
+    const dx=e.clientX-gesture.startX,dy=e.clientY-gesture.startY;
+    const rect=gesture.original;
+    applyLinkedWindowRect(kind==='move' ?
+      {...rect,left:rect.left+dx,top:rect.top+dy} :
+      {...rect,width:rect.width+dx,height:rect.height+dy});
+    e.preventDefault();e.stopPropagation();
+  });
+  grip.addEventListener('pointerup',e=>{
+    const gesture=linkedWindowGesture;
+    if(!gesture||gesture.kind!==kind||gesture.id!==e.pointerId)return;
+    linkedWindowGesture=null;
+    if(grip.hasPointerCapture(e.pointerId))grip.releasePointerCapture(e.pointerId);
+    applyLinkedWindowRect(linkedCurrentRect(),true);
+    e.preventDefault();e.stopPropagation();
+  });
+  grip.addEventListener('pointercancel',e=>{
+    const gesture=linkedWindowGesture;
+    if(!gesture||gesture.kind!==kind||gesture.id!==e.pointerId)return;
+    linkedWindowGesture=null;
+    applyLinkedWindowRect(gesture.original); // no partial preferences
+    e.stopPropagation();
+  });
+}
+linkedResize.addEventListener('keydown',e=>{
+  if(innerWidth<900||!['ArrowRight','ArrowLeft','ArrowUp','ArrowDown'].includes(e.key))return;
+  const r=linkedCurrentRect(),delta=e.shiftKey?40:20;
+  if(e.key==='ArrowRight')r.width+=delta;
+  if(e.key==='ArrowLeft')r.width-=delta;
+  if(e.key==='ArrowDown')r.height+=delta;
+  if(e.key==='ArrowUp')r.height-=delta;
+  applyLinkedWindowRect(r,true);
+  e.preventDefault();e.stopPropagation();
+});
+addEventListener('resize',restoreLinkedWindowLayout);
 setLinkedPaneVisible(linkedPaneVisible);
 
 /* ---------------- boot + main loop ---------------- */
