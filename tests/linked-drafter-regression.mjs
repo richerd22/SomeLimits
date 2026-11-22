@@ -28,17 +28,25 @@ assert.deepEqual(fromPlane('side',{u:300,v:-400},base),
 assert.equal(fromPlane('side',{u:Infinity,v:0},base),null);
 assert.equal(fromPlane('front',{u:0,v:NaN},base),null);
 assert.deepEqual(base,old,'draw projections cannot mutate nodes or station/lift flags');
-const tangentNodes=[{x:0,z:0,h:3},{x:10,z:0,h:13},{x:30,z:10,h:23}];
+const tangentNodes=[{x:-10,z:0,h:-7},{x:0,z:0,h:3},{x:10,z:0,h:13},{x:20,z:0,h:23}];
 const sideTangent=linkedTangent('side',tangentNodes,1,false);
-assert.ok(sideTangent&&Math.abs(sideTangent.u-3/Math.sqrt(13))<1e-12&&
-  Math.abs(sideTangent.v-2/Math.sqrt(13))<1e-12,'interior SIDE tangent follows the true neighboring node direction');
+assert.ok(sideTangent&&Math.abs(sideTangent.u-Math.SQRT1_2)<1e-12&&
+  Math.abs(sideTangent.v-Math.SQRT1_2)<1e-12,'uniform straight spacing retains the exact rail tangent');
+const curvedTangent=linkedTangent('side',[
+  {x:0,z:0,h:0},{x:10,z:0,h:0},{x:20,z:0,h:10},{x:30,z:0,h:10}
+],1,false);
+assert.ok(curvedTangent&&Math.abs(curvedTangent.u-.9238795325)<1e-8&&
+  Math.abs(curvedTangent.v-.3826834324)<1e-8,
+  'centripetal guide follows the actual curved rail derivative, not a chord shortcut');
 const tangentOrigin=planePoint('side',tangentNodes[1]);
 const tangentMove=constrainToTangent(tangentOrigin,{u:26,v:9},sideTangent);
 assert.ok(Math.abs((tangentMove.u-tangentOrigin.u)*sideTangent.v-
   (tangentMove.v-tangentOrigin.v)*sideTangent.u)<1e-12,'tangent constraint removes only perpendicular drag motion');
 assert.equal(linkedTangent('top',[base],0,false),null,'one node has no invented tangent');
 assert.ok(linkedTangent('top',tangentNodes,0,false),'open endpoint uses its one real adjacent direction');
-assert.ok(linkedTangent('top',tangentNodes,0,true),'closed endpoint wraps to real final neighbor');
+assert.ok(linkedTangent('top',[
+  {x:0,z:0,h:3},{x:10,z:0,h:3},{x:10,z:10,h:3},{x:0,z:10,h:3}
+],0,true),'closed endpoint wraps to real final neighbor');
 
 for(const view of ['top','side','front']){
   const nodes=[base,{x:30,z:60,h:6,bank:40},{x:-45,z:-22,h:27,bank:80}];
