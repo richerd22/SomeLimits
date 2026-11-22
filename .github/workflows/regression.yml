@@ -22,6 +22,8 @@ jobs:
         run: node tests/section-dimensions-regression.mjs
       - name: Precision node navigation, numeric coordinates and view-correct nudge axis
         run: node tests/precision-node-editor-regression.mjs
+      - name: Linked 2D/3D simultaneous drawing projection and coordinate integrity
+        run: node tests/linked-drafter-regression.mjs
       - name: Draw track from SIDE/FRONT and preserve independent camera navigation (no dependencies)
         run: node tests/elevation-draw-regression.mjs
       - name: Opt-in drawing grid snapping and TOP point preview (no dependencies)
