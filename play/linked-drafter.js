@@ -3,6 +3,7 @@
    document schema. Every edit is routed through the original editor. */
 
 export const LINKED_VIEWS = Object.freeze(['top','side','front']);
+const LINKED_TANGENT_LOCK_KEY='somelimits-linked-tangent-lock-v1';
 
 export function planePoint(view, node) {
   if (view === 'top') return {u: node.x, v: -node.z};
@@ -130,13 +131,19 @@ export function createLinkedDrafter({
   function setStatus(value) {
     if (status) status.textContent=value;
   }
-  function setTangentLocked(value) {
+  function setTangentLocked(value,persist=false) {
     tangentLocked=!!value;
     tangentToggle?.setAttribute('aria-pressed',String(tangentLocked));
     tangentToggle?.setAttribute('title',tangentLocked ?
       'Tangent lock is on: drag follows the gold guide' :
       'Lock linked node drags to the visible tangent');
+    if(persist)try { localStorage.setItem(LINKED_TANGENT_LOCK_KEY,tangentLocked?'1':'0'); } catch {}
   }
+  try {
+    const saved=localStorage.getItem(LINKED_TANGENT_LOCK_KEY);
+    if(saved==='1'||saved==='0')tangentLocked=saved==='1';
+  } catch {}
+  setTangentLocked(tangentLocked);
   function drawGrid(w,h,vp){
     const step=vp.scale>7?5:vp.scale>2.5?10:25;
     const min=canvasToPlane(vp,0,h,w,h),max=canvasToPlane(vp,w,0,w,h);
@@ -328,12 +335,17 @@ export function createLinkedDrafter({
   element.querySelector('#linkedFit').addEventListener('click',fit);
   element.querySelector('#linkedZoomIn').addEventListener('click',()=>zoom(1.25));
   tangentToggle?.addEventListener('click',()=>{
-    setTangentLocked(!tangentLocked);
+    setTangentLocked(!tangentLocked,true);
     setStatus(tangentLocked?'tangent lock on · drag a node along the gold guide':'tangent lock off · Shift still locks one drag');
   });
   element.querySelector('#linkedZoomOut').addEventListener('click',()=>zoom(.8));
   element.querySelector('#linkedClose').addEventListener('click',()=>{setVisible(false);onClose?.();});
   canvas.addEventListener('keydown',e=>{
+    if((e.key==='t'||e.key==='T')&&!e.altKey&&!e.ctrlKey&&!e.metaKey){
+      setTangentLocked(!tangentLocked,true);
+      setStatus(tangentLocked?'tangent lock on · drag a node along the gold guide':'tangent lock off · Shift still locks one drag');
+      e.preventDefault();e.stopPropagation();return;
+    }
     if(!e.key.startsWith('Arrow'))return;
     const s=state(),n=s.nodes[s.selected];if(!n)return;
     const step=e.altKey?.1:e.shiftKey?5:1;
