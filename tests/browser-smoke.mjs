@@ -856,6 +856,67 @@ try {
     assert.deepEqual(undone2.nodes,before.nodes,view+' Undo should restore exact coordinates');
     console.log('PASS '+view.toUpperCase()+' real touch elevation drag: visible plane only, bank preserved, exact Undo');
   }
+  /* Round 39: the primary blueprint paper exposes the same tangent lock
+     as the linked drafter. This is deliberately a real touch gesture on
+     the WebGL canvas, not a call into an editing helper. Give the station
+     one real adjacent node first: tangent shaping refuses to invent a
+     direction for a lone point. */
+  await mp.locator('[data-editor-view="top"]').tap();
+  await mp.locator('#btnContinue').tap();
+  await mp.waitForFunction(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1'))?.nodes?.length===2,
+    null,{timeout:10000});
+  await mp.evaluate(()=>document.getElementById('btnFrame').click());
+  await mp.locator('#btnPrimaryTangent').tap();
+  assert.equal(await mp.locator('#btnPrimaryTangent').getAttribute('aria-pressed'),'true',
+    'primary tangent control must expose its locked state to touch users');
+  const primaryTangentBefore=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  const primaryTangentPixel=await mp.evaluate(async()=>{
+    const THREE=await import('three');
+    const nodes=JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes;
+    const xs=nodes.map(n=>n.x),zs=nodes.map(n=>n.z),hs=nodes.map(n=>n.h);
+    const min=new THREE.Vector3(Math.min(...xs),Math.min(...hs),Math.min(...zs));
+    const max=new THREE.Vector3(Math.max(...xs),Math.max(...hs),Math.max(...zs));
+    const center=min.clone().add(max).multiplyScalar(.5),aspect=innerWidth/innerHeight;
+    const halfHeight=Math.max(18,(max.z-min.z)*.66,(max.x-min.x)/aspect*.66);
+    const eye=new THREE.OrthographicCamera(-halfHeight*aspect,halfHeight*aspect,halfHeight,-halfHeight,.1,1000);
+    eye.up.set(0,0,-1);eye.position.set(center.x,center.y+190,center.z);eye.lookAt(center);eye.updateMatrixWorld();
+    const point=new THREE.Vector3(nodes[0].x,nodes[0].h,nodes[0].z).project(eye);
+    return {x:Math.round((point.x+1)*innerWidth/2),y:Math.round((1-point.y)*innerHeight/2)};
+  });
+  assert.equal(await mp.evaluate(point=>document.elementFromPoint(point.x,point.y)?.tagName,primaryTangentPixel),'CANVAS',
+    'primary TOP tangent test needs a tappable source node');
+  await send('touchStart',[finger(493,primaryTangentPixel.x,primaryTangentPixel.y)]);
+  await send('touchMove',[finger(493,primaryTangentPixel.x+42,primaryTangentPixel.y-54)]);
+  await send('touchEnd',[]);
+  await mp.waitForFunction(before=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.nodes?.length===2 && (d.nodes[0].x!==before.nodes[0].x || d.nodes[0].z!==before.nodes[0].z);
+  },primaryTangentBefore,{timeout:12000});
+  const primaryTangentAfter=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  const pdx=primaryTangentAfter.nodes[0].x-primaryTangentBefore.nodes[0].x;
+  const pdz=primaryTangentAfter.nodes[0].z-primaryTangentBefore.nodes[0].z;
+  const ptx=primaryTangentBefore.nodes[1].x-primaryTangentBefore.nodes[0].x;
+  const ptz=primaryTangentBefore.nodes[1].z-primaryTangentBefore.nodes[0].z;
+  assert.ok(Math.abs(pdx*ptz-pdz*ptx)/Math.hypot(ptx,ptz)<.2,
+    'primary tangent lock rejects the off-rail TOP component');
+  assert.equal(primaryTangentAfter.nodes[0].h,primaryTangentBefore.nodes[0].h,
+    'primary TOP tangent lock preserves height');
+  assert.equal(primaryTangentAfter.nodes[0].bank,primaryTangentBefore.nodes[0].bank,
+    'primary tangent lock never changes banking');
+  assert.deepEqual(primaryTangentAfter.nodes.slice(1),primaryTangentBefore.nodes.slice(1),
+    'primary tangent lock never moves a neighboring source node');
+  await mp.evaluate(()=>document.getElementById('btnUndo').click());
+  assert.deepEqual((await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
+    primaryTangentBefore.nodes,'primary tangent touch drag Undo restores exact geometry');
+  await mp.locator('#btnPrimaryTangent').tap();
+  assert.equal(await mp.evaluate(()=>localStorage.getItem('somelimits-primary-tangent-lock-v1')),'0',
+    'primary tangent preference persists independently from the coaster document');
+  console.log('PASS primary tangent mobile WebGL: explicit touch lock keeps the edit on its rail tangent');
+  /* Return this established blueprint journey to its original lone crest;
+     the extra node above existed solely to supply a genuine tangent. */
+  await mp.evaluate(()=>document.getElementById('btnUndo').click());
+  await mp.waitForFunction(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1'))?.nodes?.length===1,
+    null,{timeout:10000});
   await mp.locator('[data-editor-view="top"]').tap();
   assert.equal((await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes[0].h,
     42.5,'return from elevation view must preserve the original lift crest');

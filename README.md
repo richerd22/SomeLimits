@@ -54,6 +54,8 @@ Round 37 makes the guide itself truthful: tangent lock now follows the actual **
 
 Round 38 completes the precision loop with **−T / +T**: tap to move the selected point 1 m backward or forward along that rail-accurate guide (Shift-click: 5 m). Each tap is one normal Undo step; it never introduces hidden handles, smoothing, or neighbor edits. [Rail-direction tangent nudges](wiki/tangent-nudge-round38.md).
 
+Round 39 brings that intentional shaping to the original full-size drawing paper: **tangent: on** in TOP/SIDE/FRONT constrains a direct lime-node drag to the rail direction visible in that view. Use the button on touch or press **T**; it remembers only an editor preference and remains outside coaster files, presets and ride physics. [Primary-paper tangent shaping](wiki/primary-tangent-round39.md).
+
 ## What you get
 
 - A complete closed-circuit coaster, end to end: station, lift hill, drops, banked turns, inversions if you build them, brake run back to the station.

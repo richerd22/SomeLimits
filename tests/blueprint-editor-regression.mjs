@@ -45,6 +45,17 @@ for(const view of ['top','side','front','3d'])
   assert.ok(html.includes('data-editor-view="'+view+'"'),'missing visible '+view+' view');
 for(const id of ['btnContinue','btnTurnLeft','btnTurnRight','btnMakeDrop'])
   assert.ok(html.includes('id="'+id+'"'),'missing continuation control '+id);
+for(const text of [
+  'btnPrimaryTangent',
+  "const PRIMARY_TANGENT_KEY='somelimits-primary-tangent-lock-v1'",
+  'primaryDragTangent=linkedTangent(editorView,nodes,i,!building)',
+  'constrainToTangent(planePoint(editorView,grabSnap),candidate,primaryDragTangent)',
+  "if(editorView==='top'&&primaryTangentLocked&&primaryDragTangent)",
+  "$('btnPrimaryTangent').disabled = view === '3d'"
+]) assert.ok(moduleScript.includes(text),'missing primary tangent editor contract '+text);
+const core=html.match(/\/\* === CORE START === \*\/([\s\S]*?)\/\* === CORE END === \*\//)?.[1] || '';
+assert.ok(!core.includes('primaryTangent'),
+  'primary tangent preference must not enter the ride physics core');
 for(const token of [
   'const elevationGrid = new THREE.GridHelper(260, 52,',
   'elevationGrid.rotation.set(Math.PI / 2, 0, 0)',

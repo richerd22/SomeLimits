@@ -147,6 +147,7 @@
   #editorDock #btnFocusPoint{display:block;width:100%;margin-top:6px}
   #editorDock .snaprow{display:flex;align-items:center;gap:7px;margin-top:5px}
   #editorDock #btnGridSnap{min-width:90px;text-align:center;flex:0 0 90px}
+  #editorDock #btnPrimaryTangent{min-width:96px;text-align:center;flex:0 0 96px}
   #editorDock #draftMeasure{font-size:10px;color:#bcd5a1;line-height:1.35;min-width:0;flex:1}
   #editorDock .viewnav{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;margin-top:6px;align-items:center}
   #editorDock #zoomReadout{font-size:10px;color:#a8bdcb;text-align:center;font-variant-numeric:tabular-nums}
@@ -339,6 +340,7 @@
   </div>
   <div class="snaprow">
     <button type="button" id="btnGridSnap" title="Cycle snapping off, 1m, or 5m; only affects 2D authoring">snap: off</button>
+    <button type="button" id="btnPrimaryTangent" aria-pressed="false" title="Lock primary TOP/SIDE/FRONT node drags to the rail tangent">tangent: off</button>
     <span id="draftMeasure" aria-live="off"></span>
   </div>
   <button type="button" id="btnFocusPoint" title="Zoom toward the selected point">focus selected node</button>
@@ -534,7 +536,7 @@
 })();
 </script>
 <script type="module">
-import { createLinkedDrafter, clampLinkedRect } from './linked-drafter.js';
+import { createLinkedDrafter, clampLinkedRect, linkedTangent, constrainToTangent, planePoint, fromPlane } from './linked-drafter.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
@@ -1101,10 +1103,19 @@ let lastZoomReadout = '';
 /* Editor-only preference: never inserted into nodes, history snapshots,
    URL shares, imports, physics or native JSON/CSV coaster exports. */
 let draftSnap = 0;
+const PRIMARY_TANGENT_KEY='somelimits-primary-tangent-lock-v1';
+let primaryTangentLocked=false;
 try {
   const value = Number(localStorage.getItem('somelimits-drawing-snap'));
   if (value === 1 || value === 5) draftSnap = value;
 } catch {}
+try { primaryTangentLocked=localStorage.getItem(PRIMARY_TANGENT_KEY)==='1'; } catch {}
+function setPrimaryTangentLocked(value,persist=false){
+  primaryTangentLocked=!!value;
+  $('btnPrimaryTangent').textContent='tangent: '+(primaryTangentLocked?'on':'off');
+  $('btnPrimaryTangent').setAttribute('aria-pressed',String(primaryTangentLocked));
+  if(persist)try{localStorage.setItem(PRIMARY_TANGENT_KEY,primaryTangentLocked?'1':'0')}catch{}
+}
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(10, 8, 0);
 controls.enableDamping = true;
@@ -2237,6 +2248,7 @@ function setEditorView(view) {
     '3d': '3D: drag to orbit; right-drag to pan; scroll to zoom.'
   };
   $('dockGuide').textContent = guide[view];
+  $('btnPrimaryTangent').disabled = view === '3d';
   if (building) $('hint').innerHTML = buildHint();
 }
 
@@ -3248,6 +3260,9 @@ function cycleDraftSnap() {
 $('btnGridSnap').addEventListener('click', cycleDraftSnap);
 $('btnGridSnap').textContent = 'snap: ' + (draftSnap ? draftSnap + 'm' : 'off');
 $('btnGridSnap').setAttribute('aria-pressed', String(draftSnap !== 0));
+$('btnPrimaryTangent').addEventListener('click',()=>setPrimaryTangentLocked(!primaryTangentLocked,true));
+setPrimaryTangentLocked(primaryTangentLocked);
+$('btnPrimaryTangent').disabled = editorView === '3d';
 $('btnFocusSelected').addEventListener('click', focusSelectedNode);
 /* When vertical loops stack points on the same projected pixel, there
    must be an exact way to select every one, without fake geometry or
@@ -3406,6 +3421,7 @@ let dragging = -1, dragMoved = false;
 let dragIntent = null, dragPressGround = null, dragPressHeight = 0;
 const elevationPlane = new THREE.Plane();
 let elevationPress = null;
+let primaryDragTangent = null;
 let capPressHeight = 0; // world-space grab offsets avoid first-move jumps
 let heightDrag = -1, heightMoved = false;  // vertical cap-drag state
 const vertPlane = new THREE.Plane();       // the upright plane a cap drag runs on
@@ -3480,7 +3496,7 @@ function cancelGesture() {
     restored = true;
   }
   dragging = -1; banking = -1; heightDrag = -1; gripBank = -1;
-  dragIntent = null; dragPressGround = null; elevationPress = null;
+  dragIntent = null; dragPressGround = null; elevationPress = null; primaryDragTangent = null;
   dragMoved = false; bankMoved = false; heightMoved = false; gripMoved = false;
   downAt = null; grabSnap = null; pressAt = null;
   hideDraftPreview();
@@ -3566,6 +3582,7 @@ renderer.domElement.addEventListener('pointerdown', e => {
   hideDraftPreview();
   pressAt = {x: e.clientX, y: e.clientY};
   grabSnap = null;
+  primaryDragTangent = null;
   castAt(e);
   const hits = ray.intersectObjects(handleGroup.children);
   /* the pole and the ground ring carry no userData - they are
@@ -3639,6 +3656,7 @@ renderer.domElement.addEventListener('pointerdown', e => {
       renderer.domElement.style.cursor = 'ew-resize';
     } else {
       dragging = i;
+      if(editorView!=='3d')primaryDragTangent=linkedTangent(editorView,nodes,i,!building);
       dragIntent = editorView === 'top' ? 'ground' : null;
       elevationPress = null;
       if (editorView === 'side' || editorView === 'front') {
@@ -3747,13 +3765,20 @@ renderer.domElement.addEventListener('pointermove', e => {
     if (ray.ray.intersectPlane(elevationPlane, hitPoint)) {
       const dx = hitPoint.x - elevationPress.x, dy = hitPoint.y - elevationPress.y;
       const dz = hitPoint.z - elevationPress.z;
-      const movedPlan = editorView === 'side'
-        ? setNodePlanPosition(nodes, dragging,
-            draftSnap ? draftCoordinate(grabSnap.x + dx, draftSnap, -150, 150) : grabSnap.x + dx,
-            grabSnap.z)
-        : setNodePlanPosition(nodes, dragging, grabSnap.x,
-            draftSnap ? draftCoordinate(grabSnap.z + dz, draftSnap, -150, 150) : grabSnap.z + dz);
-      const nh = draftCoordinate(grabSnap.h + dy, draftSnap, 1, 80);
+      let x = editorView === 'side'
+        ? (draftSnap ? draftCoordinate(grabSnap.x + dx, draftSnap, -150, 150) : grabSnap.x + dx)
+        : grabSnap.x;
+      let z = editorView === 'front'
+        ? (draftSnap ? draftCoordinate(grabSnap.z + dz, draftSnap, -150, 150) : grabSnap.z + dz)
+        : grabSnap.z;
+      let nh = draftCoordinate(grabSnap.h + dy, draftSnap, 1, 80);
+      if(primaryTangentLocked&&primaryDragTangent){
+        const candidate=editorView==='side'?{u:x,v:nh}:{u:-z,v:nh};
+        const locked=constrainToTangent(planePoint(editorView,grabSnap),candidate,primaryDragTangent);
+        const next=fromPlane(editorView,locked,grabSnap,draftSnap);
+        if(next){ x=next.x;z=next.z;nh=next.h; }
+      }
+      const movedPlan = setNodePlanPosition(nodes, dragging, x, z);
       const movedHeight = nodes[dragging].h !== nh;
       if (movedHeight) nodes[dragging].h = nh;
       if (movedPlan || movedHeight) { dragMoved = true; queueTrackPreview(); }
@@ -3781,6 +3806,11 @@ renderer.domElement.addEventListener('pointermove', e => {
     if (editorView === 'top' && draftSnap) {
       nx = draftCoordinate(nx, draftSnap, -150, 150);
       nz = draftCoordinate(nz, draftSnap, -150, 150);
+    }
+    if(editorView==='top'&&primaryTangentLocked&&primaryDragTangent){
+      const locked=constrainToTangent(planePoint('top',grabSnap),{u:nx,v:-nz},primaryDragTangent);
+      const next=fromPlane('top',locked,grabSnap,draftSnap);
+      if(next){nx=next.x;nz=next.z;}
     }
     if (setNodePlanPosition(nodes, dragging, nx, nz)) {
       dragMoved = true; queueTrackPreview();
@@ -3851,7 +3881,7 @@ renderer.domElement.addEventListener('pointerup', e => {
      settle only when dragging is -1. The old order rebuilt while
      the drag flag was still set, so the expensive settle was skipped. */
   const editedNode = dragging, changedNode = dragMoved;
-  dragging = -1; dragIntent = null; dragPressGround = null; elevationPress = null; grabSnap = null;
+  dragging = -1; dragIntent = null; dragPressGround = null; elevationPress = null; primaryDragTangent = null; grabSnap = null;
   renderer.domElement.style.cursor = '';
   controls.enabled = mode === 'edit';
   if (editedNode >= 0 && changedNode) {
@@ -4214,6 +4244,9 @@ addEventListener('keydown', e => {
     if (e.key === 'f' || e.key === 'F') frameTrack();
     if (e.key === 'n' || e.key === 'N') addNode();
     if (e.key === 'j' || e.key === 'J') toggleLinkedPane();
+    if ((e.key === 't' || e.key === 'T') && editorView !== '3d' && !document.querySelector('.overlay.open')) {
+      e.preventDefault(); setPrimaryTangentLocked(!primaryTangentLocked,true);
+    }
     if (e.key === '[' || e.key === ']') {
       if (!document.querySelector('.overlay.open')) {
         e.preventDefault(); stepSelectedNode(e.key === '[' ? -1 : 1);
