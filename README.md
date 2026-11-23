@@ -52,6 +52,8 @@ Round 36 remembers that workspace choice: focus the linked paper and press **T**
 
 Round 37 makes the guide itself truthful: tangent lock now follows the actual **centripetal Catmull–Rom rail direction**, not just a shortcut through neighboring control points. Uneven crests and turns shape along the rail you see, with no change to the spline, saved coasters or ride physics. [Rail-accurate tangent guide](wiki/rail-tangent-round37.md).
 
+Round 38 completes the precision loop with **−T / +T**: tap to move the selected point 1 m backward or forward along that rail-accurate guide (Shift-click: 5 m). Each tap is one normal Undo step; it never introduces hidden handles, smoothing, or neighbor edits. [Rail-direction tangent nudges](wiki/tangent-nudge-round38.md).
+
 ## What you get
 
 - A complete closed-circuit coaster, end to end: station, lift hill, drops, banked turns, inversions if you build them, brake run back to the station.

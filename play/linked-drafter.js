@@ -110,6 +110,11 @@ export function constrainToTangent(origin, candidate, tangent) {
   const distance=(candidate.u-origin.u)*tangent.u+(candidate.v-origin.v)*tangent.v;
   return {u:origin.u+distance*tangent.u,v:origin.v+distance*tangent.v};
 }
+export function moveAlongTangent(view, node, tangent, distance, snap = 0) {
+  if(!node||!tangent||!Number.isFinite(distance))return null;
+  const origin=planePoint(view,node);
+  return fromPlane(view,{u:origin.u+tangent.u*distance,v:origin.v+tangent.v*distance},node,snap);
+}
 
 export function createLinkedDrafter({
   element,canvas,getState,onSelect,onMove,onCommit,onRestore,onPlace,onClose
@@ -118,6 +123,8 @@ export function createLinkedDrafter({
   if (!ctx) return {refresh(){},resetFraming(){},syncMode(){},setVisible(){},getView(){return 'top';}};
   const status=element.querySelector('#linkedStatus');
   const tangentToggle=element.querySelector('#linkedTangent');
+  const tangentBack=element.querySelector('#linkedTangentBack');
+  const tangentForward=element.querySelector('#linkedTangentForward');
   const viewButtons=Array.from(element.querySelectorAll('[data-linked-view]'));
   const viewports={top:null,side:null,front:null};
   const chooser=element.querySelector('#linkedMode');
@@ -163,6 +170,17 @@ export function createLinkedDrafter({
     if(saved==='1'||saved==='0')tangentLocked=saved==='1';
   } catch {}
   setTangentLocked(tangentLocked);
+  function nudgeTangent(direction,distance=1) {
+    const s=state(),node=s.nodes[s.selected],tangent=linkedTangent(view,s.nodes,s.selected,!s.building);
+    /* A labelled 1m/5m rail nudge must not disappear because an unrelated
+       drawing-grid preference rounds it back onto the current point. */
+    const next=moveAlongTangent(view,node,tangent,direction*distance,0);
+    if(!next||!onMove(s.selected,next)){
+      setStatus('select a node with a visible tangent first');return;
+    }
+    onCommit();
+    setStatus('node '+(s.selected+1)+' · '+(direction<0?'back ':'forward ')+distance+'m along rail');
+  }
   function drawGrid(w,h,vp){
     const step=vp.scale>7?5:vp.scale>2.5?10:25;
     const min=canvasToPlane(vp,0,h,w,h),max=canvasToPlane(vp,w,0,w,h);
@@ -357,6 +375,8 @@ export function createLinkedDrafter({
     setTangentLocked(!tangentLocked,true);
     setStatus(tangentLocked?'tangent lock on · drag a node along the gold guide':'tangent lock off · Shift still locks one drag');
   });
+  tangentBack?.addEventListener('click',e=>nudgeTangent(-1,e.shiftKey?5:1));
+  tangentForward?.addEventListener('click',e=>nudgeTangent(1,e.shiftKey?5:1));
   element.querySelector('#linkedZoomOut').addEventListener('click',()=>zoom(.8));
   element.querySelector('#linkedClose').addEventListener('click',()=>{setVisible(false);onClose?.();});
   canvas.addEventListener('keydown',e=>{
