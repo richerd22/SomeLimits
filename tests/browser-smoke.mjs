@@ -323,7 +323,26 @@ try {
     'T shortcut persists the editor preference without touching the coaster');
   assert.deepEqual((await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
     tangentBefore.nodes,'tangent preference cannot mutate a saved coaster');
-  console.log('PASS desktop linked tangent: Shift, toggle and T shortcut follow guide without node side effects');
+  /* Undo restores the selected node too. Choose the intended point again
+     through the real linked paper before testing its explicit nudge. */
+  await p.mouse.click(tangentPixel.x,tangentPixel.y);
+  const nudgeBefore=await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  await p.locator('#linkedTangentForward').click();
+  await p.waitForFunction(before=>{
+    const d=JSON.parse(localStorage.getItem('somelimits-autosave-v1'));
+    return d?.nodes?.length===2 && (d.nodes[0].x!==before.nodes[0].x || d.nodes[0].h!==before.nodes[0].h);
+  },nudgeBefore,{timeout:10000});
+  const nudgeAfter=await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
+  const nudgeDx=nudgeAfter.nodes[0].x-nudgeBefore.nodes[0].x;
+  const nudgeDh=nudgeAfter.nodes[0].h-nudgeBefore.nodes[0].h;
+  assert.ok(Math.abs(nudgeDx*th-nudgeDh*tx)/Math.hypot(tx,th)<0.2,
+    '+T nudge follows the same rail tangent as constrained drag');
+  assert.deepEqual(nudgeAfter.nodes.slice(1),nudgeBefore.nodes.slice(1),
+    '+T nudge must leave the neighboring source node untouched');
+  await p.locator('#btnUndo').click();
+  await p.waitForFunction(before=>JSON.stringify(JSON.parse(localStorage.getItem('somelimits-autosave-v1')).nodes)===JSON.stringify(before.nodes),
+    nudgeBefore,{timeout:10000});
+  console.log('PASS desktop linked tangent: Shift, toggle, T shortcut and ±T nudge keep node edits explicit');
   await p.locator('#btnUndo').click();
   assert.deepEqual((await p.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')))).nodes,
     afterLinkedSide.nodes,'linked click-to-extend is a single undoable document edit');

@@ -2,7 +2,7 @@
 // the 3D physics renderer and edits only the visible source node axes.
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {planePoint,fromPlane,fitLinkedView,planeToCanvas,canvasToPlane,clampLinkedRect,linkedTangent,constrainToTangent} from '../play/linked-drafter.js';
+import {planePoint,fromPlane,fitLinkedView,planeToCanvas,canvasToPlane,clampLinkedRect,linkedTangent,constrainToTangent,moveAlongTangent} from '../play/linked-drafter.js';
 
 const base={x:17.3,z:-26.6,h:42.5,bank:-35,station:true,lift:true};
 const old=structuredClone(base);
@@ -42,6 +42,9 @@ const tangentOrigin=planePoint('side',tangentNodes[1]);
 const tangentMove=constrainToTangent(tangentOrigin,{u:26,v:9},sideTangent);
 assert.ok(Math.abs((tangentMove.u-tangentOrigin.u)*sideTangent.v-
   (tangentMove.v-tangentOrigin.v)*sideTangent.u)<1e-12,'tangent constraint removes only perpendicular drag motion');
+assert.deepEqual(moveAlongTangent('side',tangentNodes[1],sideTangent,5),
+  {x:3.5,z:0,h:6.5,bank:undefined},'tangent nudge moves only the active projected axes');
+assert.equal(moveAlongTangent('side',tangentNodes[1],null,1),null,'a missing tangent cannot invent a nudge');
 assert.equal(linkedTangent('top',[base],0,false),null,'one node has no invented tangent');
 assert.ok(linkedTangent('top',tangentNodes,0,false),'open endpoint uses its one real adjacent direction');
 assert.ok(linkedTangent('top',[
@@ -93,10 +96,10 @@ const bad=clampLinkedRect({left:NaN,top:Infinity,width:0,height:NaN},1440,900);
 assert.ok(Object.values(bad).every(Number.isFinite),'corrupt stored layout cannot poison editor geometry');
 const html=readFileSync(new URL('../play/index.html',import.meta.url),'utf8');
 const drafterSource=readFileSync(new URL('../play/linked-drafter.js',import.meta.url),'utf8');
-for(const code of ["linkedTangent(view,s.nodes,s.selected,!s.building)","(e.shiftKey||active.tangentLock) ? constrainToTangent","setTangentLocked(!tangentLocked,true)","somelimits-linked-tangent-lock-v1"])
+for(const code of ["linkedTangent(view,s.nodes,s.selected,!s.building)","(e.shiftKey||active.tangentLock) ? constrainToTangent","setTangentLocked(!tangentLocked,true)","moveAlongTangent(view,node,tangent,direction*distance,0)","somelimits-linked-tangent-lock-v1"])
   assert.ok(drafterSource.includes(code),'tangent interaction wiring missing '+code);
 assert.ok(html.includes("import { createLinkedDrafter, clampLinkedRect } from './linked-drafter.js';"));
-for(const name of ['linkedPane','linkedCanvas','btnLinkedPane','linkedFit','linkedZoomOut','linkedTangent',
+for(const name of ['linkedPane','linkedCanvas','btnLinkedPane','linkedFit','linkedZoomOut','linkedTangent','linkedTangentBack','linkedTangentForward',
   'linkedZoomIn','linkedClose','linkedStatus','linkedResize'])
   assert.ok(html.includes('id="'+name+'"'),'linked pane control missing '+name);
 for(const code of [
