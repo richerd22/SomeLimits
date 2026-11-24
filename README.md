@@ -56,6 +56,8 @@ Round 38 completes the precision loop with **−T / +T**: tap to move the select
 
 Round 39 brings that intentional shaping to the original full-size drawing paper: **tangent: on** in TOP/SIDE/FRONT constrains a direct lime-node drag to the rail direction visible in that view. Use the button on touch or press **T**; it remembers only an editor preference and remains outside coaster files, presets and ride physics. [Primary-paper tangent shaping](wiki/primary-tangent-round39.md).
 
+Round 40 makes that constraint visible: when primary tangent lock is on, a gold dashed guide appears through the selected node on the TOP/SIDE/FRONT paper. It is the exact permitted drag direction, not new rail geometry, and stays absent when a lone node has no honest tangent. [Visible primary tangent guide](wiki/primary-tangent-guide-round40.md).
+
 ## What you get
 
 - A complete closed-circuit coaster, end to end: station, lift hill, drops, banked turns, inversions if you build them, brake run back to the station.
