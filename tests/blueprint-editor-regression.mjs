@@ -56,6 +56,18 @@ for(const text of [
   'new THREE.LineDashedMaterial({',
   'a lone node has no invented rail direction'
 ]) assert.ok(moduleScript.includes(text),'missing primary tangent editor contract '+text);
+assert.ok(html.includes('font-variant-numeric:tabular-nums;pointer-events:none'),
+  'empty primary editor dock space must not block drawing-canvas touches');
+assert.ok(html.includes('#editorDock{top:auto;bottom:12px;height:auto}'),
+  'narrow-screen drafting controls must leave the central paper reachable');
+for(const id of ['btnPrimaryTangentBack','btnPrimaryTangentForward'])
+  assert.ok(html.includes('id="'+id+'"'),'missing primary tangent nudge control '+id);
+for(const text of [
+  'function nudgePrimaryTangent(direction,distance=1)',
+  'moveAlongTangent(editorView,nodes[selected],tangent,direction*distance,0)',
+  "$('btnPrimaryTangentBack').disabled = view === '3d'",
+  "$('btnPrimaryTangentForward').disabled = view === '3d'"
+]) assert.ok(moduleScript.includes(text),'missing primary tangent nudge contract '+text);
 const core=html.match(/\/\* === CORE START === \*\/([\s\S]*?)\/\* === CORE END === \*\//)?.[1] || '';
 assert.ok(!core.includes('primaryTangent'),
   'primary tangent preference must not enter the ride physics core');

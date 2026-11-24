@@ -137,7 +137,13 @@
      The view and continuation controls remain reachable with the phone panel folded. */
   #editorDock{position:absolute;right:12px;top:54px;z-index:7;width:236px;
     background:rgba(12,15,19,.94);border:1px solid #354456;border-radius:6px;
-    padding:9px 10px;box-sizing:border-box;font-variant-numeric:tabular-nums}
+    padding:9px 10px;box-sizing:border-box;font-variant-numeric:tabular-nums;pointer-events:none}
+  #editorDock button,#editorDock input,#editorDock select,#editorDock label{pointer-events:auto}
+  @media (max-width:760px){
+    /* Keep expanding drafting tools off the centre paper. This rule follows
+       the base dock position so narrow-screen layouts own its placement. */
+    #editorDock{top:auto;bottom:12px;height:auto}
+  }
   #editorDock .docktitle{font-size:10px;color:#90a4b8;letter-spacing:.09em;margin:2px 0 5px}
   #editorDock .dockrow{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
   #editorDock button{min-width:0;margin:0;padding:8px 3px;font-size:11px;white-space:nowrap}
@@ -148,6 +154,9 @@
   #editorDock .snaprow{display:flex;align-items:center;gap:7px;margin-top:5px}
   #editorDock #btnGridSnap{min-width:90px;text-align:center;flex:0 0 90px}
   #editorDock #btnPrimaryTangent{min-width:96px;text-align:center;flex:0 0 96px}
+  #editorDock .tangentrow{display:flex;align-items:center;gap:5px;margin-top:5px}
+  #editorDock .tangentrow #btnPrimaryTangent{flex:1}
+  #editorDock .tangentrow .tangentNudge{min-width:34px;flex:0 0 34px}
   #editorDock #draftMeasure{font-size:10px;color:#bcd5a1;line-height:1.35;min-width:0;flex:1}
   #editorDock .viewnav{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;margin-top:6px;align-items:center}
   #editorDock #zoomReadout{font-size:10px;color:#a8bdcb;text-align:center;font-variant-numeric:tabular-nums}
@@ -340,8 +349,12 @@
   </div>
   <div class="snaprow">
     <button type="button" id="btnGridSnap" title="Cycle snapping off, 1m, or 5m; only affects 2D authoring">snap: off</button>
-    <button type="button" id="btnPrimaryTangent" aria-pressed="false" title="Lock primary TOP/SIDE/FRONT node drags to the rail tangent">tangent: off</button>
     <span id="draftMeasure" aria-live="off"></span>
+  </div>
+  <div class="tangentrow" role="group" aria-label="Primary rail tangent tools">
+    <button type="button" id="btnPrimaryTangent" aria-pressed="false" title="Lock primary TOP/SIDE/FRONT node drags to the rail tangent">tangent: off</button>
+    <button type="button" class="tangentNudge" id="btnPrimaryTangentBack" aria-label="Move selected node backward along rail tangent" title="Move selected node 1m backward along rail tangent; Shift-click for 5m">−T</button>
+    <button type="button" class="tangentNudge" id="btnPrimaryTangentForward" aria-label="Move selected node forward along rail tangent" title="Move selected node 1m forward along rail tangent; Shift-click for 5m">+T</button>
   </div>
   <button type="button" id="btnFocusPoint" title="Zoom toward the selected point">focus selected node</button>
   <div id="buildTools" style="display:none">
@@ -536,7 +549,7 @@
 })();
 </script>
 <script type="module">
-import { createLinkedDrafter, clampLinkedRect, linkedTangent, constrainToTangent, planePoint, fromPlane } from './linked-drafter.js';
+import { createLinkedDrafter, clampLinkedRect, linkedTangent, constrainToTangent, planePoint, fromPlane, moveAlongTangent } from './linked-drafter.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
@@ -2283,6 +2296,8 @@ function setEditorView(view) {
   $('dockGuide').textContent = guide[view] + (primaryTangentLocked && view !== '3d' ?
     ' Gold guide: tangent lock is on.' : '');
   $('btnPrimaryTangent').disabled = view === '3d';
+  $('btnPrimaryTangentBack').disabled = view === '3d';
+  $('btnPrimaryTangentForward').disabled = view === '3d';
   if (building) $('hint').innerHTML = buildHint();
 }
 
@@ -3295,8 +3310,25 @@ $('btnGridSnap').addEventListener('click', cycleDraftSnap);
 $('btnGridSnap').textContent = 'snap: ' + (draftSnap ? draftSnap + 'm' : 'off');
 $('btnGridSnap').setAttribute('aria-pressed', String(draftSnap !== 0));
 $('btnPrimaryTangent').addEventListener('click',()=>setPrimaryTangentLocked(!primaryTangentLocked,true));
+function nudgePrimaryTangent(direction,distance=1) {
+  if (mode !== 'edit' || editorView === '3d' || !nodes[selected]) return false;
+  const tangent=linkedTangent(editorView,nodes,selected,!building);
+  /* Labels promise exact metres along the visible guide, so independent
+     drawing-grid snap must not erase this explicit adjustment. */
+  const next=moveAlongTangent(editorView,nodes[selected],tangent,direction*distance,0);
+  if(!next){ toast('select a node with a visible rail tangent first.'); return false; }
+  if(next.x===nodes[selected].x&&next.z===nodes[selected].z&&next.h===nodes[selected].h)return false;
+  nodes[selected].x=next.x;nodes[selected].z=next.z;nodes[selected].h=next.h;
+  buildTrack();commit();
+  toast('node '+(selected+1)+' · '+(direction<0?'back ':'forward ')+distance+'m along rail tangent');
+  return true;
+}
+$('btnPrimaryTangentBack').addEventListener('click',e=>nudgePrimaryTangent(-1,e.shiftKey?5:1));
+$('btnPrimaryTangentForward').addEventListener('click',e=>nudgePrimaryTangent(1,e.shiftKey?5:1));
 setPrimaryTangentLocked(primaryTangentLocked);
 $('btnPrimaryTangent').disabled = editorView === '3d';
+$('btnPrimaryTangentBack').disabled = editorView === '3d';
+$('btnPrimaryTangentForward').disabled = editorView === '3d';
 $('btnFocusSelected').addEventListener('click', focusSelectedNode);
 /* When vertical loops stack points on the same projected pixel, there
    must be an exact way to select every one, without fake geometry or

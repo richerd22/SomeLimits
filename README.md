@@ -58,6 +58,8 @@ Round 39 brings that intentional shaping to the original full-size drawing paper
 
 Round 40 makes that constraint visible: when primary tangent lock is on, a gold dashed guide appears through the selected node on the TOP/SIDE/FRONT paper. It is the exact permitted drag direction, not new rail geometry, and stays absent when a lone node has no honest tangent. [Visible primary tangent guide](wiki/primary-tangent-guide-round40.md).
 
+Round 41 adds precise **−T / +T** buttons beside the primary tangent control. They move the selected node 1 m along its visible rail guide (Shift-click: 5 m), remain one normal Undo step, and ignore unrelated grid snap so their labelled distance stays honest. [Primary rail-direction nudges](wiki/primary-tangent-nudge-round41.md).
+
 ## What you get
 
 - A complete closed-circuit coaster, end to end: station, lift hill, drops, banked turns, inversions if you build them, brake run back to the station.
