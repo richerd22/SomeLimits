@@ -67,3 +67,4 @@ v1, shipped. Anything beyond the shipped list in these pages is marked planned.
 - [Centripetal rail-accurate tangent guide for linked curve shaping](rail-tangent-round37.md) (Round 37)
 - [Direct ± tangent nudges for deliberate fine curve shaping](tangent-nudge-round38.md) (Round 38)
 - [Primary TOP/SIDE/FRONT tangent lock for deliberate full-size paper shaping](primary-tangent-round39.md) (Round 39)
+- [Visible gold rail-tangent guide on the primary drawing paper](primary-tangent-guide-round40.md) (Round 40)

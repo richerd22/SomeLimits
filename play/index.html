@@ -1115,6 +1115,7 @@ function setPrimaryTangentLocked(value,persist=false){
   $('btnPrimaryTangent').textContent='tangent: '+(primaryTangentLocked?'on':'off');
   $('btnPrimaryTangent').setAttribute('aria-pressed',String(primaryTangentLocked));
   if(persist)try{localStorage.setItem(PRIMARY_TANGENT_KEY,primaryTangentLocked?'1':'0')}catch{}
+  if (handleGroup) buildTrack(); // refresh only disposable primary-paper guide
 }
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(10, 8, 0);
@@ -1724,6 +1725,38 @@ function buildNodeHandles() {
     handleGroup.add(h);
     addHitProxy(handleGroup, h.position, 'node', {nodeIndex: i});
   });
+  buildPrimaryTangentGuide();
+}
+
+/* The full-size drafting paper needs the same visible promise as the linked
+   paper: when a drag is constrained, show its exact permitted direction.
+   This guide is disposable editor chrome, never rail geometry or coaster data. */
+function buildPrimaryTangentGuide() {
+  /* Isolate this optional editor chrome from the pure handle-material
+     regression harness, which intentionally evaluates node handles alone. */
+  if (typeof primaryTangentLocked === 'undefined' || !primaryTangentLocked ||
+      !camera?.isOrthographicCamera || !nodes[selected]) return;
+  const tangent = linkedTangent(editorView, nodes, selected, !building);
+  if (!tangent) return; // a lone node has no invented rail direction
+  const n = nodes[selected];
+  const origin = new THREE.Vector3(n.x, n.h, n.z);
+  const direction = editorView === 'top'
+    ? new THREE.Vector3(tangent.u, 0, -tangent.v)
+    : editorView === 'side'
+      ? new THREE.Vector3(tangent.u, tangent.v, 0)
+      : new THREE.Vector3(0, tangent.v, -tangent.u);
+  const extent = Math.max(12, (camera.top - camera.bottom) / camera.zoom * .22);
+  const geo = new THREE.BufferGeometry().setFromPoints([
+    origin.clone().addScaledVector(direction, -extent),
+    origin.clone().addScaledVector(direction, extent)
+  ]);
+  const line = new THREE.Line(geo, new THREE.LineDashedMaterial({
+    color: 0xf4c542, dashSize: 1.3, gapSize: .85, transparent: true,
+    opacity: .9, depthTest: false
+  }));
+  line.computeLineDistances();
+  line.renderOrder = 2;
+  handleGroup.add(line);
 }
 
 function buildTrack() {
@@ -2247,7 +2280,8 @@ function setEditorView(view) {
     front: 'FRONT: tap empty drawing to ADD track at exact Z/height; drag dots to refine.',
     '3d': '3D: drag to orbit; right-drag to pan; scroll to zoom.'
   };
-  $('dockGuide').textContent = guide[view];
+  $('dockGuide').textContent = guide[view] + (primaryTangentLocked && view !== '3d' ?
+    ' Gold guide: tangent lock is on.' : '');
   $('btnPrimaryTangent').disabled = view === '3d';
   if (building) $('hint').innerHTML = buildHint();
 }

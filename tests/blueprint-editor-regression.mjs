@@ -51,7 +51,10 @@ for(const text of [
   'primaryDragTangent=linkedTangent(editorView,nodes,i,!building)',
   'constrainToTangent(planePoint(editorView,grabSnap),candidate,primaryDragTangent)',
   "if(editorView==='top'&&primaryTangentLocked&&primaryDragTangent)",
-  "$('btnPrimaryTangent').disabled = view === '3d'"
+  "$('btnPrimaryTangent').disabled = view === '3d'",
+  'function buildPrimaryTangentGuide() {',
+  'new THREE.LineDashedMaterial({',
+  'a lone node has no invented rail direction'
 ]) assert.ok(moduleScript.includes(text),'missing primary tangent editor contract '+text);
 const core=html.match(/\/\* === CORE START === \*\/([\s\S]*?)\/\* === CORE END === \*\//)?.[1] || '';
 assert.ok(!core.includes('primaryTangent'),
