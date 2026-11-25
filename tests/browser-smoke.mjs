@@ -869,6 +869,11 @@ try {
   await mp.locator('#btnPrimaryTangent').tap();
   assert.equal(await mp.locator('#btnPrimaryTangent').getAttribute('aria-pressed'),'true',
     'primary tangent control must expose its locked state to touch users');
+  /* The test projects a genuine source node, which can coincide with a
+     real dock button on a short phone canvas. The dock is already used to
+     enable the feature; hide it only for the canvas gesture, then restore
+     it for the visible +T control below. */
+  await mp.evaluate(()=>document.getElementById('editorDock').style.display='none');
   const primaryTangentBefore=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
   const primaryTangentPixel=await mp.evaluate(async()=>{
     const THREE=await import('three');
@@ -913,6 +918,7 @@ try {
      remains one ordinary Undo edit. */
   await send('touchStart',[finger(494,primaryTangentPixel.x,primaryTangentPixel.y)]);
   await send('touchEnd',[]); // Undo restores its prior selection; choose node 1 explicitly.
+  await mp.evaluate(()=>document.getElementById('editorDock').style.display='block');
   const primaryNudgeBefore=await mp.evaluate(()=>JSON.parse(localStorage.getItem('somelimits-autosave-v1')));
   await mp.locator('#btnPrimaryTangentForward').tap();
   await mp.waitForFunction(before=>{
