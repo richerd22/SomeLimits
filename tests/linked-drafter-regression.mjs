@@ -98,7 +98,7 @@ const html=readFileSync(new URL('../play/index.html',import.meta.url),'utf8');
 const drafterSource=readFileSync(new URL('../play/linked-drafter.js',import.meta.url),'utf8');
 for(const code of ["linkedTangent(view,s.nodes,s.selected,!s.building)","(e.shiftKey||active.tangentLock) ? constrainToTangent","setTangentLocked(!tangentLocked,true)","moveAlongTangent(view,node,tangent,direction*distance,0)","somelimits-linked-tangent-lock-v1"])
   assert.ok(drafterSource.includes(code),'tangent interaction wiring missing '+code);
-assert.ok(html.includes("import { createLinkedDrafter, clampLinkedRect, linkedTangent, constrainToTangent, planePoint, fromPlane } from './linked-drafter.js';"));
+assert.ok(html.includes("import { createLinkedDrafter, clampLinkedRect, linkedTangent, constrainToTangent, planePoint, fromPlane, moveAlongTangent } from './linked-drafter.js';"));
 for(const name of ['linkedPane','linkedCanvas','btnLinkedPane','linkedFit','linkedZoomOut','linkedTangent','linkedTangentBack','linkedTangentForward',
   'linkedZoomIn','linkedClose','linkedStatus','linkedResize'])
   assert.ok(html.includes('id="'+name+'"'),'linked pane control missing '+name);
