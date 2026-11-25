@@ -141,7 +141,8 @@
   #editorDock button,#editorDock input,#editorDock select,#editorDock label{pointer-events:auto}
   @media (max-width:760px){
     /* Keep expanding drafting tools off the centre paper. This rule follows
-       the base dock position so narrow-screen layouts own its placement. */
+       the base dock position and deliberately keys on viewport width: the
+       automated touch browser has touch input without a coarse CSS pointer. */
     #editorDock{top:auto;bottom:12px;height:auto}
   }
   #editorDock .docktitle{font-size:10px;color:#90a4b8;letter-spacing:.09em;margin:2px 0 5px}
