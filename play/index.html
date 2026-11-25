@@ -3065,7 +3065,18 @@ function autosave() {
   }
 }
 
+function syncPrimaryTangentAvailability() {
+  const usable=mode==='edit'&&editorView!=='3d'&&!!linkedTangent(editorView,nodes,selected,!building);
+  for(const id of ['btnPrimaryTangentBack','btnPrimaryTangentForward']){
+    const button=$(id);
+    button.disabled=!usable;
+    button.title=usable ?
+      (id.endsWith('Back')?'Move selected node 1m backward along rail tangent; Shift-click for 5m':'Move selected node 1m forward along rail tangent; Shift-click for 5m') :
+      'Select a node with a visible rail tangent first';
+  }
+}
 function syncPanel() {
+  syncPrimaryTangentAvailability();
   const n = nodes[selected];
   els.name.value = trackName;
   refreshContinue();
