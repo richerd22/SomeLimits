@@ -326,6 +326,7 @@
   <div class="big"><b id="hudSpeed">0</b> km/h</div>
   <div>height <b id="hudH">0</b> m &nbsp; g-force <b id="hudG">1.0</b></div>
   <div>lap <b id="hudLap">0:00</b> &nbsp; max <b id="hudMax">0</b> km/h</div>
+  <div id="hudLift" style="display:none;color:#C6FF00">on the lift chain</div>
   <div><button id="btnView" class="hudbtn">view: <b id="hudView">POV</b> (C)</button> <button id="btnRestart" class="hudbtn">restart lap</button> <button id="btnExitRide" class="hudbtn">exit (ESC)</button> <button id="btnMute" class="hudbtn">sound: on</button></div>
 </div>
 
@@ -392,7 +393,7 @@
   <span id="linkedMode" style="display:none">TOP</span>
   <div id="linkedResize" role="separator" tabindex="0" aria-label="Resize linked drawing pane" title="Drag to resize the linked drawing"></div>
 </section>
-<div id="hint" class="panel"><b>drag up</b> on a lime point to raise it &middot; <b>drag sideways</b> to move it &middot; <b>RIDE IT</b> when ready</div>
+<div id="hint" class="panel"><b>drag up</b> on a lime point to raise it &middot; <b>drag sideways</b> to move it &middot; <b>drag the blue grip</b> round a point to bank it &middot; <b>RIDE IT</b> when ready</div>
 <div id="toast"></div>
 <div id="hLabel"></div>
 
@@ -2675,7 +2676,7 @@ function buildClickAtGround(pt) {
   buildTrack(); commit();
   if (nodes.length === 2) toast(editorView === 'top' ?
     'track is growing. switch to SIDE and drag nodes upward to shape the lift. TOP lays out the route at your current height.' :
-    'track is growing. drag points to shape it, drag the orange cap above a point to raise it - 8m climbs grow a lift chain.', 5200);
+    'track is growing. drag points to shape it, drag the orange cap above a point to raise it - 8m climbs grow a lift chain. drag the blue grip round any point to bank it.', 5200);
   else if (nodes.length === 4) toast('that is enough track to come home - ' + TAP + ' the station to close the circuit.', 4200);
 }
 
@@ -2691,7 +2692,7 @@ function closeLoop() {
   if (td.maxDropM < 2 && !track.samples.some(s => s.lift)) {
     toast('circuit closed - flat as a pancake, so she will crawl round at chain pace. raise a point 8m+ for a gravity coaster.', 5200);
   } else {
-    toast('circuit closed - she is rideable. RIDE IT when ready.', 3600);
+    toast('circuit closed - she is rideable. blue grip on a point banks it. RIDE IT when ready.', 4200);
   }
 }
 
@@ -2810,6 +2811,14 @@ function poseRide(dt) {
   hud.g.textContent = ride.gSmooth.toFixed(1);
   hud.lap.textContent = fmtTime(ride.time);
   hud.max.textContent = Math.round(ride.maxV * 3.6);
+  /* ROUND 18 (Grain): say when the chain is doing the work, and how
+     fast - the lift should read as a machine hauling you, not as the
+     game going slow. Chain speed is LIFT_SPEED (25 km/h since R17). */
+  const liftEl = $('hudLift');
+  if (liftEl) {
+    if (sm.lift && ride.v > 0.5) { liftEl.style.display = 'block'; liftEl.textContent = 'on the lift chain - ' + Math.round(ride.v * 3.6) + ' km/h, climbing to ' + sm.pos.y.toFixed(0) + ' m'; }
+    else liftEl.style.display = 'none';
+  }
   gHist.push({v: ride.gVert, l: ride.gLat});
   if (gHist.length > 2400) gHist.splice(0, 600);
   drawGraph();
