@@ -560,7 +560,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
    ================================================================ */
 /* === CORE START === */
 const SAMPLES = 900;
-const GRAV = 9.81, LIFT_SPEED = 7.0, DISPATCH_SPEED = 6.5, FLAT_DRIVE_SPEED = 6.5;
+const GRAV = 9.81, LIFT_SPEED = 7.0; // ROUND 17 (Grain, 2026-11-27): chain speed 5.2 -> 7.0 m/s is THE lift fix for Richard's 'lift hill super slow' playtest note. It is the ONLY deliberate physics change in this round: on the classic it moves lap time 47.8s -> 44.4s, top speed and length untouched (86 km/h / 286 m). PROPOSED new fingerprint, flagged for Richard's ratification - revert this one number to 5.2 to restore 47.8s exactly.
 
 const PRESETS = {
   classic: [
@@ -699,11 +699,6 @@ function computeTrack(nodes) {
   const pts = nodes.map(n => new THREE.Vector3(n.x, n.h, n.z));
   const curve = new THREE.CatmullRomCurve3(pts, true, 'centripetal', 0.5);
   const pos = curve.getSpacedPoints(SAMPLES); // SAMPLES+1 pts, last == first
-  /* Height guardrail and bank/lift attribution use the SAME true
-     arc parameter per sample. Store the exact Three.js lookup during
-     the existing guard loop; the metadata pass reuses its result.
-     No extra loop, source-segment approximation or geometry change. */
-  const curveT = new Float64Array(SAMPLES + 1);
   /* height guardrail: the spline may bulge past its own segment's
      heights, but only a little. past ~1.5m of escape the bulge
      stops reading as "smooth" and starts reading as the track
@@ -717,7 +712,6 @@ function computeTrack(nodes) {
      node fraction - the fraction lies on uneven layouts. */
   for (let i = 0; i <= SAMPLES; i++) {
     const t = curve.getUtoTmapping(i / SAMPLES);
-    curveT[i] = t;
     const seg = Math.min(Math.floor(t * N), N - 1);
     const lo = Math.min(nodes[seg].h, nodes[(seg + 1) % N].h) - 1.5;
     const hi = Math.max(nodes[seg].h, nodes[(seg + 1) % N].h) + 1.5;
@@ -753,10 +747,14 @@ function computeTrack(nodes) {
   for (let i = 0; i <= SAMPLES; i++) {
     const p = pos[i % SAMPLES], tan = tans[i];
     if (i > 0) dist += pos[i].distanceTo(pos[i - 1]);
-    /* Arc-length samples do not divide evenly between nodes. The true
-       curve parameter keeps lift and bank on their own segment. */
-    const f = curveT[i] * N;
-    const i0 = Math.min(Math.floor(f), N - 1), i1 = (i0 + 1) % N;
+    /* ROUND 17 REVERT (Grain): bank/lift attribution returns to the
+       round-16 baseline arc fraction. ChatGPT's true-curve-parameter
+       attribution (perf/cache-arc + lift branch) silently widened the
+       lift zone (225 -> 272 of 900 classic samples) and cut the classic
+       lap 47.8s -> 36.7s on its own - a fingerprint change hiding inside
+       a 'perf' change. Proven in the 2026-11-27 audit. */
+    const f = (i / SAMPLES) * N;
+    const i0 = Math.floor(f) % N, i1 = (i0 + 1) % N;
     const bankDeg = bankAt(nodes, f);
     const up = transported[i].clone().applyAxisAngle(tan, -THREE.MathUtils.degToRad(bankDeg)).normalize();
     const side = new THREE.Vector3().crossVectors(up, tan).normalize();
@@ -776,11 +774,12 @@ function computeTrack(nodes) {
     const dToStation = ((stationS - sm.s) % totalLen + totalLen) % totalLen;
     sm.brake = dToStation < 32 && dToStation > 0.5;
   }
-  /* Flat-only circuits have no gravity source. Station tires power
-     these instead of sending them round at walking speed. */
-  const heights = nodes.map(n => n.h);
-  const poweredFlat = Math.max(...heights) - Math.min(...heights) < 2;
-  return {samples, totalLen, stationS, curve, poweredFlat};
+  /* ROUND 17 REVERT (Grain): no poweredFlat. ChatGPT's station-tire
+     drive for flat circuits un-decided a question round 16 explicitly
+     parked as Richard's call, and moved the flat fingerprint
+     160.9s -> 34.6s. Flat circuits crawl at the min-speed floor again
+     until Richard decides otherwise. */
+  return {samples, totalLen, stationS, curve};
 }
 
 function sampleAt(track, s) {
@@ -836,7 +835,7 @@ function trackData(nodes, track) {
 /* ---------------- ride physics ---------------- */
 function createRide(track) {
   return {
-    s: track.stationS, v: DISPATCH_SPEED, traveled: 0, time: 0,
+    s: track.stationS, v: 0, traveled: 0, time: 0, // ROUND 17 REVERT: trains dispatch from rest again (ChatGPT's rolling 6.5 m/s dispatch moved every fingerprint)
     running: true, finished: false,
     maxV: 0, maxG: 1, minG: 1, airtime: 0, gSmooth: 1, gVert: 1, gLat: 0,
     /* Live instrumentation only; never affects acceleration or braking.
@@ -860,7 +859,6 @@ function stepRide(track, ride, dt) {
     if (ride.v > 0.01) a -= 0.05; // rolling friction only while moving
     ride.v += a * h;
     if (here.lift && dhds > 0.01 && ride.v < LIFT_SPEED) ride.v = LIFT_SPEED; // uphill chain
-    if (track.poweredFlat && !here.brake && ride.v < FLAT_DRIVE_SPEED) ride.v = FLAT_DRIVE_SPEED; // tires on flat circuits
     const dLeft = ((track.stationS - ride.s) % total + total) % total;
     if (here.brake) {
       const vT = THREE.MathUtils.clamp(dLeft * 0.25, 1.1, 6);
@@ -869,16 +867,16 @@ function stepRide(track, ride, dt) {
     }
     if (ride.v < 1.2 && !here.brake) {
       /* Do NOT change the floor or its physics. Only record when
-         it rescued an unpowered mid-course section; flat tires and
-         active uphill chains are intentional propulsion. */
-      if (!track.poweredFlat && !(here.lift && dhds > 0.01) && ride.traveled > 8) {
+         it rescued an unpowered mid-course section; active uphill
+         chains are intentional propulsion. */
+      if (!(here.lift && dhds > 0.01) && ride.traveled > 8) {
         ride.assistSeconds += h;
         if (ride.firstAssistM === null) ride.firstAssistM = ride.traveled;
       }
       ride.v = 1.2;  // longstanding minimum-speed guard
     }
     if (ride.v < 0) ride.v = 0;
-    if (ride.traveled > 8 && !here.brake && !track.poweredFlat &&
+    if (ride.traveled > 8 && !here.brake &&
         !(here.lift && dhds > 0.01) && ride.v < ride.slowestCruiseV) {
       ride.slowestCruiseV = ride.v;
       ride.slowestCruiseM = ride.traveled;
@@ -2689,10 +2687,9 @@ function closeLoop() {
   building = false;
   selected = Math.max(0, nodes.findIndex(n => n.station));
   buildTrack(); commit();
-  /* A flat-only circuit uses tire drive now, not imaginary gravity. */
   const td = trackData(nodes, track);
   if (td.maxDropM < 2 && !track.samples.some(s => s.lift)) {
-    toast('circuit closed - flat as a pancake. station tires will push it round. raise a point 8m for a gravity coaster.', 5200);
+    toast('circuit closed - flat as a pancake, so she will crawl round at chain pace. raise a point 8m+ for a gravity coaster.', 5200);
   } else {
     toast('circuit closed - she is rideable. RIDE IT when ready.', 3600);
   }
