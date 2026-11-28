@@ -73,8 +73,8 @@ function runPanel(panelNodes) {
  };
  const syncPanel=new Function('nodes','selected','els','trackName','building',
    'refreshContinue','$','track','THREE','arcOfPoint','trackData',
-   panelSrc+'\nreturn syncPanel;')(
-   panelNodes,select,els,trackName,building,()=>continued++,$,null,{},null,null);
+   'syncPrimaryTangentAvailability',panelSrc+'\nreturn syncPanel;')(
+   panelNodes,select,els,trackName,building,()=>continued++,$,null,{},null,null,()=>{});
  syncPanel();
  return {els,del,continued};
 }

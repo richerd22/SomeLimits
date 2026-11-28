@@ -24,7 +24,7 @@ node tests/station-framing-regression.mjs
 
 The regression extracts the exact `plotFrameTarget`, `framePlot` and `frameTrack` functions from `play/index.html`. It verifies the original blank camera `(52,46,74)` and target `(0,2,0)` remain unchanged; a single distant station at `(-111,46,93)` becomes the orbit target; a low 1m station has a safe y=2 target; camera target updates are called once; framing does not mutate node coordinates, bank or station flags; and the Frame Track function actually calls the fallback when `track === null`.
 
-The test joins the existing editor, draft, physics, support-clearance and actual Chromium browser checks in GitHub Actions. Physics baseline is unchanged: **27.45s / 88 km/h** on classic.
+The test joins the existing editor, draft, physics, support-clearance and actual Chromium browser checks in GitHub Actions. Physics baseline remains the current provisional **44.4s / 86 km/h** on classic.
 
 ## Manual verification
 

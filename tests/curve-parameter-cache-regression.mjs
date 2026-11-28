@@ -1,12 +1,9 @@
-// Verify arc-length to curve parameter lookup is cached once per
-// sample, then reused unchanged for height guards and lift/bank rules.
-// Compare the actual production code to the immediately prior method.
-// Temporary pinned Three.js is test-only, not a game dependency.
-// Run: node tests/curve-parameter-cache-regression.mjs
+// Closed rides deliberately retain the restored round-16 node-fraction
+// ownership. Open drafting keeps its true-curve cache because it has no
+// shipped ride fingerprint. Run: node tests/curve-parameter-cache-regression.mjs
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
-import {performance} from 'node:perf_hooks';
 
 const html=readFileSync(new URL('../play/index.html',import.meta.url),'utf8');
 const game=html.match(/<script type="module">([\s\S]*?)<\/script>/)?.[1];
@@ -14,100 +11,39 @@ assert.ok(game,'production game module not found');
 new Function(game.replace(/^import[^\n]*\n/gm,''));
 const core=game.match(/\/\* === CORE START === \*\/([\s\S]*?)\/\* === CORE END === \*\//)?.[1];
 assert.ok(core,'production CORE markers missing');
-const oStart=game.indexOf('function bankAtOpen(nodes, f) {');
-const oEnd=game.indexOf('/* fewer than 2 points:',oStart);
-assert.ok(oStart>=0&&oEnd>oStart,'open spline functions missing');
-const open=game.slice(oStart,oEnd);
-const cacheLine='  const curveT = new Float64Array(SAMPLES + 1);\n';
-assert.equal(core.split(cacheLine).length-1,1,'closed curve must cache one mapping table');
-assert.equal(open.split(cacheLine).length-1,1,'open curve must cache one mapping table');
-for(const section of [core,open]){
-  assert.ok(section.includes('    const t = curve.getUtoTmapping(i / SAMPLES);\n    curveT[i] = t;'),
-    'true arc lookup must be stored in the EXISTING height guard loop, no extra pass');
-}
-function previousVersion(src) {
-  const out=src.split(cacheLine).join('')
-    .replaceAll('    curveT[i] = t;\n','')
-    .replaceAll('const f = curveT[i] * N;', 'const f = curve.getUtoTmapping(i / SAMPLES) * N;')
-    .replaceAll('const f = curveT[i] * (N - 1);',
-      'const f = curve.getUtoTmapping(i / SAMPLES) * (N - 1);');
-  assert.ok(!out.includes('curveT['),'legacy path should not reference mapping cache');
-  return out;
-}
-const make=(c,o)=>new Function('THREE',
-  c+'\n'+o+'\nreturn {computeTrack,computeOpenTrack,PRESETS,SAMPLES};')(THREE);
-const optimized=make(core,open);
-const previous=make(previousVersion(core),previousVersion(open));
-assert.equal(optimized.SAMPLES,900);
-function snapshot(track) {
-  return {
-    totalLen:track.totalLen,
-    stationS:track.stationS,
-    poweredFlat:track.poweredFlat,
-    samples:track.samples.map(sm=>({
-      pos:sm.pos.toArray(),tan:sm.tan.toArray(),
-      up:sm.up.toArray(),side:sm.side.toArray(),
-      s:sm.s,lift:sm.lift,bankDeg:sm.bankDeg,
-      nodeSeg:sm.nodeSeg,brake:sm.brake
-    }))
-  };
-}
+const openStart=game.indexOf('function computeOpenTrack(nodes) {');
+const openEnd=game.indexOf('/* fewer than 2 points:',openStart);
+assert.ok(openStart>=0&&openEnd>openStart,'open spline source missing');
+const open=game.slice(openStart,openEnd);
+
+assert.equal(core.split('const curveT = new Float64Array(SAMPLES + 1);').length-1,0,
+  'closed ride ownership must not restore the fingerprint-changing cache');
+assert.ok(core.includes('const f = (i / SAMPLES) * N;'),
+  'closed rides must use the restored round-16 source-node fraction');
+assert.equal(open.split('const curveT = new Float64Array(SAMPLES + 1);').length-1,1,
+  'open drafting keeps one true-curve mapping cache');
+assert.ok(open.includes('const f = curveT[i] * (N - 1);'),
+  'open drafting must reuse the mapped parameter for lift and bank ownership');
+
+const {computeTrack,PRESETS,SAMPLES}=new Function('THREE',core+'\nreturn {computeTrack,PRESETS,SAMPLES};')(THREE);
 const originalMap=THREE.Curve.prototype.getUtoTmapping;
 let calls=0;
 THREE.Curve.prototype.getUtoTmapping=function(...args){
-  calls++;return originalMap.apply(this,args);
+  calls++; return originalMap.apply(this,args);
 };
-function run(which,nodes,openTrack) {
-  calls=0;
-  const track=openTrack?which.computeOpenTrack(nodes):which.computeTrack(nodes);
-  return {data:snapshot(track),calls};
-}
 try {
-  const shapes=[
-    ...Object.entries(optimized.PRESETS).map(([name,nodes])=>({name,nodes})),
-    {name:'80-node uneven',nodes:Array.from({length:80},(_,i)=>({
-      x:Math.cos(i*Math.PI/40)*(70+7*Math.sin(i*.18)),
-      z:Math.sin(i*Math.PI/40)*(60+5*Math.cos(i*.29)),
-      h:3+20*(1+Math.sin(i*.23)),bank:Math.round(85*Math.sin(i*.17)),
-      station:i===9,lift:i%17===0
-    }))},
-    {name:'90-node vertical/crossover',nodes:Array.from({length:90},(_,i)=>({
-      x:i%10===0?0:Math.cos(i*.44)*32,
-      z:i%10===0?0:Math.sin(i*.44)*32,
-      h:3+(i%11)*3,bank:(i%9-4)*30,
-      station:i===0
-    }))}
-  ];
-  for(const item of shapes)for(const openTrack of [false,true]){
-    const a=run(optimized,item.nodes,openTrack);
-    const b=run(previous,item.nodes,openTrack);
-    assert.deepEqual(a.data,b.data,
-      item.name+' '+(openTrack?'open':'closed')+' track geometry, banking, lifts and station changed');
-    assert.equal(b.calls-a.calls,optimized.SAMPLES+1,
-      item.name+' expected precisely one fewer 901-entry mapping pass');
-    assert.ok(a.calls>optimized.SAMPLES,
-      'still call the genuine Three.js arc-length mapping, never fake node fractions');
-    console.log('PASS mapping parity '+item.name+' '+(openTrack?'open':'closed')+
-      ': '+b.calls+' -> '+a.calls+' exact Three.js arc lookups');
-  }
-  const nodes=shapes[shapes.length-2].nodes;
-  for(let i=0;i<14;i++){
-    optimized.computeTrack(nodes);previous.computeTrack(nodes);
-  }
-  let optMs=0,oldMs=0;
-  for(let i=0;i<60;i++){
-    let t=performance.now();
-    if(i%2===0){
-      optimized.computeTrack(nodes);optMs+=performance.now()-t;
-      t=performance.now();previous.computeTrack(nodes);oldMs+=performance.now()-t;
-    } else {
-      previous.computeTrack(nodes);oldMs+=performance.now()-t;
-      t=performance.now();optimized.computeTrack(nodes);optMs+=performance.now()-t;
+  for(const [name,nodes] of Object.entries(PRESETS)){
+    calls=0;
+    const track=computeTrack(nodes);
+    assert.equal(track.samples.length,SAMPLES+1,name+' sample count');
+    assert.equal(calls,2*(SAMPLES+1),
+      name+' must use only standard spacing plus the height-guard mapping pass');
+    for(let i=0;i<=SAMPLES;i++){
+      const expected=Math.floor(i/SAMPLES*nodes.length)%nodes.length;
+      assert.equal(track.samples[i].nodeSeg,expected,name+' source owner at sample '+i);
     }
   }
-  console.log('80-node track math warmed 60-run diagnostic: cached '+optMs.toFixed(1)+
-    'ms vs prior '+oldMs.toFixed(1)+'ms; machine timing is not a CI gate');
-  console.log('PASS: exact closed/open spline and 901 fewer redundant mapping calls per rebuild');
+  console.log('PASS: closed rides retain restored node-fraction ownership; open drafting keeps its isolated curve cache');
 } finally {
   THREE.Curve.prototype.getUtoTmapping=originalMap;
 }

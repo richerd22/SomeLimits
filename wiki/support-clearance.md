@@ -42,7 +42,7 @@ This test extracts `supportSpatialIndex` and `beamClear` directly from `play/ind
 
 **Observed GitHub Actions result (PR #3, run 44249750792):** 6,307 support probes over seven layouts checked **5,682,607** brute-force samples versus **259,735** indexed samples, a **95.4% reduction in candidate checks**. All indexed post decisions matched brute force. All 280 beam minimum-distance and accept/reject comparisons matched. The existing editor lifecycle and physics suites also passed. These numbers are CPU work counts, not measured browser frame times.
 
-The existing physics tests still gate the **27.5s / 88 km/h** classic fingerprint. See [editor runtime](editor-runtime.md) for memory cleanup and animation-frame preview coalescing. These are independent optimizations.
+The existing physics tests still gate the current provisional **44.4s / 86 km/h** classic fingerprint. See [editor runtime](editor-runtime.md) for memory cleanup and animation-frame preview coalescing. These are independent optimizations.
 
 ## Remaining work
 

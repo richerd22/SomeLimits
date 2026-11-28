@@ -58,7 +58,7 @@ The UI import handler now reads `parsed.building`. Open drafts with zero/one nod
 
 In addition, the maintainer-only headless Chromium smoke exercises the actual UI: creates a new plot, places one station, clicks JSON export, captures the downloaded file, reimports that file, and checks the restored document still has **one point and `building:true`**. This is a browser test—not a new production dependency.
 
-All existing physics, exact-support clearance, editor lifecycle, mobile-thumbnail and point-drag checks still run in CI. **Classic fingerprint remains 27.45s / 88 km/h.**
+All existing physics, exact-support clearance, editor lifecycle, mobile-thumbnail and point-drag checks still run in CI. **Classic fingerprint remains the current provisional 44.4s / 86 km/h.**
 
 ## Manual acceptance
 

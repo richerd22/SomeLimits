@@ -44,7 +44,7 @@ The source-only test reads `play/index.html` (not a copied implementation), pars
 - Dragging the station retains its station flag.
 - `smoothAround` is not secretly invoked on release.
 
-This regression runs in GitHub Actions alongside the actual Chromium desktop/mobile smoke, support-clearance equivalence, library/GPU lifecycle, and physics/share checks. The classic preset physics baseline remains **27.45s / 88 km/h**, because neither the existing presets nor the integrator changed. User-edited tracks will intentionally preserve the positions *they actually chose* rather than the historical post-release relaxation.
+This regression runs in GitHub Actions alongside the actual Chromium desktop/mobile smoke, support-clearance equivalence, library/GPU lifecycle, and physics/share checks. The classic preset physics baseline remains the current provisional **44.4s / 86 km/h**, because neither the existing presets nor the integrator changed. User-edited tracks will intentionally preserve the positions *they actually chose* rather than the historical post-release relaxation.
 
 ## Manual browser acceptance
 

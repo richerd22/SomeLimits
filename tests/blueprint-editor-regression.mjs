@@ -68,6 +68,11 @@ for(const text of [
   "$('btnPrimaryTangentBack').disabled = view === '3d'",
   "$('btnPrimaryTangentForward').disabled = view === '3d'"
 ]) assert.ok(moduleScript.includes(text),'missing primary tangent nudge contract '+text);
+for(const text of [
+  'function syncPrimaryTangentAvailability() {',
+  "const usable=mode==='edit'&&editorView!=='3d'&&!!linkedTangent(editorView,nodes,selected,!building);",
+  'Select a node with a visible rail tangent first'
+]) assert.ok(moduleScript.includes(text),'missing primary tangent availability contract '+text);
 const core=html.match(/\/\* === CORE START === \*\/([\s\S]*?)\/\* === CORE END === \*\//)?.[1] || '';
 assert.ok(!core.includes('primaryTangent'),
   'primary tangent preference must not enter the ride physics core');

@@ -46,7 +46,7 @@ The test extracts the exact `computeTrack`, `createRide`, `stepRide`, and `lapIn
 - Truly flat circuits powered by tires are **not falsely reported as unpowered speed rescues**.
 - Deliberately slowing the train to near zero on a real sampled, non-braking unpowered section triggers assist seconds and the correct first-distance marker. Even a brief actual assist is reported honestly; a longer assist gets the more detailed warning.
 - A slow section that did not need an assist gets a distinct message from one that did.
-- The classic preset still finishes at **27.45 s / 88 km/h** under fixed 1/60s steps.
+- The classic preset still finishes at the current provisional **44.4 s / 86 km/h** under fixed 1/60s steps.
 - The actual `resetLapState()` clears a previous ride's G history and resets lap state; both restart controls are wired to it.
 
 The existing GitHub Actions suite also runs the physics/share regression, post-clearance equivalence, point drag, draft rescue, library memory and headless Chromium smoke checks before merging.

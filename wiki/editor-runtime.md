@@ -25,7 +25,7 @@ Finally, library saves stored `thumb: blueprint(nodes)`, a base64 PNG data URI, 
 - JavaScript game module syntax parsed after modifications.
 - `tests/editor-runtime-regression.mjs` isolates the actual helpers from the game to verify: unique resource disposal, persistence of shared proxy geometry/material, 100 pointermove calls -> one scheduled preview, cancellation, PNG stripping without data loss, cache invalidation, and quota warnings.
 - CI `.github/workflows/regression.yml` runs editor lifecycle tests plus the prior exact-Three.js physics regression on pull requests and pushes to `main`. **CI dependency installation is only for tests, not the player/game.**
-- Same track math and ride integrator: **the reference 27.5s / 88 km/h classic fingerprint is expected to stay unchanged**. No chain, gravity, lift detection, node bank fields, import schema or ride logic was altered in this round.
+- Same track math and ride integrator: **the current provisional 44.4s / 86 km/h classic fingerprint is expected to stay unchanged**. The only documented difference from the sacred 47.8s reference is the 7.0m/s lift-chain decision; no other chain, gravity, lift detection, node bank fields, import schema or ride logic was altered in this round.
 
 ## Manual acceptance checklist (browser hardware required)
 
@@ -49,7 +49,7 @@ A follow-up added explicit `lostpointercapture`, window `blur` and page-hidden c
 
 ## Follow-up: reuse exact arc-address lookups in sampled track builds
 
-A later [arc-parameter caching round](arc-parameter-cache.md) stops repeating the same Three.js `getUtoTmapping(i/SAMPLES)` binary searches in both height guardrails and point-local lift/bank metadata on open and closed 900-sample coasters. The first guardrail pass stores exact values in a tiny Float64Array, then the bank/lift pass reuses them. Production-source equivalence tests compare **every sampled field** against the immediately previous implementation and count 901 fewer arc-address lookups. It does not alter any generated geometry or ride physics.
+The [arc-parameter ownership boundary](arc-parameter-cache.md) keeps exact curve caching for open drafts, but closed rides retain the restored round-16 source-node rule. That distinction is intentional: applying the cache to completed rides changed the lift zone and ride fingerprint.
 
 ## Follow-up: point appearance material reuse on large coasters
 

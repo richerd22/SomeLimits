@@ -49,20 +49,16 @@ function near(actual, expected, tolerance, what) {
     what + ': expected ' + expected + ' +/- ' + tolerance + ', got ' + actual);
 }
 
-/* The Nov 18 playtest deliberately changed dispatch, chain and
-   flat-drive physics. That changed EVERY preset fingerprint, not
-   just Classic. Lock each preset's time AND max speed to its
-   documented new value; a weak "finishes in < 50 seconds" check
-   would miss a future 20-second unintended shift. These are
-   fixed-step 1/60s CORE simulations using pinned Three.js r160,
-   NOT exact promises for browser-frame-paced lap UI timings.
-   If physics changes again, update all six expectations and write
-   down the intentional old -> new diff in the playtest changelog. */
+/* Round 17 restored the sacred ride integrator and deliberately changed
+   only LIFT_SPEED from 5.2 to 7.0 m/s. These values lock that documented,
+   provisional baseline: never rebaseline merely to make a physics change
+   pass. They are fixed-step 1/60s CORE simulations using pinned Three.js
+   r160, not promises for browser-frame-paced lap UI timings. */
 const EXPECTED = Object.freeze({
-  classic: {seconds: 27.45, maxKmh: 88},
-  oval:    {seconds: 22.22, maxKmh: 77},
-  wild:    {seconds: 31.44, maxKmh: 92},
-  loop:    {seconds: 38.08, maxKmh: 75}
+  classic: {seconds: 44.40, maxKmh: 86},
+  oval:    {seconds: 29.80, maxKmh: 76},
+  wild:    {seconds: 49.00, maxKmh: 90},
+  loop:    {seconds: 60.30, maxKmh: 73}
 });
 assert.deepEqual(Object.keys(EXPECTED).sort(),Object.keys(PRESETS).sort(),
   'every available preset must have a checked physics fingerprint');
@@ -79,24 +75,25 @@ for (const [name, result] of Object.entries(presetLaps)) {
   console.log(' ', name, result.seconds.toFixed(2) + 's / ' + result.maxKmh + ' km/h');
 }
 const player = lap(userNodes);
-near(player.seconds, 61.62, 0.15, 'playtest circuit seconds');
-near(player.firstLift, 5.42, 0.15, 'time to playtest lift');
-near(player.crest, 14.42, 0.15, 'time to playtest crest');
+near(player.seconds, 87.25, 0.15, 'playtest circuit seconds');
+near(player.firstLift, 35.08, 0.15, 'time to playtest lift');
+near(player.crest, 40.10, 0.15, 'time to playtest crest');
 assert.ok(player.track.samples.some(s => s.lift));
 assert.ok(player.track.samples.every(s => !s.lift || s.nodeSeg === 1),
   'auto chain belongs only to the 47.5m climb, not some other stretch');
 const flat = lap(flatNodes);
-assert.equal(flat.track.poweredFlat, true);
-near(flat.seconds, 38.40, 0.15, 'flat tire-powered lap');
-assert.equal(flat.maxKmh, 23);
+assert.equal(flat.track.poweredFlat, undefined,
+  'flat circuits retain the baseline minimum-speed crawl; no tire-drive mode is present');
+near(flat.seconds, 181.49, 0.15, 'flat minimum-speed lap');
+assert.equal(flat.maxKmh, 4);
 const overrideFlat = flatNodes.map(n => ({...n}));
 overrideFlat[1].lift = true;
-assert.equal(computeTrack(overrideFlat).poweredFlat, true,
-  'lift override must not disable flat circuit tire drive');
+assert.equal(computeTrack(overrideFlat).poweredFlat, undefined,
+  'a lift flag on a flat segment must not introduce tire-drive physics');
 
 // Save/share schema remains unchanged; banking stays on each node.
 const encoded = encodeCoaster('playtest', userNodes);
 assert.deepEqual(decodeCoaster(encoded).nodes, userNodes.map(n =>
   ({x:n.x,z:n.z,h:n.h,bank:n.bank,lift:!!n.lift,station:!!n.station})));
-console.log('PASS: all four preset time+speed fingerprints, custom 47.5m hill, flat drive, lift/crest, share round-trip');
+console.log('PASS: all four preset time+speed fingerprints, custom 47.5m hill, flat crawl, lift/crest, share round-trip');
 console.log('Playtest lift:', player.firstLift.toFixed(2)+'s, crest:',player.crest.toFixed(2)+'s');

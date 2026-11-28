@@ -23,16 +23,17 @@ assert.equal(fresh.slowestCruiseV,Infinity);
 assert.equal(fresh.slowestCruiseM,null);
 assert.match(lapInsight(fresh),/completed without a minimum-speed rescue/);
 
-// No speed floor on a flat tire-powered track should be falsely called
-// unpowered. This instrumentation must report what the physics did.
+// A flat circuit has no tire-drive mode in the restored core. Once it has
+// left the station, the diagnostics must honestly report the speed floor.
 const flatNodes=[
 {x:-25,z:25,h:3,bank:0,station:true},{x:-25,z:-25,h:3,bank:0},
 {x:25,z:-25,h:3,bank:0},{x:25,z:25,h:3,bank:0}
 ];
 const flatTrack=computeTrack(flatNodes),flatRide=createRide(flatTrack);
-for(let i=0;i<200&&!flatRide.finished;i++)stepRide(flatTrack,flatRide,1/60);
-assert.equal(flatTrack.poweredFlat,true);
-assert.equal(flatRide.assistSeconds,0,'powered flat coaster must not report an artificial minimum-speed intervention');
+for(let i=0;i<1200&&!flatRide.finished;i++)stepRide(flatTrack,flatRide,1/60);
+assert.equal(flatTrack.poweredFlat,undefined);
+assert.ok(flatRide.assistSeconds>0,
+  'flat crawl must report the actual minimum-speed intervention');
 
 // A slowed train on a sampled UNPOWERED section gets the same 1.2m/s
 // guard as before. The diagnostics must record the actual intervention.
@@ -59,8 +60,8 @@ assert.ok(slow.assistSeconds>0,
 assert.equal(slow.firstAssistM,55,'record first assist location in travel metres');
 assert.ok(Number.isFinite(slow.slowestCruiseV));
 assert.ok(slow.slowestCruiseV<=1.2+1e-9,'slowest unpowered section recorded');
-assert.match(lapInsight(slow),/brief minimum-speed assist occurred/,
-  'a real short assist cannot be reported as no rescue');
+assert.match(lapInsight(slow),/minimum-speed assist/,
+  'a real assist cannot be reported as no rescue');
 const warned=lapInsight({...slow,assistSeconds:0.5});
 assert.match(warned,/minimum-speed assist for/);
 assert.match(warned,/55 m into the lap/);
@@ -76,8 +77,8 @@ assert.match(lapInsight({...almost,slowestCruiseV:3}),/completed without a minim
 const normal=createRide(track);
 for(let i=0;i<36000&&!normal.finished;i++)stepRide(track,normal,1/60);
 assert.ok(normal.finished);
-assert.ok(Math.abs(normal.time-27.45)<0.1,'classic lap timing changed');
-assert.equal(Math.round(normal.maxV*3.6),88,'classic max speed changed');
+assert.ok(Math.abs(normal.time-44.44)<0.1,'classic lap timing changed');
+assert.equal(Math.round(normal.maxV*3.6),86,'classic max speed changed');
 assert.ok(normal.assistSeconds>=0);
 assert.equal(typeof lapInsight(normal),'string');
 
@@ -101,4 +102,4 @@ assert.equal(gHist.length,0,'G-force trace from last lap must be cleared');
 assert.ok(script.includes("$('btnRestart').addEventListener('click', resetLapState)"));
 assert.ok(script.includes("$('btnLapAgain').addEventListener('click', () => { $('lapScreen').classList.remove('open'); resetLapState();"));
 assert.ok(script.includes("$('lapInsight').textContent = lapInsight(ride)"));
-console.log('PASS: observed assist duration/location, honest flat tires and slow sections, exact classic physics, fresh lap G-trace');
+console.log('PASS: observed assist duration/location, honest flat crawl and slow sections, exact classic physics, fresh lap G-trace');

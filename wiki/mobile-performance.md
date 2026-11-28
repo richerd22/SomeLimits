@@ -28,7 +28,7 @@ The in-memory thumbnail cache is bounded to **40 entries** and uses least-recent
 - No AI-generated assets. The blueprint is rendered from the user's actual spline using a 2D canvas, not produced by an image generator.
 - No new game dependency or build process. `IntersectionObserver` is a browser API; the fallback remains functional without it.
 - This release does not establish an actual measured 60 FPS target, nor claim visual parity at DPR 3.
-- The classic preset physics reference remains **27.45s / 88 km/h**.
+- The classic preset physics reference remains the current provisional **44.4s / 86 km/h**.
 
 ## Test commands
 

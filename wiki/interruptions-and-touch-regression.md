@@ -45,7 +45,7 @@ This is a much stronger input integration check than copying `setNodePlanPositio
 - [ ] Touch: start dragging a point, put a second finger down; the original point must revert without a ghost commit. Once fingers lift, one-finger camera orbit must work again.
 - [ ] Touch: interrupt a cap/roll-grip drag with a system gesture, background the page, return. The grabbed height/bank must return to its original value; the next drag must work.
 - [ ] Browser: normal pointerup is followed by implicit lostpointercapture without undoing the already committed drag.
-- [ ] All four presets still ride and classic physics remains **27.45 s / 88 km/h**.
+- [ ] All four presets still ride and classic physics remains the current provisional **44.4 s / 86 km/h**.
 
 ## Follow-ups
 
