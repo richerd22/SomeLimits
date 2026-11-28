@@ -49,7 +49,7 @@ A follow-up added explicit `lostpointercapture`, window `blur` and page-hidden c
 
 ## Follow-up: reuse exact arc-address lookups in sampled track builds
 
-A later [arc-parameter caching round](arc-parameter-cache.md) stops repeating the same Three.js `getUtoTmapping(i/SAMPLES)` binary searches in both height guardrails and point-local lift/bank metadata on open and closed 900-sample coasters. The first guardrail pass stores exact values in a tiny Float64Array, then the bank/lift pass reuses them. Production-source equivalence tests compare **every sampled field** against the immediately previous implementation and count 901 fewer arc-address lookups. It does not alter any generated geometry or ride physics.
+The [arc-parameter ownership boundary](arc-parameter-cache.md) keeps exact curve caching for open drafts, but closed rides retain the restored round-16 source-node rule. That distinction is intentional: applying the cache to completed rides changed the lift zone and ride fingerprint.
 
 ## Follow-up: point appearance material reuse on large coasters
 

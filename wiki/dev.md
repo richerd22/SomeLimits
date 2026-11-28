@@ -93,7 +93,7 @@ The touch-halo regression runs the exact production `addHitProxy()`, shared radi
 
 The camera-grip test uses the production `editGripRadius()` and `refreshTouchBankGizmo()` with pinned Three.js camera/vectors to check zoom out/in, viewport changes, stable mesh/proxy identity and no ride/desktop/drag side effects. See [Camera-continuous bank grip](mobile-bank-grip-camera-zoom.md).
 
-The arc mapping cache test compares the exact closed/open production source to a reconstructed previous version, locks all 901 sample positions/frames/lift/banking and reports 901 fewer true Three.js arc lookups per rebuild. It runs on presets and 80/90-point paths, without changing physics. See [Arc parameter reuse](arc-parameter-cache.md).
+The ownership-boundary regression protects restored closed-ride source-node ownership while ensuring open drafts retain their isolated exact curve cache. It treats either rule as physics-sensitive where it affects a completed ride. See [Arc parameter ownership](arc-parameter-cache.md).
 
 The node-handle material test extracts the production `buildNodeHandles()` and `disposeEditGroup()` helpers, proving that 80 nodes retain individual meshes and touch targets while sharing only two appearance materials (with one-time GPU disposal). See [Node-handle material pooling](node-handle-material-pooling.md).
 

@@ -69,7 +69,7 @@ Built from the samples, rebuilt with the track. All code-rendered. No model file
 
 ## Source-node arc parameter reuse in sampled coasters
 
-The 900 distance-spaced positions do **not** correspond to equal node fractions. The closed `computeTrack()` and open `computeOpenTrack()` guard every sample's height and attribute lift/point-local bank using the *same* exact `curve.getUtoTmapping(i/SAMPLES)`. That mapping is now computed once in the existing height guardrail loop and written to a 901-double `curveT` typed array; the later metadata pass reads it instead of repeating Three.js arc-table binary search. A production-source test reconstructs the prior repeated-call implementation and verifies **every sample field identical** across all presets and 80/90-node open/closed layouts, with **901 fewer mapping calls** per rebuild. See [Exact arc parameter cache](arc-parameter-cache.md) and [regression](../tests/curve-parameter-cache-regression.mjs).
+The 900 distance-spaced positions do **not** correspond to equal node fractions. Both closed and open tracks use Three.js's exact `curve.getUtoTmapping(i/SAMPLES)` for the height guardrail. Open drafts reuse that mapping for bank/lift ownership. Closed rides deliberately retain the restored round-16 node-fraction ownership because changing it altered the lift zone and preset fingerprints. See [the ownership boundary](arc-parameter-cache.md) and [regression](../tests/curve-parameter-cache-regression.mjs).
 
 ## Reusable appearance materials within an editor rebuild
 
@@ -136,7 +136,7 @@ The simulator is energy-based, integrated per frame.
 - **Brake run.** In the final approach to the station, braking decelerates the train so it arrives back at the station at a stop. Reaching the station stopped ends the lap and triggers the summary.
 - **Start.** A ride starts at the station sample at a 6.5 m/s tire dispatch. Flat-only circuits (under 2 m height difference) maintain 6.5 m/s away from the brake zone, since gravity cannot propel a level loop. Hills remain gravity driven after the lift.
 - **Lap insight.** The physics retains its original 1.2m/s mid-course minimum-speed guard. Passive telemetry records exactly when that guard intervenes outside brakes, active chains and flat-track tires, plus the slowest unpowered cruising stretch. `lapInsight(ride)` renders a short note beneath Lap Complete, explaining the intervention as a game assist rather than claiming real-world stall/safety. `resetLapState()` clears prior G samples on Start/Restart/Ride Again. See [Ride insight](ride-insight.md).
-- **Reference.** The classic preset now runs about **27.5s / 88 km/h** at 1/60s physics steps (previously **47.8s / 86 km/h**). This is a deliberate physics change documented in [the playtest report](../playtest-2026-11-18.md).
+- **Reference.** The classic preset currently runs about **44.4s / 86 km/h** at 1/60s physics steps. The only documented difference from the sacred 47.8s reference is the provisional 7.0m/s lift-chain decision; see [the lift fingerprint record](round17-lift-fingerprint.md).
 
 ### G-force
 
